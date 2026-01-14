@@ -7,7 +7,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "dev:web": "turbo dev --filter=web",
-    "dev:api": "turbo dev --filter=api"
+    "dev:api": "turbo dev --filter=vibed-api"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

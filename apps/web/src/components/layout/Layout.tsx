@@ -1,51 +1,111 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, Link, useLocation } from 'react-router-dom'
+import { ConnectButton } from '../auth/ConnectButton'
+import { useProjectStore, type Project } from '../../stores/projectStore'
+import { useChatStore } from '../../stores/chatStore'
+import { Button } from '@vibed/ui'
 
 export function Layout() {
+  const location = useLocation()
+  const { projects, currentProject, setCurrentProject, addProject } = useProjectStore()
+  const { setProjectId, clearMessages } = useChatStore()
+
+  const handleNewProject = () => {
+    const newProject: Project = {
+      id: crypto.randomUUID(),
+      name: `Project ${projects.length + 1}`,
+      status: 'draft',
+    }
+    addProject(newProject)
+    setCurrentProject(newProject)
+    setProjectId(newProject.id)
+    clearMessages()
+  }
+
+  const handleSelectProject = (project: Project) => {
+    setCurrentProject(project)
+    setProjectId(project.id)
+    clearMessages() // For now, clear messages when switching projects
+  }
+
+  const isIDEPage = location.pathname === '/'
+
   return (
     <div className="h-screen flex flex-col bg-bg-primary">
       {/* Header */}
-      <header className="h-14 border-b flex items-center px-4 bg-bg-secondary">
-        <h1 className="text-xl font-bold text-gradient">vibed.fun</h1>
-        <div className="ml-auto">
-          {/* Wallet button placeholder */}
-          <button className="px-4 py-2 bg-accent-green/10 text-accent-green rounded-lg hover:bg-accent-green/20 transition">
-            Connect
-          </button>
-        </div>
+      <header className="h-14 border-b border-border flex items-center px-4 bg-bg-secondary">
+        <Link to="/" className="text-xl font-bold text-gradient">
+          vibed.fun
+        </Link>
+
+        {/* Navigation */}
+        <nav className="ml-8 flex items-center gap-4">
+          <Link
+            to="/"
+            className={`text-sm transition ${
+              location.pathname === '/' ? 'text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Build
+          </Link>
+          <Link
+            to="/discover"
+            className={`text-sm transition ${
+              location.pathname === '/discover' ? 'text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Discover
+          </Link>
+        </nav>
+
+        <div className="flex-1" />
+
+        <ConnectButton />
       </header>
 
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-64 border-r bg-bg-secondary p-4">
-          <button className="w-full py-2 px-4 bg-accent-green text-black rounded-lg font-semibold hover:shadow-glow-green transition">
-            + New Project
-          </button>
-          <div className="mt-4 text-sm text-gray-500">
-            Your projects will appear here
-          </div>
-        </aside>
+        {/* Sidebar - Only show on IDE page */}
+        {isIDEPage && (
+          <aside className="w-64 border-r border-border bg-bg-secondary p-4 flex flex-col">
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={handleNewProject}
+            >
+              + New Project
+            </Button>
 
-        {/* Chat area placeholder */}
-        <div className="flex-1 bg-bg-primary">
+            <div className="mt-4 flex-1 overflow-y-auto">
+              {projects.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  Your projects will appear here
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => handleSelectProject(project)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
+                        currentProject?.id === project.id
+                          ? 'bg-accent-green/20 text-accent-green border border-accent-green/30'
+                          : 'text-gray-400 hover:bg-bg-tertiary hover:text-white'
+                      }`}
+                    >
+                      <div className="font-medium truncate">{project.name}</div>
+                      <div className="text-xs text-gray-600 capitalize">{project.status}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
+        {/* Main area */}
+        <div className="flex-1 bg-bg-primary overflow-hidden">
           <Outlet />
         </div>
-
-        {/* Right panel */}
-        <aside className="w-80 border-l bg-bg-secondary">
-          <div className="p-4 border-b">
-            <h3 className="text-sm font-semibold text-gray-400">Preview</h3>
-            <div className="mt-2 aspect-video bg-bg-primary rounded-lg flex items-center justify-center text-gray-600">
-              No preview
-            </div>
-          </div>
-          <div className="p-4">
-            <h3 className="text-sm font-semibold text-gray-400">Token</h3>
-            <div className="mt-2 text-gray-600 text-sm">
-              Deploy your app to launch a token
-            </div>
-          </div>
-        </aside>
       </main>
     </div>
   )

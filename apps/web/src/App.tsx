@@ -1,21 +1,21 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './providers/AuthProvider'
 import { Layout } from './components/layout/Layout'
-
-const queryClient = new QueryClient()
+import { IDEPage } from './pages/IDEPage'
+import { DiscoveryPage } from './pages/DiscoveryPage'
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={<div>IDE</div>} />
-            <Route path="discover" element={<div>Discovery</div>} />
+            <Route index element={<IDEPage />} />
+            <Route path="discover" element={<DiscoveryPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
-    </QueryClientProvider>
+    </AuthProvider>
   )
 }
 
