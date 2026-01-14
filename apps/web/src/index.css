@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg-primary text-white font-sans antialiased;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-green via-accent-purple to-accent-orange bg-clip-text text-transparent;
+  }
+
+  .glow-green {
+    @apply shadow-glow-green;
+  }
+
+  .glow-orange {
+    @apply shadow-glow-orange;
+  }
+}
