@@ -7,7 +7,9 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "dev:web": "turbo dev --filter=web",
-    "dev:api": "turbo dev --filter=vibed-api"
+    "dev:api": "turbo dev --filter=vibed-api",
+    "dev:desktop": "pnpm --filter desktop tauri:dev",
+    "build:desktop": "pnpm --filter desktop tauri:build"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
