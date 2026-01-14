@@ -1,11 +1,13 @@
 # Dependencies
 node_modules/
+.pnpm-store
 
 # Build outputs
 dist/
 build/
 .next/
 out/
+.turbo
 
 # Hardhat/Foundry
 artifacts/
@@ -14,7 +16,7 @@ typechain-types/
 coverage/
 coverage.json
 
-# Environment
+# Environment files
 .env
 .env.local
 .env.*.local
@@ -25,7 +27,7 @@ coverage.json
 *.swp
 *.swo
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
@@ -39,6 +41,6 @@ yarn-error.log*
 # Testing
 *.lcov
 
-# Misc
+# Context directory
 .context/
 *.tsbuildinfo
