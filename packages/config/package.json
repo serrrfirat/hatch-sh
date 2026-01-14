@@ -1,0 +1,10 @@
+{
+  "name": "@vibed/config",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./tailwind/preset.js",
+  "exports": {
+    "./tailwind": "./tailwind/preset.js",
+    "./typescript/base": "./typescript/base.json"
+  }
+}
