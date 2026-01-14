@@ -9,7 +9,7 @@ interface WalletMenuProps {
 }
 
 export function WalletMenu({ onClose, onLogout }: WalletMenuProps) {
-  const { wallets, address, userInfo, linkWallet } = useAuth()
+  const { wallets, userInfo, linkWallet } = useAuth()
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close on click outside

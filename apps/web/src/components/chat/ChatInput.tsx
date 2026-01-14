@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { Button, cn } from '@vibed/ui'
+import { cn } from '@vibed/ui'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -16,7 +16,7 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder }: ChatInputP
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`
     }
   }, [message])
 
@@ -35,8 +35,9 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder }: ChatInputP
   }
 
   return (
-    <div className="border-t border-border bg-bg-secondary p-4">
-      <div className="flex items-end gap-3">
+    <div className="border-t border-white/10 bg-neutral-900 p-4">
+      <div className="flex items-center gap-3">
+        {/* Textarea */}
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -47,31 +48,43 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder }: ChatInputP
             disabled={isLoading}
             rows={1}
             className={cn(
-              'w-full bg-bg-tertiary border border-border rounded-xl px-4 py-3',
-              'text-white placeholder:text-gray-600',
-              'focus:outline-none focus:border-accent-green focus:ring-1 focus:ring-accent-green/20',
+              'w-full bg-neutral-800 border border-white/10 rounded-xl px-4 py-3',
+              'text-white placeholder:text-neutral-500',
+              'focus:outline-none focus:border-white/20',
               'resize-none max-h-40 transition-all',
               'disabled:opacity-50'
             )}
           />
-          <span className="absolute right-3 bottom-3 text-xs text-gray-600">
-            ⌘ + Enter to send
+          <span className="absolute right-3 bottom-3 text-xs text-neutral-600">
+            ⌘ + Enter
           </span>
         </div>
 
+        {/* Action Button */}
         {isLoading ? (
-          <Button variant="danger" onClick={onStop} size="lg">
-            Stop
-          </Button>
+          <button
+            onClick={onStop}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="3" y="3" width="10" height="10" rx="1" />
+            </svg>
+          </button>
         ) : (
-          <Button
-            variant="primary"
+          <button
             onClick={handleSend}
             disabled={!message.trim()}
-            size="lg"
+            className={cn(
+              'flex items-center justify-center w-10 h-10 rounded-full transition-all',
+              message.trim()
+                ? 'bg-white text-black hover:scale-105 active:scale-95'
+                : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+            )}
           >
-            Send
-          </Button>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+          </button>
         )}
       </div>
     </div>
