@@ -1,7 +1,7 @@
 import { useAuth } from '../../hooks/useAuth'
-import { Button } from '@vibed/ui'
 import { useState } from 'react'
 import { WalletMenu } from './WalletMenu'
+import { ChevronDown } from 'lucide-react'
 
 export function ConnectButton() {
   const { ready, authenticated, userInfo, address, login, logout, isConfigured } = useAuth()
@@ -9,22 +9,25 @@ export function ConnectButton() {
 
   if (!ready) {
     return (
-      <Button variant="secondary" disabled>
+      <button
+        disabled
+        className="px-2.5 py-1 rounded text-xs font-medium text-neutral-500 bg-neutral-800 border border-white/10"
+      >
         Loading...
-      </Button>
+      </button>
     )
   }
 
   if (!authenticated) {
     return (
-      <Button
-        variant="primary"
+      <button
         onClick={() => login()}
         disabled={!isConfigured}
         title={!isConfigured ? 'Auth not configured - set VITE_PRIVY_APP_ID' : undefined}
+        className="px-2.5 py-1 rounded text-xs font-medium bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isConfigured ? 'Connect' : 'Connect (Demo)'}
-      </Button>
+      </button>
     )
   }
 
@@ -37,33 +40,26 @@ export function ConnectButton() {
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-tertiary border border-border hover:border-accent-green transition-all"
+        className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-800 border border-white/10 hover:border-white/20 transition-colors"
       >
         {/* Avatar */}
         {userInfo?.avatar ? (
           <img
             src={userInfo.avatar}
             alt=""
-            className="w-6 h-6 rounded-full"
+            className="w-5 h-5 rounded-full"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-accent-purple" />
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500" />
         )}
 
-        {/* User info */}
-        <div className="text-left">
-          <div className="text-sm font-medium text-white">
-            {userInfo?.displayName}
-          </div>
-          <div className="text-xs text-gray-500">
-            {truncatedAddress}
-          </div>
-        </div>
+        {/* Address only */}
+        <span className="text-xs text-neutral-300 font-mono">
+          {truncatedAddress}
+        </span>
 
         {/* Dropdown arrow */}
-        <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown size={10} className="text-neutral-500" />
       </button>
 
       {/* Dropdown menu */}

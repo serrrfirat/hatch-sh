@@ -1,27 +1,42 @@
 import { useEffect } from 'react'
 import { ChatArea } from '../components/chat/ChatArea'
-import { PreviewPanel } from '../components/preview/PreviewPanel'
-import { TokenPanel } from '../components/token/TokenPanel'
+import { RightPanel } from '../components/ide/RightPanel'
 import { useProjectStore } from '../stores/projectStore'
 import { useChatStore } from '../stores/chatStore'
 
 export function IDEPage() {
-  const { currentProject, setCurrentProject, addProject } = useProjectStore()
+  const { currentProject, setCurrentProject, addProject, addWorkspace, setCurrentWorkspace } = useProjectStore()
   const { setProjectId } = useChatStore()
 
   // Auto-create a demo project if none exists
   useEffect(() => {
     if (!currentProject) {
+      const projectId = crypto.randomUUID()
+      const workspaceId = crypto.randomUUID()
+
       const demoProject = {
-        id: crypto.randomUUID(),
-        name: 'New Project',
+        id: projectId,
+        name: 'new-project',
         status: 'draft' as const,
+        workspaces: [],
       }
+
       addProject(demoProject)
       setCurrentProject(demoProject)
-      setProjectId(demoProject.id)
+      setProjectId(projectId)
+
+      // Add initial workspace
+      const workspace = {
+        id: workspaceId,
+        branchName: 'main',
+        location: 'local',
+        lastActive: new Date(),
+        status: 'working' as const,
+      }
+      addWorkspace(projectId, workspace)
+      setCurrentWorkspace(workspace)
     }
-  }, [currentProject, addProject, setCurrentProject, setProjectId])
+  }, [currentProject, addProject, setCurrentProject, setProjectId, addWorkspace, setCurrentWorkspace])
 
   return (
     <div className="flex h-full">
@@ -30,17 +45,9 @@ export function IDEPage() {
         <ChatArea />
       </div>
 
-      {/* Right Panel - Preview + Token */}
-      <div className="w-[400px] border-l border-border flex flex-col">
-        {/* Preview Panel - Takes 60% */}
-        <div className="flex-[6] min-h-0 border-b border-border">
-          <PreviewPanel />
-        </div>
-
-        {/* Token Panel - Takes 40% */}
-        <div className="flex-[4] min-h-0 overflow-hidden">
-          <TokenPanel />
-        </div>
+      {/* Right Panel - Changes/Preview + Terminal/Token */}
+      <div className="w-[400px] border-l border-white/10">
+        <RightPanel />
       </div>
     </div>
   )

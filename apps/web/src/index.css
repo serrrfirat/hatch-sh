@@ -4,17 +4,17 @@
 
 @layer base {
   body {
-    @apply bg-bg-primary text-white font-sans antialiased;
+    @apply bg-neutral-950 text-white font-sans antialiased;
   }
 
   * {
-    @apply border-border;
+    @apply border-white/10;
   }
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-accent-green via-accent-purple to-accent-orange bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-white via-neutral-400 to-white bg-clip-text text-transparent;
   }
 
   .glow-green {

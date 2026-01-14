@@ -1,109 +1,133 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { ConnectButton } from '../auth/ConnectButton'
-import { useProjectStore, type Project } from '../../stores/projectStore'
+import { useProjectStore, type Project, type Workspace } from '../../stores/projectStore'
 import { useChatStore } from '../../stores/chatStore'
-import { Button } from '@vibed/ui'
+import { ProjectTree } from './ProjectTree'
+import { GitBranch, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export function Layout() {
   const location = useLocation()
-  const { projects, currentProject, setCurrentProject, addProject } = useProjectStore()
+  const { projects, currentProject, currentWorkspace, addProject, setCurrentProject, setCurrentWorkspace, addWorkspace } = useProjectStore()
   const { setProjectId, clearMessages } = useChatStore()
 
   const handleNewProject = () => {
     const newProject: Project = {
       id: crypto.randomUUID(),
-      name: `Project ${projects.length + 1}`,
+      name: `project-${projects.length + 1}`,
       status: 'draft',
+      workspaces: [],
     }
     addProject(newProject)
     setCurrentProject(newProject)
     setProjectId(newProject.id)
     clearMessages()
+
+    // Auto-create first workspace
+    const firstWorkspace: Workspace = {
+      id: crypto.randomUUID(),
+      branchName: 'main',
+      location: 'local',
+      lastActive: new Date(),
+      status: 'working',
+    }
+    addWorkspace(newProject.id, firstWorkspace)
+    setCurrentWorkspace(firstWorkspace)
   }
 
-  const handleSelectProject = (project: Project) => {
-    setCurrentProject(project)
+  const handleSelectWorkspace = (project: Project, workspace: Workspace) => {
     setProjectId(project.id)
-    clearMessages() // For now, clear messages when switching projects
+    clearMessages()
   }
 
   const isIDEPage = location.pathname === '/'
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary">
-      {/* Header */}
-      <header className="h-14 border-b border-border flex items-center px-4 bg-bg-secondary">
-        <Link to="/" className="text-xl font-bold text-gradient">
-          vibed.fun
-        </Link>
+    <div className="h-screen flex flex-col bg-neutral-950 text-white selection:bg-white selection:text-black">
+      {/* Top Bar - Compact Header */}
+      <header className="h-10 flex items-center justify-between px-3 bg-neutral-900 border-b border-white/10">
+        {/* Left: Navigation arrows */}
+        <div className="flex items-center gap-1">
+          <button className="p-1.5 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors">
+            <ChevronLeft size={16} />
+          </button>
+          <button className="p-1.5 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors">
+            <ChevronRight size={16} />
+          </button>
+        </div>
 
-        {/* Navigation */}
-        <nav className="ml-8 flex items-center gap-4">
-          <Link
-            to="/"
-            className={`text-sm transition ${
-              location.pathname === '/' ? 'text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Build
-          </Link>
-          <Link
-            to="/discover"
-            className={`text-sm transition ${
-              location.pathname === '/discover' ? 'text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Discover
-          </Link>
-        </nav>
+        {/* Center: Branch info */}
+        <div className="flex items-center gap-2 text-sm">
+          {currentWorkspace ? (
+            <>
+              <GitBranch size={14} className="text-neutral-500" />
+              <span className="text-white font-medium">{currentWorkspace.branchName}</span>
+              <ChevronRight size={12} className="text-neutral-600" />
+              <button className="flex items-center gap-1 text-neutral-400 hover:text-white transition-colors">
+                <span>origin/main</span>
+                <ChevronDown size={12} />
+              </button>
+            </>
+          ) : (
+            <span className="text-neutral-500">No workspace selected</span>
+          )}
+        </div>
 
-        <div className="flex-1" />
+        {/* Right: Location + Nav + Connect */}
+        <div className="flex items-center gap-3">
+          {/* Location dropdown */}
+          {currentWorkspace && (
+            <button className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-800 border border-white/10 text-xs text-neutral-300 hover:text-white hover:border-white/20 transition-colors">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>/{currentWorkspace.location}</span>
+              <ChevronDown size={10} />
+            </button>
+          )}
 
-        <ConnectButton />
+          {/* Compact Nav Links */}
+          <nav className="flex items-center gap-1">
+            <Link
+              to="/"
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                location.pathname === '/'
+                  ? 'bg-white/10 text-white'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Build
+            </Link>
+            <Link
+              to="/discover"
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                location.pathname === '/discover'
+                  ? 'bg-white/10 text-white'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Discover
+            </Link>
+          </nav>
+
+          <div className="h-4 w-px bg-white/10" />
+
+          {/* Compact Connect Button */}
+          <ConnectButton />
+        </div>
       </header>
 
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
         {/* Sidebar - Only show on IDE page */}
         {isIDEPage && (
-          <aside className="w-64 border-r border-border bg-bg-secondary p-4 flex flex-col">
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={handleNewProject}
-            >
-              + New Project
-            </Button>
-
-            <div className="mt-4 flex-1 overflow-y-auto">
-              {projects.length === 0 ? (
-                <div className="text-sm text-gray-500">
-                  Your projects will appear here
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {projects.map((project) => (
-                    <button
-                      key={project.id}
-                      onClick={() => handleSelectProject(project)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
-                        currentProject?.id === project.id
-                          ? 'bg-accent-green/20 text-accent-green border border-accent-green/30'
-                          : 'text-gray-400 hover:bg-bg-tertiary hover:text-white'
-                      }`}
-                    >
-                      <div className="font-medium truncate">{project.name}</div>
-                      <div className="text-xs text-gray-600 capitalize">{project.status}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
+            <ProjectTree
+              onNewProject={handleNewProject}
+              onSelectWorkspace={handleSelectWorkspace}
+            />
           </aside>
         )}
 
         {/* Main area */}
-        <div className="flex-1 bg-bg-primary overflow-hidden">
+        <div className="flex-1 bg-neutral-950 overflow-hidden">
           <Outlet />
         </div>
       </main>

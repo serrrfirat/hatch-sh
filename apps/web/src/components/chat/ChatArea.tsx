@@ -1,9 +1,10 @@
 import { useRef, useEffect } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
+import { TextShimmer } from '@vibed/ui'
 
 export function ChatArea() {
   const { messages, isLoading, sendMessage, stopGeneration } = useChat()
@@ -33,6 +34,31 @@ export function ChatArea() {
                 <MessageBubble key={message.id} message={message} />
               ))}
             </AnimatePresence>
+
+            {/* Loading indicator with TextShimmer */}
+            {isLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex items-center gap-3 px-6 py-4"
+              >
+                <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center">
+                  <motion.div
+                    className="w-4 h-4 rounded-full bg-white/20"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                  />
+                </div>
+                <TextShimmer
+                  className="font-mono text-sm"
+                  duration={1.2}
+                >
+                  Generating code...
+                </TextShimmer>
+              </motion.div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         )}
