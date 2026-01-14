@@ -6,7 +6,7 @@ import { chatRouter } from './routes/chat'
 import { deployRouter } from './routes/deploy'
 import { tokensRouter } from './routes/tokens'
 import { discoveryRouter } from './routes/discovery'
-import { createDb, type Database } from './db/client'
+import { createDb, createMockDb, type Database } from './db/client'
 
 type Bindings = {
   DATABASE_URL: string
@@ -14,6 +14,7 @@ type Bindings = {
   CLAUDE_API_KEY: string
   CF_API_TOKEN: string
   CF_ACCOUNT_ID: string
+  ENVIRONMENT: string
 }
 
 type Variables = {
@@ -25,19 +26,27 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 // Middleware
 app.use('*', logger())
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'https://vibed.fun'],
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://vibed.fun'],
   credentials: true,
 }))
 
-// Database middleware
-app.use('*', async (c, next) => {
-  const db = createDb(c.env.DATABASE_URL, c.env.DATABASE_AUTH_TOKEN)
-  c.set('db', db)
+// Health check (before database middleware)
+app.get('/', (c) => c.json({ status: 'ok', service: 'vibed.fun API' }))
+
+// Database middleware (only for /api routes)
+app.use('/api/*', async (c, next) => {
+  const isDev = c.env.ENVIRONMENT === 'development'
+  const hasValidDbUrl = c.env.DATABASE_URL && c.env.DATABASE_URL.startsWith('libsql://')
+
+  if (isDev && !hasValidDbUrl) {
+    // Use mock database for local development
+    c.set('db', createMockDb())
+  } else {
+    const db = createDb(c.env.DATABASE_URL, c.env.DATABASE_AUTH_TOKEN)
+    c.set('db', db)
+  }
   await next()
 })
-
-// Health check
-app.get('/', (c) => c.json({ status: 'ok', service: 'vibed-api' }))
 
 // Routes
 app.route('/api/projects', projectsRouter)
