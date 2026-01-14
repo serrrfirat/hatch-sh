@@ -1,0 +1,15 @@
+name = "vibed-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "development"
+
+# For local development
+[dev]
+port = 8787
+
+# KV namespace for session storage (optional)
+# [[kv_namespaces]]
+# binding = "SESSIONS"
+# id = "xxx"
