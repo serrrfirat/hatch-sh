@@ -1,0 +1,47 @@
+{
+  "name": "@vibed/contracts-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for interacting with vibed.fun bonding curve contracts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "mint.club-v2-sdk": "^1.5.2",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsup": "^8.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "vibed",
+    "bonding-curve",
+    "base",
+    "ethereum",
+    "sdk"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
