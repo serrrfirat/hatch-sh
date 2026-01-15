@@ -32,11 +32,11 @@ export function CreatePRModal({ isOpen, onClose }: CreatePRModalProps) {
     setError(null)
 
     try {
-      const url = await createPullRequest(currentWorkspace.id, title.trim(), body.trim())
-      setPrUrl(url)
+      await createPullRequest(currentWorkspace.id, title.trim(), body.trim())
+      // Close modal on success - header will now show PR controls
+      handleClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create PR')
-    } finally {
       setIsCreating(false)
     }
   }

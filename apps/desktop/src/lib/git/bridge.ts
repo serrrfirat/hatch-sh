@@ -49,6 +49,22 @@ export interface FileDiff {
   is_deleted: boolean
 }
 
+export interface PullRequestInfo {
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  merged: boolean
+  mergeable: boolean | null
+  mergeable_state: string
+  html_url: string
+}
+
+export interface MergeResult {
+  merged: boolean
+  message: string
+  sha?: string
+}
+
 /**
  * Clone a repository from GitHub
  */
@@ -179,4 +195,22 @@ export async function readFile(filePath: string): Promise<FileContent> {
  */
 export async function getFileDiff(repoPath: string, filePath: string): Promise<FileDiff> {
   return invoke<FileDiff>('git_file_diff', { repoPath, filePath })
+}
+
+/**
+ * Get pull request details from GitHub
+ */
+export async function getPullRequest(repoFullName: string, prNumber: number): Promise<PullRequestInfo> {
+  return invoke<PullRequestInfo>('git_get_pr', { repoFullName, prNumber })
+}
+
+/**
+ * Merge a pull request
+ */
+export async function mergePullRequest(
+  repoFullName: string,
+  prNumber: number,
+  mergeMethod: string = 'squash'
+): Promise<MergeResult> {
+  return invoke<MergeResult>('git_merge_pr', { repoFullName, prNumber, mergeMethod })
 }

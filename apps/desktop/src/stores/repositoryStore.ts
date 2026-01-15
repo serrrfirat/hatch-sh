@@ -14,6 +14,10 @@ export interface Workspace {
   lastActive: Date
   additions?: number
   deletions?: number
+  // PR tracking
+  prNumber?: number
+  prUrl?: string
+  prState?: 'open' | 'merged'
 }
 
 interface RepositoryState {
@@ -59,6 +63,7 @@ interface RepositoryState {
   commitChanges: (workspaceId: string, message: string) => Promise<string>
   pushChanges: (workspaceId: string) => Promise<void>
   createPullRequest: (workspaceId: string, title: string, body: string) => Promise<string>
+  mergePullRequest: (workspaceId: string, mergeMethod?: string) => Promise<void>
 }
 
 export const useRepositoryStore = create<RepositoryState>()(
@@ -357,7 +362,61 @@ export const useRepositoryStore = create<RepositoryState>()(
           body
         )
 
+        // Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123)
+        const prNumber = parseInt(prUrl.split('/').pop() || '0', 10)
+
+        // Update workspace with PR info
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId
+              ? { ...w, prNumber, prUrl, prState: 'open' as const }
+              : w
+          ),
+          currentWorkspace: state.currentWorkspace?.id === workspaceId
+            ? { ...state.currentWorkspace, prNumber, prUrl, prState: 'open' as const }
+            : state.currentWorkspace,
+        }))
+
         return prUrl
+      },
+
+      mergePullRequest: async (workspaceId: string, mergeMethod: string = 'squash') => {
+        const workspace = get().workspaces.find((w) => w.id === workspaceId)
+        if (!workspace) {
+          throw new Error('Workspace not found')
+        }
+
+        if (!workspace.prNumber) {
+          throw new Error('No PR associated with this workspace')
+        }
+
+        const repo = get().repositories.find((r) => r.id === workspace.repositoryId)
+        if (!repo) {
+          throw new Error('Repository not found')
+        }
+
+        // Merge the PR
+        const result = await gitBridge.mergePullRequest(
+          repo.full_name,
+          workspace.prNumber,
+          mergeMethod
+        )
+
+        if (!result.merged) {
+          throw new Error(result.message || 'Failed to merge PR')
+        }
+
+        // Update workspace state to merged
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId
+              ? { ...w, prState: 'merged' as const }
+              : w
+          ),
+          currentWorkspace: state.currentWorkspace?.id === workspaceId
+            ? { ...state.currentWorkspace, prState: 'merged' as const }
+            : state.currentWorkspace,
+        }))
       },
     }),
     {
