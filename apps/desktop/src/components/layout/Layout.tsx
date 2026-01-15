@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useProjectStore, type Project, type Workspace } from '../../stores/projectStore'
-import { useChatStore } from '../../stores/chatStore'
+import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
-import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass } from 'lucide-react'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass } from 'lucide-react'
+import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'BYOA', icon: Terminal },
@@ -16,39 +16,9 @@ const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
 
 export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { currentWorkspace, addProject, setCurrentProject, setCurrentWorkspace, addWorkspace } = useProjectStore()
-  const { setProjectId, clearMessages } = useChatStore()
+  const [prModalOpen, setPrModalOpen] = useState(false)
+  const { currentWorkspace, currentRepository } = useRepositoryStore()
   const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
-  const projects = useProjectStore((state) => state.projects)
-
-  const handleNewProject = () => {
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      name: `project-${projects.length + 1}`,
-      status: 'draft',
-      workspaces: [],
-    }
-    addProject(newProject)
-    setCurrentProject(newProject)
-    setProjectId(newProject.id)
-    clearMessages()
-
-    // Auto-create first workspace
-    const firstWorkspace: Workspace = {
-      id: crypto.randomUUID(),
-      branchName: 'main',
-      location: 'local',
-      lastActive: new Date(),
-      status: 'working',
-    }
-    addWorkspace(newProject.id, firstWorkspace)
-    setCurrentWorkspace(firstWorkspace)
-  }
-
-  const handleSelectWorkspace = (project: Project) => {
-    setProjectId(project.id)
-    clearMessages()
-  }
 
   return (
     <div className="h-screen flex flex-col bg-neutral-950 text-white selection:bg-white selection:text-black">
@@ -114,12 +84,23 @@ export function Layout() {
             ))}
           </div>
 
-          {/* Location dropdown */}
-          {currentWorkspace && (
+          {/* Repository name */}
+          {currentRepository && (
             <button className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-800 border border-white/10 text-xs text-neutral-300 hover:text-white hover:border-white/20 transition-colors">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>/{currentWorkspace.location}</span>
+              <span>{currentRepository.name}</span>
               <ChevronDown size={10} />
+            </button>
+          )}
+
+          {/* Create PR button */}
+          {currentWorkspace && (
+            <button
+              onClick={() => setPrModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
+            >
+              <GitPullRequest size={14} />
+              <span>Create PR</span>
             </button>
           )}
 
@@ -141,10 +122,7 @@ export function Layout() {
           <>
             {/* Sidebar */}
             <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
-              <ProjectTree
-                onNewProject={handleNewProject}
-                onSelectWorkspace={handleSelectWorkspace}
-              />
+              <ProjectTree />
             </aside>
 
             {/* Main area */}
@@ -162,6 +140,9 @@ export function Layout() {
 
       {/* Settings Panel */}
       <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Create PR Modal */}
+      <CreatePRModal isOpen={prModalOpen} onClose={() => setPrModalOpen(false)} />
     </div>
   )
 }
