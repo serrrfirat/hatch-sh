@@ -3,6 +3,16 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command as AsyncCommand;
 
+mod github;
+mod git;
+
+use github::{github_start_device_flow, github_poll_for_token, github_get_auth_state, github_sign_out};
+use git::{
+    git_clone_repo, git_open_local_repo, git_create_workspace_branch, git_delete_workspace_branch,
+    git_status, git_commit, git_push, git_create_pr, git_create_github_repo, git_diff,
+    git_diff_stats, list_directory_files, read_file, git_file_diff
+};
+
 #[derive(Serialize, Deserialize)]
 pub struct ClaudeCodeStatus {
     installed: bool,
@@ -206,7 +216,32 @@ async fn run_claude_code(prompt: String) -> CommandResult {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![check_claude_code, run_claude_code])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            // Claude Code commands
+            check_claude_code,
+            run_claude_code,
+            // GitHub auth commands
+            github_start_device_flow,
+            github_poll_for_token,
+            github_get_auth_state,
+            github_sign_out,
+            // Git commands
+            git_clone_repo,
+            git_open_local_repo,
+            git_create_workspace_branch,
+            git_delete_workspace_branch,
+            git_status,
+            git_commit,
+            git_push,
+            git_create_pr,
+            git_create_github_repo,
+            git_diff,
+            git_diff_stats,
+            list_directory_files,
+            read_file,
+            git_file_diff
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
