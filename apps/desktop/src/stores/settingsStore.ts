@@ -29,6 +29,14 @@ interface SettingsState {
   /** Current page: 'byoa' for build mode, 'discover' for browsing apps */
   currentPage: AppPage;
 
+  /** Plan mode: Claude will create plans before executing */
+  planModeEnabled: boolean;
+
+  /** Extended thinking: Show/hide Claude's reasoning process in the UI.
+   *  This is display-only - Claude Code always generates thinking blocks,
+   *  but they can be hidden based on this preference. */
+  thinkingEnabled: boolean;
+
   /** Legacy: User's Anthropic API key (deprecated, use Claude Code instead) */
   anthropicApiKey: string | null;
   apiKeyValidated: boolean;
@@ -39,6 +47,8 @@ interface SettingsState {
   setIsCheckingAgent: (checking: boolean) => void;
   setAppReady: (ready: boolean) => void;
   setCurrentPage: (page: AppPage) => void;
+  setPlanModeEnabled: (enabled: boolean) => void;
+  setThinkingEnabled: (enabled: boolean) => void;
 
   /** Check status for a local CLI agent */
   checkAgentStatus: (agentId: LocalAgentId) => Promise<AgentStatus>;
@@ -66,11 +76,13 @@ const initialAgentStatuses: Record<LocalAgentId, AgentStatus | null> = {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      agentMode: "cloud",
+      agentMode: "byoa",
       agentStatuses: { ...initialAgentStatuses },
       isCheckingAgent: false,
       isAppReady: false,
       currentPage: "byoa",
+      planModeEnabled: false,
+      thinkingEnabled: true,
       anthropicApiKey: null,
       apiKeyValidated: false,
 
@@ -88,6 +100,8 @@ export const useSettingsStore = create<SettingsState>()(
       setIsCheckingAgent: (checking) => set({ isCheckingAgent: checking }),
       setAppReady: (ready) => set({ isAppReady: ready }),
       setCurrentPage: (page) => set({ currentPage: page }),
+      setPlanModeEnabled: (enabled) => set({ planModeEnabled: enabled }),
+      setThinkingEnabled: (enabled) => set({ thinkingEnabled: enabled }),
 
       checkAgentStatus: async (agentId) => {
         set({ isCheckingAgent: true });
@@ -141,6 +155,8 @@ export const useSettingsStore = create<SettingsState>()(
       name: "vibed-settings",
       partialize: (state) => ({
         agentMode: state.agentMode,
+        planModeEnabled: state.planModeEnabled,
+        thinkingEnabled: state.thinkingEnabled,
         // Don't persist agentStatuses - always check fresh on app start
       }),
     }

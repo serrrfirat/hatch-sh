@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 export interface ClaudeCodeStatus {
   installed: boolean
@@ -29,6 +30,15 @@ export interface StreamEvent {
   toolId?: string
   toolInput?: Record<string, unknown>
   toolResult?: string
+}
+
+export interface StreamingOptions {
+  /** Enable plan mode - Claude will create plans before executing */
+  planMode?: boolean
+  /** Enable extended thinking - shows Claude's reasoning */
+  thinkingEnabled?: boolean
+  /** Working directory for Claude Code to run in */
+  workingDirectory?: string
 }
 
 /**
@@ -184,4 +194,197 @@ export async function sendWithHistory(
  */
 export function openClaudeDownload(): void {
   window.open('https://claude.ai/download', '_blank')
+}
+
+interface TauriStreamEvent {
+  type: string
+  data: string
+  session_id: string
+}
+
+/**
+ * Send a message to Claude Code with real-time streaming via Tauri events
+ */
+export async function sendToClaudeCodeStreaming(
+  prompt: string,
+  systemPrompt?: string,
+  onStream?: (event: StreamEvent) => void,
+  options?: StreamingOptions
+): Promise<string> {
+  const sessionId = crypto.randomUUID()
+
+  // Build the full prompt with system context
+  const fullPrompt = systemPrompt
+    ? `<system>\n${systemPrompt}\n</system>\n\n${prompt}`
+    : prompt
+
+  let fullResponse = ''
+  let unlisten: UnlistenFn | null = null
+
+  // Extract options with defaults
+  const planMode = options?.planMode ?? false
+  const thinkingEnabled = options?.thinkingEnabled ?? true
+  const workingDirectory = options?.workingDirectory
+
+  try {
+    // Set up listener for stream events BEFORE invoking
+    unlisten = await listen<TauriStreamEvent>('claude-stream', (event) => {
+      const payload = event.payload
+
+      // Debug logging
+      console.log('[claude-stream] Received event:', payload.type, 'session:', payload.session_id?.slice(0, 8), 'expected:', sessionId.slice(0, 8))
+
+      // Only process events for our session
+      if (payload.session_id !== sessionId) return
+
+      if (payload.type === 'line' && payload.data) {
+        console.log('[claude-stream] Raw line:', payload.data.slice(0, 300))
+        // Parse the JSON line from stream-json output
+        try {
+          const jsonEvent = JSON.parse(payload.data)
+          console.log('[claude-stream] Parsed event type:', jsonEvent.type)
+
+          // Handle assistant message with content blocks
+          if (jsonEvent.type === 'assistant' && jsonEvent.message?.content) {
+            console.log('[claude-stream] Assistant message with', jsonEvent.message.content.length, 'content blocks')
+            for (const block of jsonEvent.message.content) {
+              console.log('[claude-stream] Content block type:', block.type)
+              if (block.type === 'text') {
+                fullResponse += block.text
+                onStream?.({ type: 'text', content: block.text })
+              } else if (block.type === 'thinking') {
+                console.log('[claude-stream] THINKING block found, length:', block.thinking?.length)
+                onStream?.({ type: 'thinking', content: block.thinking })
+              } else if (block.type === 'tool_use') {
+                console.log('[claude-stream] TOOL_USE block found:', block.name, block.id)
+                onStream?.({
+                  type: 'tool_use',
+                  toolName: block.name,
+                  toolId: block.id,
+                  toolInput: block.input,
+                  content: JSON.stringify(block.input)
+                })
+              }
+            }
+          }
+          // Handle content block delta (streaming text)
+          else if (jsonEvent.type === 'content_block_delta') {
+            if (jsonEvent.delta?.text) {
+              fullResponse += jsonEvent.delta.text
+              onStream?.({ type: 'text', content: jsonEvent.delta.text })
+            } else if (jsonEvent.delta?.thinking) {
+              onStream?.({ type: 'thinking', content: jsonEvent.delta.thinking })
+            }
+          }
+          // Handle content block start (for tool use)
+          else if (jsonEvent.type === 'content_block_start' && jsonEvent.content_block) {
+            const block = jsonEvent.content_block
+            console.log('[claude-stream] content_block_start:', block.type)
+            if (block.type === 'tool_use') {
+              console.log('[claude-stream] content_block_start TOOL_USE:', block.name, block.id)
+              onStream?.({
+                type: 'tool_use',
+                toolName: block.name,
+                toolId: block.id,
+                toolInput: block.input || {},
+              })
+            } else if (block.type === 'thinking') {
+              console.log('[claude-stream] content_block_start THINKING')
+              onStream?.({ type: 'thinking', content: block.thinking || '' })
+            }
+          }
+          // Handle tool result
+          else if (jsonEvent.type === 'tool_result') {
+            console.log('[claude-stream] tool_result event:', jsonEvent.tool_use_id)
+            onStream?.({
+              type: 'tool_result',
+              toolId: jsonEvent.tool_use_id,
+              toolResult: typeof jsonEvent.content === 'string'
+                ? jsonEvent.content
+                : JSON.stringify(jsonEvent.content),
+            })
+          }
+          // Handle final result
+          else if (jsonEvent.type === 'result' && jsonEvent.result) {
+            console.log('[claude-stream] Final result event, length:', jsonEvent.result?.length)
+            fullResponse = jsonEvent.result
+            onStream?.({ type: 'text', content: jsonEvent.result })
+          }
+          // Handle user message (contains tool results)
+          else if (jsonEvent.type === 'user' && jsonEvent.message?.content) {
+            console.log('[claude-stream] User message with', jsonEvent.message.content.length, 'content blocks')
+            for (const block of jsonEvent.message.content) {
+              console.log('[claude-stream] User block type:', block.type)
+              if (block.type === 'tool_result') {
+                console.log('[claude-stream] user message TOOL_RESULT:', block.tool_use_id)
+                onStream?.({
+                  type: 'tool_result',
+                  toolId: block.tool_use_id,
+                  toolResult: typeof block.content === 'string'
+                    ? block.content
+                    : JSON.stringify(block.content),
+                })
+              }
+            }
+          }
+        } catch {
+          // Not valid JSON, treat as plain text
+          if (payload.data.trim()) {
+            fullResponse += payload.data + '\n'
+            onStream?.({ type: 'text', content: payload.data + '\n' })
+          }
+        }
+      } else if (payload.type === 'done') {
+        onStream?.({ type: 'done' })
+      }
+    })
+
+    // Start the streaming command
+    await invoke('run_claude_code_streaming', {
+      prompt: fullPrompt,
+      sessionId,
+      planMode,
+      thinkingEnabled,
+      workingDirectory
+    })
+
+    return fullResponse.trim()
+  } catch (error) {
+    onStream?.({ type: 'error', content: error instanceof Error ? error.message : 'Unknown error' })
+    throw error
+  } finally {
+    // Clean up listener
+    if (unlisten) {
+      unlisten()
+    }
+  }
+}
+
+/**
+ * Send a message with conversation history using streaming
+ */
+export async function sendWithHistoryStreaming(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemPrompt?: string,
+  onStream?: (event: StreamEvent) => void,
+  options?: StreamingOptions
+): Promise<string> {
+  // Build a prompt that includes conversation history
+  let contextPrompt = ''
+
+  if (messages.length > 1) {
+    // Include previous messages as context
+    const history = messages.slice(0, -1)
+    contextPrompt = '<conversation_history>\n'
+    for (const msg of history) {
+      contextPrompt += `<${msg.role}>\n${msg.content}\n</${msg.role}>\n`
+    }
+    contextPrompt += '</conversation_history>\n\n'
+  }
+
+  // Get the latest user message
+  const latestMessage = messages[messages.length - 1]
+  const fullPrompt = contextPrompt + latestMessage.content
+
+  return sendToClaudeCodeStreaming(fullPrompt, systemPrompt, onStream, options)
 }

@@ -23,6 +23,7 @@
     "framer-motion": "^11.0.0",
     "gsap": "^3.14.2",
     "lucide-react": "^0.562.0",
+    "ogl": "^1.0.11",
     "react": "^18.2.0",
     "react-diff-viewer-continued": "^3.4.0",
     "react-dom": "^18.2.0",

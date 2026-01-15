@@ -2,6 +2,9 @@ use std::env;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command as AsyncCommand;
+use tokio::io::{BufReader, AsyncBufReadExt};
+use std::process::Stdio;
+use tauri::Emitter;
 
 mod github;
 mod git;
@@ -207,6 +210,126 @@ async fn run_claude_code_impl(prompt: String) -> CommandResult {
                 code: None,
             }
         }
+    }
+}
+
+/// Stream event sent to frontend
+#[derive(Clone, Serialize)]
+struct StreamEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    data: String,
+    session_id: String,
+}
+
+/// Run Claude Code with streaming output via events
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn run_claude_code_streaming(
+    app: tauri::AppHandle,
+    prompt: String,
+    sessionId: String,
+    planMode: Option<bool>,
+    thinkingEnabled: Option<bool>,
+    workingDirectory: Option<String>,
+) -> CommandResult {
+    let session_id = sessionId; // Use snake_case internally
+    let plan_mode = planMode.unwrap_or(false);
+    // Note: thinkingEnabled is a display-only setting handled by the frontend.
+    // Claude Code CLI doesn't have a flag to disable extended thinking output.
+    // The frontend filters/hides thinking blocks based on this user preference.
+    let _thinking_enabled = thinkingEnabled.unwrap_or(true);
+    let working_dir = workingDirectory;
+
+    let claude_path = match find_claude_path_async().await {
+        Some(path) => path,
+        None => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+stderr: "Claude Code not found".to_string(),
+                code: None,
+            };
+        }
+    };
+
+    // Build command arguments dynamically based on options
+    let mut args = vec!["--print", "--verbose", "--output-format", "stream-json"];
+
+    // Use plan permission mode if enabled, otherwise bypass permissions for agent mode
+    if plan_mode {
+        args.push("--permission-mode");
+        args.push("plan");
+    } else {
+        args.push("--dangerously-skip-permissions");
+    }
+
+    // Add the prompt as the last argument
+    args.push(&prompt);
+
+    // Use --output-format stream-json for streaming JSON output
+    // --verbose is required when using --print with stream-json
+    let mut cmd = AsyncCommand::new(&claude_path);
+    cmd.args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Set working directory if provided
+    if let Some(ref dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+
+    let mut child = match cmd.spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: format!("Failed to spawn Claude Code: {}", e),
+                code: None,
+            };
+        }
+    };
+
+    let stdout = child.stdout.take().expect("Failed to get stdout");
+    let mut reader = BufReader::new(stdout).lines();
+    let mut full_output = String::new();
+
+    // Stream each line as an event
+    while let Ok(Some(line)) = reader.next_line().await {
+        if !line.is_empty() {
+            full_output.push_str(&line);
+            full_output.push('\n');
+
+            // Emit each line as an event to the frontend
+            let _ = app.emit("claude-stream", StreamEvent {
+                event_type: "line".to_string(),
+                data: line,
+                session_id: session_id.clone(),
+            });
+        }
+    }
+
+    // Wait for process to complete
+    let status = child.wait().await;
+    let (success, exit_code) = match &status {
+        Ok(s) => (s.success(), s.code()),
+        Err(_) => (false, None),
+    };
+
+    // Emit completion event
+    let _ = app.emit("claude-stream", StreamEvent {
+        event_type: "done".to_string(),
+        data: String::new(),
+        session_id: session_id.clone(),
+    });
+
+    CommandResult {
+        success,
+        stdout: full_output,
+        stderr: String::new(),
+        code: exit_code,
     }
 }
 
@@ -639,6 +762,7 @@ pub fn run() {
             // Legacy Claude Code commands (backwards compatibility)
             check_claude_code,
             run_claude_code,
+            run_claude_code_streaming,
             // GitHub auth commands
             github_start_device_flow,
             github_poll_for_token,

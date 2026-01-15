@@ -151,10 +151,26 @@ pub async fn git_open_local_repo(path: String) -> Result<Repository, String> {
     })
 }
 
-/// Create a new workspace branch
+/// Result from creating a workspace with worktree
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceResult {
+    pub branch_name: String,
+    pub worktree_path: String,
+}
+
+/// Create a new workspace with its own worktree for isolation
 #[tauri::command]
-pub async fn git_create_workspace_branch(repo_path: String, workspace_id: String) -> Result<String, String> {
+pub async fn git_create_workspace_branch(repo_path: String, workspace_id: String) -> Result<WorkspaceResult, String> {
     let branch_name = format!("workspace/{}", workspace_id);
+    let repo_path_buf = PathBuf::from(&repo_path);
+
+    // Create worktrees directory inside the repo's parent workspace folder
+    // Structure: ~/.vibed/workspaces/{repo_name}/worktrees/{workspace_id}
+    let worktrees_dir = repo_path_buf.join("worktrees");
+    let worktree_path = worktrees_dir.join(&workspace_id);
+
+    std::fs::create_dir_all(&worktrees_dir)
+        .map_err(|e| format!("Failed to create worktrees directory: {}", e))?;
 
     // Fetch latest from origin first
     let _ = AsyncCommand::new("git")
@@ -163,21 +179,44 @@ pub async fn git_create_workspace_branch(repo_path: String, workspace_id: String
         .await;
 
     // Get the default branch
-    let default_branch = get_default_branch(&PathBuf::from(&repo_path)).await?;
+    let default_branch = get_default_branch(&repo_path_buf).await?;
 
-    // Create and checkout new branch from default branch
-    let output = AsyncCommand::new("git")
-        .args(["-C", &repo_path, "checkout", "-b", &branch_name, &format!("origin/{}", default_branch)])
+    // Create a new branch for the workspace
+    let branch_output = AsyncCommand::new("git")
+        .args(["-C", &repo_path, "branch", &branch_name, &format!("origin/{}", default_branch)])
         .output()
         .await
         .map_err(|e| format!("Failed to create branch: {}", e))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to create branch: {}", stderr));
+    if !branch_output.status.success() {
+        let stderr = String::from_utf8_lossy(&branch_output.stderr);
+        // Branch might already exist, that's ok
+        if !stderr.contains("already exists") {
+            return Err(format!("Failed to create branch: {}", stderr));
+        }
     }
 
-    Ok(branch_name)
+    // Create a worktree for this workspace
+    let worktree_output = AsyncCommand::new("git")
+        .args([
+            "-C", &repo_path,
+            "worktree", "add",
+            worktree_path.to_str().unwrap(),
+            &branch_name
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to create worktree: {}", e))?;
+
+    if !worktree_output.status.success() {
+        let stderr = String::from_utf8_lossy(&worktree_output.stderr);
+        return Err(format!("Failed to create worktree: {}", stderr));
+    }
+
+    Ok(WorkspaceResult {
+        branch_name,
+        worktree_path: worktree_path.to_string_lossy().to_string(),
+    })
 }
 
 /// Get git status for a repository
@@ -433,45 +472,35 @@ pub async fn git_create_github_repo(name: String, is_private: bool) -> Result<Re
     })
 }
 
-/// Delete a workspace branch locally
+/// Delete a workspace branch and its worktree
 #[tauri::command]
-pub async fn git_delete_workspace_branch(repo_path: String, branch_name: String) -> Result<(), String> {
-    // Get the default branch to switch to
-    let default_branch = get_default_branch(&PathBuf::from(&repo_path)).await?;
-
-    // Get current branch
-    let current_output = AsyncCommand::new("git")
-        .args(["-C", &repo_path, "branch", "--show-current"])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to get current branch: {}", e))?;
-
-    let current_branch = String::from_utf8_lossy(&current_output.stdout).trim().to_string();
-
-    // If we're on the workspace branch, switch to default branch first
-    if current_branch == branch_name {
-        let checkout_output = AsyncCommand::new("git")
-            .args(["-C", &repo_path, "checkout", &default_branch])
+pub async fn git_delete_workspace_branch(repo_path: String, branch_name: String, worktree_path: Option<String>) -> Result<(), String> {
+    // If worktree path is provided, remove the worktree first
+    if let Some(wt_path) = &worktree_path {
+        // Remove the worktree (force to handle any uncommitted changes)
+        let remove_output = AsyncCommand::new("git")
+            .args(["-C", &repo_path, "worktree", "remove", "--force", wt_path])
             .output()
             .await
-            .map_err(|e| format!("Failed to checkout default branch: {}", e))?;
+            .map_err(|e| format!("Failed to remove worktree: {}", e))?;
 
-        if !checkout_output.status.success() {
-            // Try to checkout origin/default_branch
-            let checkout_output = AsyncCommand::new("git")
-                .args(["-C", &repo_path, "checkout", &format!("origin/{}", default_branch)])
-                .output()
-                .await
-                .map_err(|e| format!("Failed to checkout default branch: {}", e))?;
-
-            if !checkout_output.status.success() {
-                let stderr = String::from_utf8_lossy(&checkout_output.stderr);
-                return Err(format!("Failed to checkout default branch: {}", stderr));
+        if !remove_output.status.success() {
+            let stderr = String::from_utf8_lossy(&remove_output.stderr);
+            // If worktree doesn't exist, that's fine - continue to delete branch
+            if !stderr.contains("is not a working tree") && !stderr.contains("No such file") {
+                // Try to just delete the directory manually as fallback
+                let _ = std::fs::remove_dir_all(wt_path);
             }
         }
+
+        // Prune any stale worktree references
+        let _ = AsyncCommand::new("git")
+            .args(["-C", &repo_path, "worktree", "prune"])
+            .output()
+            .await;
     }
 
-    // Delete the branch locally (force delete to handle uncommitted changes)
+    // Delete the branch locally (force delete to handle any state)
     let delete_output = AsyncCommand::new("git")
         .args(["-C", &repo_path, "branch", "-D", &branch_name])
         .output()
@@ -481,7 +510,7 @@ pub async fn git_delete_workspace_branch(repo_path: String, branch_name: String)
     if !delete_output.status.success() {
         let stderr = String::from_utf8_lossy(&delete_output.stderr);
         // If branch doesn't exist, that's fine
-        if !stderr.contains("not found") {
+        if !stderr.contains("not found") && !stderr.contains("error: branch") {
             return Err(format!("Failed to delete branch: {}", stderr));
         }
     }

@@ -4,12 +4,15 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
-import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
+import { WorkspaceInitScreen } from './WorkspaceInitScreen'
+import { useSettingsStore, isBYOAReady, isWorkspaceAgentReady } from '../../stores/settingsStore'
+import { useRepositoryStore } from '../../stores/repositoryStore'
 import { isLocalAgent } from '../../lib/agents/types'
 
 export function ChatArea() {
   const { messages, isLoading, workspaceAgentId, sendMessage, stopGeneration } = useChat()
   const settingsState = useSettingsStore()
+  const { currentWorkspace, currentRepository } = useRepositoryStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
 
@@ -21,30 +24,66 @@ export function ChatArea() {
     prevMessagesLengthRef.current = messages.length
   }, [messages.length])
 
-  const showWelcome = messages.length === 0
+// Check if BYOA mode but Claude Code not connected (legacy)
+  const needsClaudeCode = settingsState.agentMode === 'byoa' && !isBYOAReady(settingsState)
 
   // Check if workspace's agent requires setup (only for local agents)
   const needsAgent = isLocalAgent(workspaceAgentId) && !isWorkspaceAgentReady(settingsState, workspaceAgentId)
 
+  // Determine which view to show
+  const hasWorkspace = currentWorkspace !== null
+  const hasMessages = messages.length > 0
+
+  // No workspace selected → WelcomeScreen
+  if (!hasWorkspace) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto">
+          <WelcomeScreen onSendMessage={sendMessage} needsClaudeCode={needsClaudeCode} />
+        </div>
+        <ChatInput
+          onSend={sendMessage}
+          isLoading={isLoading}
+          onStop={stopGeneration}
+          disabled={true}
+        />
+      </div>
+    )
+  }
+
+  // Workspace selected but no messages → WorkspaceInitScreen
+  if (hasWorkspace && !hasMessages) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto">
+          <WorkspaceInitScreen
+            workspace={currentWorkspace}
+            repository={currentRepository}
+          />
+        </div>
+        <ChatInput
+          onSend={sendMessage}
+          isLoading={isLoading}
+          onStop={stopGeneration}
+          disabled={needsClaudeCode}
+        />
+      </div>
+    )
+  }
+
+  // Workspace selected with messages → Chat conversation
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto">
-        {showWelcome ? (
-          <WelcomeScreen onSendMessage={sendMessage} needsAgent={needsAgent} />
-        ) : (
-          <div className="max-w-4xl mx-auto">
-            <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
-              ))}
-            </AnimatePresence>
-
-            {/* Thinking indicator is now shown in the MessageBubble itself */}
-
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto px-6">
+        <div className="max-w-3xl mx-auto py-8">
+          <AnimatePresence mode="popLayout">
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+          </AnimatePresence>
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input area */}

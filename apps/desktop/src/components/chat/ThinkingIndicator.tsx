@@ -1,35 +1,57 @@
 import { motion } from 'framer-motion'
 
+// Editorial easing - smooth, elegant motion
+const editorialEase = [0.16, 1, 0.3, 1] as const
+
 interface ThinkingIndicatorProps {
   text?: string
 }
 
-export function ThinkingIndicator({ text = 'Thinking' }: ThinkingIndicatorProps) {
+// Letter animation for staggered reveals
+const letterAnim = {
+  initial: { y: "100%", opacity: 0 },
+  animate: { y: 0, opacity: 1, transition: { duration: 0.5, ease: editorialEase } }
+}
+
+const containerAnim = {
+  animate: {
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0.1,
+    }
+  }
+}
+
+export function ThinkingIndicator({ text = 'Processing' }: ThinkingIndicatorProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex items-center gap-2 text-purple-300"
+      transition={{ duration: 0.6, ease: editorialEase }}
+      className="flex items-center gap-4 py-6"
     >
-      <span className="font-mono text-sm">{text}</span>
-      <div className="flex gap-1">
-        {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            className="w-1.5 h-1.5 bg-purple-400 rounded-full"
-            animate={{
-              y: [0, -4, 0],
-              opacity: [0.4, 1, 0.4],
-            }}
-            transition={{
-              duration: 0.8,
-              repeat: Infinity,
-              delay: i * 0.15,
-              ease: 'easeInOut',
-            }}
-          />
-        ))}
-      </div>
+      {/* Animated title with letter reveal */}
+      <h3 className="text-xl font-medium tracking-tight flex overflow-hidden">
+        <motion.span
+          variants={containerAnim}
+          initial="initial"
+          animate="animate"
+          className="flex text-white"
+        >
+          {text.split('').map((char, i) => (
+            <motion.span key={i} variants={letterAnim} className="inline-block">
+              {char === ' ' ? '\u00A0' : char}
+            </motion.span>
+          ))}
+        </motion.span>
+      </h3>
+
+      {/* Pulsing dot */}
+      <motion.div
+        className="w-2 h-2 rounded-full bg-white"
+        animate={{ opacity: [1, 0.2, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+      />
     </motion.div>
   )
 }
@@ -41,32 +63,50 @@ export function AnimatedThinkingText() {
   const text = 'Thinking'
 
   return (
-    <motion.div className="flex items-center gap-1">
-      {text.split('').map((char, i) => (
-        <motion.span
-          key={i}
-          className="font-mono text-sm text-purple-300"
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: i * 0.05,
-            duration: 0.2,
-          }}
-        >
-          {char}
-        </motion.span>
-      ))}
+    <motion.div className="flex items-center gap-1 overflow-hidden">
       <motion.span
-        className="font-mono text-sm text-purple-300"
+        variants={containerAnim}
+        initial="initial"
+        animate="animate"
+        className="flex text-white/60"
+      >
+        {text.split('').map((char, i) => (
+          <motion.span
+            key={i}
+            variants={letterAnim}
+            className="inline-block text-sm"
+          >
+            {char}
+          </motion.span>
+        ))}
+      </motion.span>
+      <motion.span
+        className="text-sm text-white/60"
         animate={{ opacity: [0, 1, 0] }}
         transition={{
-          duration: 1,
+          duration: 1.2,
           repeat: Infinity,
-          repeatDelay: 0.2,
+          ease: "easeInOut",
         }}
       >
         ...
       </motion.span>
     </motion.div>
+  )
+}
+
+/**
+ * Compact inline thinking indicator
+ */
+export function InlineThinkingIndicator() {
+  return (
+    <span className="inline-flex items-center gap-2 text-white/50">
+      <motion.div
+        className="w-1.5 h-1.5 rounded-full bg-white"
+        animate={{ opacity: [1, 0.3, 1] }}
+        transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <span className="text-xs font-mono uppercase tracking-wider">thinking</span>
+    </span>
   )
 }

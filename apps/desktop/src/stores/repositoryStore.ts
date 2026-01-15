@@ -4,6 +4,7 @@ import * as gitBridge from '../lib/git/bridge'
 import * as githubBridge from '../lib/github/bridge'
 import type { Repository, GitStatus } from '../lib/git/bridge'
 import type { GitHubAuthState } from '../lib/github/bridge'
+import { useChatStore } from './chatStore'
 import type { AgentId } from '../lib/agents/types'
 import { DEFAULT_AGENT_ID } from '../lib/agents/registry'
 
@@ -11,7 +12,8 @@ export interface Workspace {
   id: string
   repositoryId: string
   branchName: string
-  localPath: string
+  localPath: string        // Path to the worktree (isolated working directory)
+  repoPath: string         // Path to the main repository
   status: 'idle' | 'working' | 'error'
   lastActive: Date
   additions?: number
@@ -213,13 +215,15 @@ export const useRepositoryStore = create<RepositoryState>()(
         const workspaceId = crypto.randomUUID()
 
         try {
-          const branchName = await gitBridge.createWorkspaceBranch(repo.local_path, workspaceId)
+          // Create workspace with isolated worktree
+          const result = await gitBridge.createWorkspaceBranch(repo.local_path, workspaceId)
 
           const workspace: Workspace = {
             id: workspaceId,
             repositoryId,
-            branchName,
-            localPath: repo.local_path,
+            branchName: result.branch_name,
+            localPath: result.worktree_path,  // Use the isolated worktree path
+            repoPath: repo.local_path,         // Keep reference to main repo
             status: 'idle',
             lastActive: new Date(),
             agentId: DEFAULT_AGENT_ID,
@@ -230,6 +234,9 @@ export const useRepositoryStore = create<RepositoryState>()(
             currentWorkspace: workspace,
           }))
 
+          // Sync workspace ID with chat store for per-workspace messages
+          useChatStore.getState().setWorkspaceId(workspace.id)
+
           return workspace
         } catch (error) {
           throw error
@@ -238,6 +245,9 @@ export const useRepositoryStore = create<RepositoryState>()(
 
       setCurrentWorkspace: (workspace) => {
         set({ currentWorkspace: workspace })
+
+        // Sync workspace ID with chat store for per-workspace messages
+        useChatStore.getState().setWorkspaceId(workspace?.id || null)
 
         // Also update current repository if workspace is set
         if (workspace) {
@@ -288,20 +298,31 @@ export const useRepositoryStore = create<RepositoryState>()(
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
 
         if (workspace) {
-          // Delete the branch from local git
+          // Delete the worktree and branch from git
           try {
-            await gitBridge.deleteWorkspaceBranch(workspace.localPath, workspace.branchName)
+            await gitBridge.deleteWorkspaceBranch(
+              workspace.repoPath,      // Main repo path
+              workspace.branchName,
+              workspace.localPath      // Worktree path to remove
+            )
           } catch (error) {
-            console.error('Failed to delete workspace branch:', error)
+            console.error('Failed to delete workspace:', error)
             // Continue with removing from state even if git delete fails
           }
         }
+
+        const wasCurrentWorkspace = get().currentWorkspace?.id === workspaceId
 
         set((state) => ({
           workspaces: state.workspaces.filter((w) => w.id !== workspaceId),
           currentWorkspace:
             state.currentWorkspace?.id === workspaceId ? null : state.currentWorkspace,
         }))
+
+        // Clear workspace ID in chat store if this was the current workspace
+        if (wasCurrentWorkspace) {
+          useChatStore.getState().setWorkspaceId(null)
+        }
       },
 
       // Git operations
