@@ -63,6 +63,53 @@ pnpm dev:desktop      # Desktop app
 pnpm build
 ```
 
+## Desktop App
+
+The desktop app is built with Tauri and provides a full IDE experience for building with AI.
+
+### Features
+
+- **BYOA Mode (Bring Your Own Agent)**: Connect your local Claude Code CLI for AI-powered development
+- **GitHub Integration**: OAuth device flow authentication for seamless GitHub access
+- **Repository Management**: Clone, create, and manage Git repositories
+- **Workspaces**: Isolated branches for parallel agent work without conflicts
+- **Project Tree**: Full file explorer with support for navigating your codebase
+- **Editor with Tabs**: Open multiple files and diffs in a tabbed interface
+- **Diff Viewer**: Side-by-side diff visualization with syntax highlighting for reviewing changes
+- **Git Operations**: Stage, commit, push, and create pull requests directly from the app
+- **Live Preview**: Real-time preview of your web application as you build
+
+### Prerequisites
+
+- Node.js 18+
+- Rust (for Tauri native backend)
+- pnpm
+
+### Running the Desktop App
+
+```bash
+cd apps/desktop
+pnpm tauri dev
+```
+
+### Building for Distribution
+
+```bash
+cd apps/desktop
+pnpm tauri build
+```
+
+### GitHub OAuth Setup
+
+Before repository features work, create a GitHub OAuth App:
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Set **Authorization callback URL** to `http://localhost` (device flow)
+4. Copy your **Client ID** to `src-tauri/src/github.rs`
+
+The app uses GitHub's Device Flow for authentication—no client secret required.
+
 ## Smart Contracts
 
 Token launches use bonding curves via Mint Club V2 (CertiK audited) on Base.
