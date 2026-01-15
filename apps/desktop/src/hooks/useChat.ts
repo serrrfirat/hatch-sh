@@ -1,7 +1,8 @@
 import { useCallback, useRef } from "react";
-import { useChatStore, type Message, type ToolUse } from "../stores/chatStore";
+import { useChatStore, selectCurrentMessages, type Message, type ToolUse } from "../stores/chatStore";
 import { useSettingsStore, isBYOAReady } from "../stores/settingsStore";
-import { sendWithHistory, type StreamEvent } from "../lib/claudeCode/bridge";
+import { useRepositoryStore } from "../stores/repositoryStore";
+import { sendWithHistoryStreaming, type StreamEvent } from "../lib/claudeCode/bridge";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
@@ -20,8 +21,10 @@ Output format: When providing code, wrap it in a code block with the language sp
 Be concise but helpful. Focus on building what the user asks for.`;
 
 export function useChat() {
+  // Use selector for reactive messages (per-workspace)
+  const messages = useChatStore(selectCurrentMessages);
+
   const {
-    messages,
     isLoading,
     currentProjectId,
     addMessage,
@@ -128,7 +131,7 @@ export function useChat() {
       shouldStopRef.current = false;
 
       // Get current messages for context (excluding the streaming placeholder)
-      const currentMessages = useChatStore.getState().messages;
+      const currentMessages = selectCurrentMessages(useChatStore.getState());
       const formattedMessages = formatMessagesForClaudeCode(
         currentMessages.filter((m) => m.id !== assistantMessageId)
       );
@@ -142,15 +145,18 @@ export function useChat() {
 
       // Stream handler
       const onStream = (event: StreamEvent) => {
+        console.log('[useChat] Received stream event:', event.type, event);
         if (shouldStopRef.current) return;
 
         if (event.type === "text" && event.content) {
           fullContent += event.content;
           updateMessage(assistantMessageId, fullContent, true);
         } else if (event.type === "thinking" && event.content) {
+          console.log('[useChat] THINKING event, updating message', assistantMessageId);
           thinkingContent += event.content;
           updateMessageThinking(assistantMessageId, thinkingContent);
         } else if (event.type === "tool_use" && event.toolName && event.toolId) {
+          console.log('[useChat] TOOL_USE event:', event.toolName, event.toolId);
           // Add tool use to the message
           const tool: ToolUse = {
             id: event.toolId,
@@ -161,6 +167,7 @@ export function useChat() {
           addToolUse(assistantMessageId, tool);
           toolUseMap.set(event.toolId, event.toolId);
         } else if (event.type === "tool_result" && event.toolId) {
+          console.log('[useChat] TOOL_RESULT event:', event.toolId);
           // Update tool use with result
           updateToolUse(assistantMessageId, event.toolId, {
             result: event.toolResult,
@@ -171,12 +178,20 @@ export function useChat() {
         }
       };
 
+      // Get current options from settings store
+      const { planModeEnabled, thinkingEnabled } = useSettingsStore.getState();
+
+      // Get workspace path for working directory
+      const { currentWorkspace } = useRepositoryStore.getState();
+      const workingDirectory = currentWorkspace?.localPath;
+
       try {
-        // Send to Claude Code via bridge
-        fullContent = await sendWithHistory(
+        // Send to Claude Code via bridge with real-time streaming
+        fullContent = await sendWithHistoryStreaming(
           formattedMessages,
           SYSTEM_PROMPT,
-          onStream
+          onStream,
+          { planMode: planModeEnabled, thinkingEnabled, workingDirectory }
         );
       } catch (error) {
         if (shouldStopRef.current) {
@@ -264,7 +279,7 @@ export function useChat() {
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           // Keep the partial content but mark as not streaming
-          const currentMessages = useChatStore.getState().messages;
+          const currentMessages = selectCurrentMessages(useChatStore.getState());
           const streamingMsg = currentMessages.find(
             (m) => m.id === assistantMessageId
           );
@@ -311,7 +326,7 @@ export function useChat() {
 
     // Update the streaming message to mark it as complete
     if (streamingMessageIdRef.current) {
-      const currentMessages = useChatStore.getState().messages;
+      const currentMessages = selectCurrentMessages(useChatStore.getState());
       const streamingMsg = currentMessages.find(
         (m) => m.id === streamingMessageIdRef.current
       );

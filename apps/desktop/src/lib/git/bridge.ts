@@ -49,6 +49,11 @@ export interface FileDiff {
   is_deleted: boolean
 }
 
+export interface WorkspaceResult {
+  branch_name: string
+  worktree_path: string
+}
+
 /**
  * Clone a repository from GitHub
  */
@@ -64,17 +69,17 @@ export async function openLocalRepo(path: string): Promise<Repository> {
 }
 
 /**
- * Create a new workspace branch
+ * Create a new workspace with its own worktree for isolation
  */
-export async function createWorkspaceBranch(repoPath: string, workspaceId: string): Promise<string> {
-  return invoke<string>('git_create_workspace_branch', { repoPath, workspaceId })
+export async function createWorkspaceBranch(repoPath: string, workspaceId: string): Promise<WorkspaceResult> {
+  return invoke<WorkspaceResult>('git_create_workspace_branch', { repoPath, workspaceId })
 }
 
 /**
- * Delete a workspace branch locally
+ * Delete a workspace branch and its worktree
  */
-export async function deleteWorkspaceBranch(repoPath: string, branchName: string): Promise<void> {
-  return invoke('git_delete_workspace_branch', { repoPath, branchName })
+export async function deleteWorkspaceBranch(repoPath: string, branchName: string, worktreePath?: string): Promise<void> {
+  return invoke('git_delete_workspace_branch', { repoPath, branchName, worktreePath })
 }
 
 /**
