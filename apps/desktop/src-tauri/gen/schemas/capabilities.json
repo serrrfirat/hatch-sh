@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default capabilities for the Vibed desktop app","local":true,"windows":["main"],"permissions":["core:default","shell:allow-open","dialog:allow-open","dialog:default"]}}
