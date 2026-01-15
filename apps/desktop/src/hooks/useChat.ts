@@ -1,7 +1,12 @@
 import { useCallback, useRef } from "react";
 import { useChatStore, type Message, type ToolUse } from "../stores/chatStore";
-import { useSettingsStore, isBYOAReady } from "../stores/settingsStore";
-import { sendWithHistory, type StreamEvent } from "../lib/claudeCode/bridge";
+import {
+  useSettingsStore,
+  isAgentReady,
+  getCurrentAgentStatus,
+} from "../stores/settingsStore";
+import type { AgentId, StreamEvent, AgentMessage } from "../lib/agents/types";
+import { getAdapter, getConfig } from "../lib/agents/registry";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
@@ -34,16 +39,16 @@ export function useChat() {
   } = useChatStore();
 
   const settingsState = useSettingsStore();
-  const { agentMode, claudeCodeStatus } = settingsState;
+  const { agentMode, agentStatuses } = settingsState;
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const shouldStopRef = useRef(false);
 
   /**
-   * Convert chat messages to simple format for Claude Code
+   * Convert chat messages to agent message format
    */
-  const formatMessagesForClaudeCode = (msgs: Message[]) => {
+  const formatMessagesForAgent = (msgs: Message[]): AgentMessage[] => {
     return msgs
       .filter((m) => !m.isStreaming && m.content.trim())
       .map((m) => ({
@@ -109,19 +114,26 @@ export function useChat() {
   );
 
   /**
-   * Send message via BYOA mode (local Claude Code)
+   * Send message via any local agent (Claude Code, Opencode, Cursor)
    */
-  const sendBYOAMessage = useCallback(
-    async (content: string, assistantMessageId: string) => {
-      // Check Claude Code is ready
-      if (!claudeCodeStatus?.installed) {
+  const sendAgentMessage = useCallback(
+    async (
+      agentId: AgentId,
+      content: string,
+      assistantMessageId: string
+    ) => {
+      const status = agentStatuses[agentId];
+      const config = getConfig(agentId);
+
+      // Check agent is ready
+      if (!status?.installed) {
         throw new Error(
-          "Claude Code is not installed. Install it from https://claude.ai/download"
+          `${config.name} is not installed. Install it from ${config.installUrl}`
         );
       }
-      if (!claudeCodeStatus?.authenticated) {
+      if (!status?.authenticated) {
         throw new Error(
-          'Claude Code is not authenticated. Run "claude login" in your terminal'
+          `${config.name} is not authenticated. Run "${config.authCommand}" in your terminal`
         );
       }
 
@@ -129,7 +141,7 @@ export function useChat() {
 
       // Get current messages for context (excluding the streaming placeholder)
       const currentMessages = useChatStore.getState().messages;
-      const formattedMessages = formatMessagesForClaudeCode(
+      const formattedMessages = formatMessagesForAgent(
         currentMessages.filter((m) => m.id !== assistantMessageId)
       );
 
@@ -140,7 +152,7 @@ export function useChat() {
       let thinkingContent = "";
       const toolUseMap = new Map<string, string>(); // toolId -> messageToolId
 
-      // Stream handler
+      // Stream handler (agent-agnostic)
       const onStream = (event: StreamEvent) => {
         if (shouldStopRef.current) return;
 
@@ -150,7 +162,11 @@ export function useChat() {
         } else if (event.type === "thinking" && event.content) {
           thinkingContent += event.content;
           updateMessageThinking(assistantMessageId, thinkingContent);
-        } else if (event.type === "tool_use" && event.toolName && event.toolId) {
+        } else if (
+          event.type === "tool_use" &&
+          event.toolName &&
+          event.toolId
+        ) {
           // Add tool use to the message
           const tool: ToolUse = {
             id: event.toolId,
@@ -167,13 +183,14 @@ export function useChat() {
             status: "completed",
           });
         } else if (event.type === "error") {
-          console.error("Claude Code error:", event.content);
+          console.error(`${config.name} error:`, event.content);
         }
       };
 
       try {
-        // Send to Claude Code via bridge
-        fullContent = await sendWithHistory(
+        // Get the adapter and send message
+        const adapter = getAdapter(agentId);
+        fullContent = await adapter.sendMessage(
           formattedMessages,
           SYSTEM_PROMPT,
           onStream
@@ -188,7 +205,13 @@ export function useChat() {
 
       return fullContent;
     },
-    [claudeCodeStatus, updateMessage, updateMessageThinking, addToolUse, updateToolUse]
+    [
+      agentStatuses,
+      updateMessage,
+      updateMessageThinking,
+      addToolUse,
+      updateToolUse,
+    ]
   );
 
   const sendMessage = useCallback(
@@ -196,7 +219,7 @@ export function useChat() {
       if (!content.trim()) return;
 
       // For cloud mode, require project selection
-      // For BYOA mode, allow chat without project (standalone mode)
+      // For local agents, allow chat without project (standalone mode)
       if (agentMode === "cloud" && !currentProjectId) {
         console.error("No project selected");
         addMessage({
@@ -206,26 +229,26 @@ export function useChat() {
         return;
       }
 
-      // Check BYOA mode requirements
-      if (agentMode === "byoa" && !isBYOAReady(settingsState)) {
-        const status = claudeCodeStatus;
+      // Check local agent mode requirements
+      if (agentMode !== "cloud" && !isAgentReady(settingsState)) {
+        const agentId = agentMode as AgentId;
+        const status = getCurrentAgentStatus(settingsState);
+        const config = getConfig(agentId);
+
         if (!status?.installed) {
           addMessage({
             role: "assistant",
-            content:
-              "Claude Code is not installed. Please install it from https://claude.ai/download and then click 'Check Connection' in settings.",
+            content: `${config.name} is not installed. Please install it from ${config.installUrl} and then click 'Check Connection' in settings.`,
           });
         } else if (!status?.authenticated) {
           addMessage({
             role: "assistant",
-            content:
-              'Claude Code is not authenticated. Please run "claude login" in your terminal, then click "Check Connection" in settings.',
+            content: `${config.name} is not authenticated. Please run "${config.authCommand}" in your terminal, then click "Check Connection" in settings.`,
           });
         } else {
           addMessage({
             role: "assistant",
-            content:
-              "Please connect to Claude Code in settings to use BYOA mode.",
+            content: `Please connect to ${config.name} in settings to continue.`,
           });
         }
         return;
@@ -252,10 +275,15 @@ export function useChat() {
       try {
         let fullContent: string;
 
-        if (agentMode === "byoa") {
-          fullContent = await sendBYOAMessage(content, assistantMessageId);
-        } else {
+        if (agentMode === "cloud") {
           fullContent = await sendCloudMessage(content, assistantMessageId);
+        } else {
+          // Send via local agent adapter
+          fullContent = await sendAgentMessage(
+            agentMode as AgentId,
+            content,
+            assistantMessageId
+          );
         }
 
         // Mark streaming as complete and set duration
@@ -291,14 +319,13 @@ export function useChat() {
     [
       currentProjectId,
       agentMode,
-      claudeCodeStatus,
       settingsState,
       addMessage,
       updateMessage,
       setMessageDuration,
       setLoading,
       sendCloudMessage,
-      sendBYOAMessage,
+      sendAgentMessage,
     ]
   );
 
@@ -306,7 +333,7 @@ export function useChat() {
     // For cloud mode, abort the fetch
     abortControllerRef.current?.abort();
 
-    // For BYOA mode, set the stop flag
+    // For local agent modes, set the stop flag
     shouldStopRef.current = true;
 
     // Update the streaming message to mark it as complete

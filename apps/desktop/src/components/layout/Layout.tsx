@@ -7,7 +7,7 @@ import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
-import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cloud, Terminal, Compass } from 'lucide-react'
+import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass } from 'lucide-react'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'BYOA', icon: Terminal },
@@ -18,7 +18,7 @@ export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { currentWorkspace, addProject, setCurrentProject, setCurrentWorkspace, addWorkspace } = useProjectStore()
   const { setProjectId, clearMessages } = useChatStore()
-  const { agentMode, claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
+  const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
   const projects = useProjectStore((state) => state.projects)
 
   const handleNewProject = () => {

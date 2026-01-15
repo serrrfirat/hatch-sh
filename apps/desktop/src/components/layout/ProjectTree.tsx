@@ -19,13 +19,12 @@ function formatTimeAgo(date: Date): string {
 
 interface WorkspaceItemProps {
   workspace: Workspace
-  project: Project
   index: number
   isActive: boolean
   onSelect: () => void
 }
 
-function WorkspaceItem({ workspace, project, index, isActive, onSelect }: WorkspaceItemProps) {
+function WorkspaceItem({ workspace, index, isActive, onSelect }: WorkspaceItemProps) {
   return (
     <motion.button
       initial={{ opacity: 0, x: -10 }}
@@ -183,7 +182,6 @@ function ProjectItem({
               <WorkspaceItem
                 key={workspace.id}
                 workspace={workspace}
-                project={project}
                 index={globalWorkspaceIndex + idx}
                 isActive={currentWorkspaceId === workspace.id}
                 onSelect={() => onSelectWorkspace(project, workspace)}

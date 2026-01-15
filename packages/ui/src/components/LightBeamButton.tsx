@@ -20,6 +20,11 @@ export function LightBeamButton({
   className,
   onClick,
   gradientColors = ["#8b5cf6", "#06b6d4", "#8b5cf6"], // Violet -> Cyan -> Violet
+  onAnimationStart: _onAnimationStart,
+  onAnimationEnd: _onAnimationEnd,
+  onDragStart: _onDragStart,
+  onDragEnd: _onDragEnd,
+  onDrag: _onDrag,
   ...props
 }: LightBeamButtonProps) {
   // Construct the gradient string dynamically based on props

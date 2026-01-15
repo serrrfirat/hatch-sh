@@ -1,10 +1,11 @@
 import { motion } from 'framer-motion'
 import { Terminal, CheckCircle, Loader2, ArrowUpRight } from 'lucide-react'
-import type { ClaudeCodeStatus } from '../stores/settingsStore'
+import type { AgentStatus, AgentConfig } from '../lib/agents/types'
 
 interface StartupScreenProps {
   status: 'checking' | 'connected' | 'not-installed' | 'not-authenticated' | 'error'
-  claudeCodeStatus?: ClaudeCodeStatus | null
+  agentStatus?: AgentStatus | null
+  agentConfig?: AgentConfig
   onContinue?: () => void
   onRetry?: () => void
 }
@@ -44,14 +45,25 @@ function AnimatedTitle() {
           variants={letterAnim}
           className="text-2xl align-top ml-2 font-normal inline-block mt-[2vw]"
         >
-          ®
+          &reg;
         </motion.span>
       </motion.div>
     </h1>
   )
 }
 
-export function StartupScreen({ status, claudeCodeStatus, onContinue, onRetry }: StartupScreenProps) {
+export function StartupScreen({
+  status,
+  agentStatus,
+  agentConfig,
+  onContinue,
+  onRetry
+}: StartupScreenProps) {
+  // Use agent-specific names or fall back to generic
+  const agentName = agentConfig?.name || 'your local agent'
+  const downloadUrl = agentConfig?.installUrl || 'https://claude.ai/download'
+  const authCommand = agentConfig?.authCommand || 'claude login'
+
   return (
     <div className="fixed inset-0 bg-white text-black font-sans selection:bg-black selection:text-white flex flex-col items-center justify-center">
       {/* Hero Section */}
@@ -65,7 +77,7 @@ export function StartupScreen({ status, claudeCodeStatus, onContinue, onRetry }:
             transition={{ delay: 1, duration: 0.8 }}
             className="text-xl md:text-2xl text-neutral-600 font-medium tracking-tight mt-8"
           >
-            Connecting to your local Claude installation
+            Connecting to {agentName}
           </motion.p>
         </div>
       </section>
@@ -100,12 +112,12 @@ export function StartupScreen({ status, claudeCodeStatus, onContinue, onRetry }:
               {status === 'error' && 'Connection Error'}
             </h2>
             <p className="text-neutral-500 text-sm">
-              {status === 'checking' && 'Checking your local installation'}
-              {status === 'connected' && claudeCodeStatus?.version && `Version ${claudeCodeStatus.version}`}
-              {status === 'connected' && !claudeCodeStatus?.version && 'Ready to use'}
-              {status === 'not-installed' && 'Claude Code is required'}
+              {status === 'checking' && `Checking ${agentName}`}
+              {status === 'connected' && agentStatus?.version && `Version ${agentStatus.version}`}
+              {status === 'connected' && !agentStatus?.version && 'Ready to use'}
+              {status === 'not-installed' && `${agentName} is required`}
               {status === 'not-authenticated' && 'Please authenticate'}
-              {status === 'error' && (claudeCodeStatus?.error || 'Something went wrong')}
+              {status === 'error' && (agentStatus?.error || 'Something went wrong')}
             </p>
           </div>
         </div>
@@ -114,15 +126,15 @@ export function StartupScreen({ status, claudeCodeStatus, onContinue, onRetry }:
         {status === 'not-installed' && (
           <div className="space-y-4">
             <p className="text-neutral-600 text-sm">
-              BYOA mode requires Claude Code to be installed on your machine.
+              BYOA mode requires {agentName} to be installed on your machine.
             </p>
             <a
-              href="https://claude.ai/download"
+              href={downloadUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="group flex items-center justify-between w-full py-3 px-4 bg-black hover:bg-neutral-800 text-white rounded-sm font-medium transition-colors"
             >
-              <span>Download Claude Code</span>
+              <span>Download {agentName}</span>
               <ArrowUpRight size={18} className="opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all" />
             </a>
             <button
@@ -140,7 +152,7 @@ export function StartupScreen({ status, claudeCodeStatus, onContinue, onRetry }:
               Run the following command in your terminal:
             </p>
             <code className="block w-full py-3 px-4 bg-neutral-100 text-black rounded-sm font-mono text-sm border border-black/10">
-              claude login
+              {authCommand}
             </code>
             <button
               onClick={onRetry}

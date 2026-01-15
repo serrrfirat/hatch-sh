@@ -25,6 +25,11 @@ export function GlowButton({
   glowColor = 'rgba(255, 255, 255, 0.15)',
   disableGlow = false,
   disabled,
+  onAnimationStart: _onAnimationStart,
+  onAnimationEnd: _onAnimationEnd,
+  onDragStart: _onDragStart,
+  onDragEnd: _onDragEnd,
+  onDrag: _onDrag,
   ...props
 }: GlowButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
