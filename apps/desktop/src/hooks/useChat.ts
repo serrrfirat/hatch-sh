@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { useChatStore, type Message } from "../stores/chatStore";
+import { useChatStore, type Message, type ToolUse } from "../stores/chatStore";
 import { useSettingsStore, isBYOAReady } from "../stores/settingsStore";
 import { sendWithHistory, type StreamEvent } from "../lib/claudeCode/bridge";
 
@@ -26,6 +26,10 @@ export function useChat() {
     currentProjectId,
     addMessage,
     updateMessage,
+    updateMessageThinking,
+    addToolUse,
+    updateToolUse,
+    setMessageDuration,
     setLoading,
   } = useChatStore();
 
@@ -133,6 +137,8 @@ export function useChat() {
       formattedMessages.push({ role: "user", content });
 
       let fullContent = "";
+      let thinkingContent = "";
+      const toolUseMap = new Map<string, string>(); // toolId -> messageToolId
 
       // Stream handler
       const onStream = (event: StreamEvent) => {
@@ -141,6 +147,25 @@ export function useChat() {
         if (event.type === "text" && event.content) {
           fullContent += event.content;
           updateMessage(assistantMessageId, fullContent, true);
+        } else if (event.type === "thinking" && event.content) {
+          thinkingContent += event.content;
+          updateMessageThinking(assistantMessageId, thinkingContent);
+        } else if (event.type === "tool_use" && event.toolName && event.toolId) {
+          // Add tool use to the message
+          const tool: ToolUse = {
+            id: event.toolId,
+            name: event.toolName,
+            input: event.toolInput || {},
+            status: "running",
+          };
+          addToolUse(assistantMessageId, tool);
+          toolUseMap.set(event.toolId, event.toolId);
+        } else if (event.type === "tool_result" && event.toolId) {
+          // Update tool use with result
+          updateToolUse(assistantMessageId, event.toolId, {
+            result: event.toolResult,
+            status: "completed",
+          });
         } else if (event.type === "error") {
           console.error("Claude Code error:", event.content);
         }
@@ -163,7 +188,7 @@ export function useChat() {
 
       return fullContent;
     },
-    [claudeCodeStatus, updateMessage]
+    [claudeCodeStatus, updateMessage, updateMessageThinking, addToolUse, updateToolUse]
   );
 
   const sendMessage = useCallback(
@@ -219,6 +244,11 @@ export function useChat() {
 
       setLoading(true);
 
+      // IMPORTANT: Allow React to flush state updates and render the UI
+      // before starting the potentially blocking async operation.
+      // This ensures user sees their message + "Thinking..." indicator immediately.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       try {
         let fullContent: string;
 
@@ -228,8 +258,9 @@ export function useChat() {
           fullContent = await sendCloudMessage(content, assistantMessageId);
         }
 
-        // Mark streaming as complete
+        // Mark streaming as complete and set duration
         updateMessage(assistantMessageId, fullContent, false);
+        setMessageDuration(assistantMessageId);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           // Keep the partial content but mark as not streaming
@@ -264,6 +295,7 @@ export function useChat() {
       settingsState,
       addMessage,
       updateMessage,
+      setMessageDuration,
       setLoading,
       sendCloudMessage,
       sendBYOAMessage,

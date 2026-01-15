@@ -14,11 +14,21 @@ interface CommandResult {
   code?: number
 }
 
+export interface ToolUseEvent {
+  id: string
+  name: string
+  input: Record<string, unknown>
+  result?: string
+}
+
 export interface StreamEvent {
-  type: 'text' | 'code' | 'tool_use' | 'error' | 'done'
+  type: 'text' | 'code' | 'tool_use' | 'tool_result' | 'thinking' | 'error' | 'done'
   content?: string
   language?: string
   toolName?: string
+  toolId?: string
+  toolInput?: Record<string, unknown>
+  toolResult?: string
 }
 
 /**
@@ -68,24 +78,59 @@ export async function sendToClaudeCode(
       try {
         const event = JSON.parse(line)
 
+        // Handle assistant message with content blocks
         if (event.type === 'assistant' && event.message?.content) {
           for (const block of event.message.content) {
             if (block.type === 'text') {
               fullResponse += block.text
               onStream?.({ type: 'text', content: block.text })
+            } else if (block.type === 'thinking') {
+              // Extended thinking block
+              onStream?.({ type: 'thinking', content: block.thinking })
             } else if (block.type === 'tool_use') {
               onStream?.({
                 type: 'tool_use',
                 toolName: block.name,
+                toolId: block.id,
+                toolInput: block.input,
                 content: JSON.stringify(block.input)
               })
             }
           }
-        } else if (event.type === 'content_block_delta' && event.delta?.text) {
-          fullResponse += event.delta.text
-          onStream?.({ type: 'text', content: event.delta.text })
-        } else if (event.type === 'result' && event.result) {
-          // Final result - extract text content
+        }
+        // Handle content block delta (streaming)
+        else if (event.type === 'content_block_delta') {
+          if (event.delta?.text) {
+            fullResponse += event.delta.text
+            onStream?.({ type: 'text', content: event.delta.text })
+          } else if (event.delta?.thinking) {
+            onStream?.({ type: 'thinking', content: event.delta.thinking })
+          }
+        }
+        // Handle content block start (for tool use)
+        else if (event.type === 'content_block_start' && event.content_block) {
+          const block = event.content_block
+          if (block.type === 'tool_use') {
+            onStream?.({
+              type: 'tool_use',
+              toolName: block.name,
+              toolId: block.id,
+              toolInput: block.input || {},
+            })
+          } else if (block.type === 'thinking') {
+            onStream?.({ type: 'thinking', content: block.thinking || '' })
+          }
+        }
+        // Handle tool result
+        else if (event.type === 'tool_result') {
+          onStream?.({
+            type: 'tool_result',
+            toolId: event.tool_use_id,
+            toolResult: typeof event.content === 'string' ? event.content : JSON.stringify(event.content),
+          })
+        }
+        // Handle final result
+        else if (event.type === 'result' && event.result) {
           fullResponse = event.result
           onStream?.({ type: 'text', content: event.result })
         }

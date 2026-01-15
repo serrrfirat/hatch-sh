@@ -1,17 +1,24 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useProjectStore, type Project, type Workspace } from '../../stores/projectStore'
 import { useChatStore } from '../../stores/chatStore'
-import { useSettingsStore } from '../../stores/settingsStore'
+import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
-import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cloud, Terminal } from 'lucide-react'
+import { DiscoverPage } from '../DiscoverPage'
+import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cloud, Terminal, Compass } from 'lucide-react'
+
+const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
+  { id: 'byoa', label: 'BYOA', icon: Terminal },
+  { id: 'discover', label: 'Discover', icon: Compass },
+]
 
 export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { currentWorkspace, addProject, setCurrentProject, setCurrentWorkspace, addWorkspace } = useProjectStore()
   const { setProjectId, clearMessages } = useChatStore()
-  const { agentMode, claudeCodeStatus } = useSettingsStore()
+  const { agentMode, claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
   const projects = useProjectStore((state) => state.projects)
 
   const handleNewProject = () => {
@@ -74,32 +81,37 @@ export function Layout() {
           )}
         </div>
 
-        {/* Right: Mode indicator + Settings */}
+        {/* Right: Page tabs + Settings */}
         <div className="flex items-center gap-3">
-          {/* Mode indicator */}
-          <div
-            className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs ${
-              agentMode === 'byoa'
-                ? 'bg-purple-500/20 text-purple-300'
-                : 'bg-blue-500/20 text-blue-300'
-            }`}
-          >
-            {agentMode === 'byoa' ? (
-              <>
-                <Terminal size={12} />
-                <span>BYOA</span>
-                {claudeCodeStatus?.installed && claudeCodeStatus?.authenticated ? (
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                ) : (
-                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+          {/* Page tabs (BYOA / Discover) */}
+          <div className="flex items-center bg-neutral-800/50 rounded-lg p-0.5">
+            {pageTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setCurrentPage(tab.id)}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  currentPage === tab.id
+                    ? 'text-white'
+                    : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                {currentPage === tab.id && (
+                  <motion.div
+                    layoutId="activePageTab"
+                    className="absolute inset-0 bg-neutral-700 rounded-md"
+                    initial={false}
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                  />
                 )}
-              </>
-            ) : (
-              <>
-                <Cloud size={12} />
-                <span>Cloud</span>
-              </>
-            )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <tab.icon size={12} />
+                  <span>{tab.label}</span>
+                  {tab.id === 'byoa' && claudeCodeStatus?.installed && claudeCodeStatus?.authenticated && (
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                  )}
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* Location dropdown */}
@@ -125,18 +137,27 @@ export function Layout() {
 
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
-          <ProjectTree
-            onNewProject={handleNewProject}
-            onSelectWorkspace={handleSelectWorkspace}
-          />
-        </aside>
+        {currentPage === 'byoa' ? (
+          <>
+            {/* Sidebar */}
+            <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
+              <ProjectTree
+                onNewProject={handleNewProject}
+                onSelectWorkspace={handleSelectWorkspace}
+              />
+            </aside>
 
-        {/* Main area */}
-        <div className="flex-1 bg-neutral-950 overflow-hidden">
-          <Outlet />
-        </div>
+            {/* Main area */}
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <Outlet />
+            </div>
+          </>
+        ) : (
+          /* Full-page Discover */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <DiscoverPage />
+          </div>
+        )}
       </main>
 
       {/* Settings Panel */}

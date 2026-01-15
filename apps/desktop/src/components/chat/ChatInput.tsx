@@ -6,9 +6,10 @@ interface ChatInputProps {
   isLoading: boolean
   onStop?: () => void
   placeholder?: string
+  disabled?: boolean
 }
 
-export function ChatInput({ onSend, isLoading, onStop, placeholder }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -45,7 +46,7 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder }: ChatInputP
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder || "What do you want to build?"}
-            disabled={isLoading}
+            disabled={isLoading || disabled}
             rows={1}
             className={cn(
               'w-full bg-neutral-800 border border-white/10 rounded-xl px-4 py-3',

@@ -1,5 +1,7 @@
-use std::process::Command;
+use std::env;
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use tokio::process::Command as AsyncCommand;
 
 #[derive(Serialize, Deserialize)]
 pub struct ClaudeCodeStatus {
@@ -7,6 +9,7 @@ pub struct ClaudeCodeStatus {
     authenticated: bool,
     version: Option<String>,
     error: Option<String>,
+    path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -17,39 +20,84 @@ pub struct CommandResult {
     code: Option<i32>,
 }
 
-/// Check if Claude Code is installed and authenticated
-#[tauri::command]
-fn check_claude_code() -> ClaudeCodeStatus {
-    // Check if claude command exists
-    let which_result = Command::new("which")
-        .arg("claude")
-        .output();
-
-    match which_result {
-        Ok(output) => {
-            if !output.status.success() {
-                return ClaudeCodeStatus {
-                    installed: false,
-                    authenticated: false,
-                    version: None,
-                    error: Some("Claude Code is not installed. Install it from https://claude.ai/download".to_string()),
-                };
+/// Find the claude executable by checking common locations (async version)
+async fn find_claude_path_async() -> Option<PathBuf> {
+    // First try using 'which' with user's shell PATH
+    if let Ok(output) = AsyncCommand::new("sh")
+        .args(["-l", "-c", "which claude"])
+        .output()
+        .await
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
             }
         }
-        Err(e) => {
+    }
+
+    // Check common installation locations
+    let home = env::var("HOME").unwrap_or_default();
+    let common_paths = vec![
+        // nvm installations
+        format!("{}/.nvm/versions/node/v23.3.0/bin/claude", home),
+        format!("{}/.nvm/versions/node/v22.0.0/bin/claude", home),
+        format!("{}/.nvm/versions/node/v21.0.0/bin/claude", home),
+        format!("{}/.nvm/versions/node/v20.0.0/bin/claude", home),
+        // npm global
+        format!("{}/node_modules/.bin/claude", home),
+        format!("{}/.npm-global/bin/claude", home),
+        // Homebrew
+        "/opt/homebrew/bin/claude".to_string(),
+        "/usr/local/bin/claude".to_string(),
+        // bun
+        format!("{}/.bun/bin/claude", home),
+    ];
+
+    for path in common_paths {
+        let p = PathBuf::from(&path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    // Last resort: try PATH directly
+    if let Ok(output) = AsyncCommand::new("which").arg("claude").output().await {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
+    }
+
+    None
+}
+
+/// Check if Claude Code is installed and authenticated (async to avoid blocking UI)
+#[tauri::command]
+async fn check_claude_code() -> ClaudeCodeStatus {
+    // Find claude executable
+    let claude_path = match find_claude_path_async().await {
+        Some(path) => path,
+        None => {
             return ClaudeCodeStatus {
                 installed: false,
                 authenticated: false,
                 version: None,
-                error: Some(format!("Failed to check for Claude Code: {}", e)),
+                error: Some("Claude Code is not installed. Install it from https://claude.ai/download".to_string()),
+                path: None,
             };
         }
-    }
+    };
 
-    // Get version
-    let version_result = Command::new("claude")
+    let path_str = claude_path.to_string_lossy().to_string();
+
+    // Get version (async)
+    let version_result = AsyncCommand::new(&claude_path)
         .arg("--version")
-        .output();
+        .output()
+        .await;
 
     let version = match version_result {
         Ok(output) => {
@@ -62,10 +110,11 @@ fn check_claude_code() -> ClaudeCodeStatus {
         Err(_) => None,
     };
 
-    // Check authentication by running a simple command
-    let auth_result = Command::new("claude")
+    // Check authentication by running a simple command (async)
+    let auth_result = AsyncCommand::new(&claude_path)
         .args(["--print", "--output-format", "json", "Say ok"])
-        .output();
+        .output()
+        .await;
 
     match auth_result {
         Ok(output) => {
@@ -75,6 +124,7 @@ fn check_claude_code() -> ClaudeCodeStatus {
                     authenticated: true,
                     version,
                     error: None,
+                    path: Some(path_str),
                 }
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
@@ -84,6 +134,7 @@ fn check_claude_code() -> ClaudeCodeStatus {
                         authenticated: false,
                         version,
                         error: Some("Claude Code is not authenticated. Run \"claude login\" in your terminal".to_string()),
+                        path: Some(path_str),
                     }
                 } else {
                     ClaudeCodeStatus {
@@ -91,6 +142,7 @@ fn check_claude_code() -> ClaudeCodeStatus {
                         authenticated: false,
                         version,
                         error: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                        path: Some(path_str),
                     }
                 }
             }
@@ -101,17 +153,34 @@ fn check_claude_code() -> ClaudeCodeStatus {
                 authenticated: false,
                 version,
                 error: Some(format!("Failed to check authentication: {}", e)),
+                path: Some(path_str),
             }
         }
     }
 }
 
-/// Run Claude Code with the given prompt
+/// Run Claude Code with the given prompt (async to avoid blocking UI)
 #[tauri::command]
-fn run_claude_code(prompt: String) -> CommandResult {
-    let result = Command::new("claude")
-        .args(["--print", "--output-format", "stream-json", &prompt])
-        .output();
+async fn run_claude_code(prompt: String) -> CommandResult {
+    let claude_path = match find_claude_path_async().await {
+        Some(path) => path,
+        None => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: "Claude Code not found".to_string(),
+                code: None,
+            };
+        }
+    };
+
+    // Use --print with --output-format text for simpler parsing
+    // stream-json requires --verbose which adds too much noise
+    // Using AsyncCommand to avoid blocking the main thread
+    let result = AsyncCommand::new(&claude_path)
+        .args(["--print", &prompt])
+        .output()
+        .await;
 
     match result {
         Ok(output) => {

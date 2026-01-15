@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type AgentMode = "cloud" | "byoa";
+export type AppPage = "byoa" | "discover";
 
 export interface ClaudeCodeStatus {
   installed: boolean;
@@ -21,6 +22,12 @@ interface SettingsState {
   /** Whether we're currently checking Claude Code status */
   isCheckingClaudeCode: boolean;
 
+  /** Whether the app has completed startup initialization */
+  isAppReady: boolean;
+
+  /** Current page: 'byoa' for build mode, 'discover' for browsing apps */
+  currentPage: AppPage;
+
   /** Legacy: User's Anthropic API key (deprecated, use Claude Code instead) */
   anthropicApiKey: string | null;
   apiKeyValidated: boolean;
@@ -28,6 +35,8 @@ interface SettingsState {
   setAgentMode: (mode: AgentMode) => void;
   setClaudeCodeStatus: (status: ClaudeCodeStatus | null) => void;
   setIsCheckingClaudeCode: (checking: boolean) => void;
+  setAppReady: (ready: boolean) => void;
+  setCurrentPage: (page: AppPage) => void;
 
   /** Legacy methods for API key (kept for backward compatibility) */
   setAnthropicApiKey: (key: string | null) => void;
@@ -41,6 +50,8 @@ export const useSettingsStore = create<SettingsState>()(
       agentMode: "cloud",
       claudeCodeStatus: null,
       isCheckingClaudeCode: false,
+      isAppReady: false,
+      currentPage: "byoa",
       anthropicApiKey: null,
       apiKeyValidated: false,
 
@@ -48,6 +59,8 @@ export const useSettingsStore = create<SettingsState>()(
       setClaudeCodeStatus: (status) =>
         set({ claudeCodeStatus: status, isCheckingClaudeCode: false }),
       setIsCheckingClaudeCode: (checking) => set({ isCheckingClaudeCode: checking }),
+      setAppReady: (ready) => set({ isAppReady: ready }),
+      setCurrentPage: (page) => set({ currentPage: page }),
 
       // Legacy methods
       setAnthropicApiKey: (key) => set({ anthropicApiKey: key, apiKeyValidated: false }),
