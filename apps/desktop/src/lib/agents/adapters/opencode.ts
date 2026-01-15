@@ -20,8 +20,10 @@ import type {
 
 const config: AgentConfig = {
   id: 'opencode',
+  type: 'local',
   name: 'Opencode',
   description: 'Open-source AI coding agent with ACP protocol',
+  provider: 'Open Source',
   installUrl: 'https://github.com/anomalyco/opencode',
   authCommand: 'opencode auth login --provider anthropic',
 }

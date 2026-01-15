@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AgentId, AgentStatus } from "../lib/agents/types";
-import { getAdapter, AGENT_IDS } from "../lib/agents/registry";
+import type { AgentId, AgentStatus, LocalAgentId } from "../lib/agents/types";
+import { isLocalAgent } from "../lib/agents/types";
+import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/registry";
 
 /** Agent mode: 'cloud' for vibed.fun API, or any AgentId for local CLI agents */
 export type AgentMode = "cloud" | AgentId;
@@ -16,8 +17,8 @@ interface SettingsState {
   /** Current agent mode: 'cloud' uses vibed.fun credits, agent IDs use local CLI */
   agentMode: AgentMode;
 
-  /** Status for each registered agent */
-  agentStatuses: Record<AgentId, AgentStatus | null>;
+  /** Status for each local CLI agent (cloud models don't need status tracking) */
+  agentStatuses: Record<LocalAgentId, AgentStatus | null>;
 
   /** Whether we're currently checking an agent's status */
   isCheckingAgent: boolean;
@@ -34,13 +35,13 @@ interface SettingsState {
 
   // Actions
   setAgentMode: (mode: AgentMode) => void;
-  setAgentStatus: (agentId: AgentId, status: AgentStatus | null) => void;
+  setAgentStatus: (agentId: LocalAgentId, status: AgentStatus | null) => void;
   setIsCheckingAgent: (checking: boolean) => void;
   setAppReady: (ready: boolean) => void;
   setCurrentPage: (page: AppPage) => void;
 
-  /** Check status for a specific agent */
-  checkAgentStatus: (agentId: AgentId) => Promise<AgentStatus>;
+  /** Check status for a local CLI agent */
+  checkAgentStatus: (agentId: LocalAgentId) => Promise<AgentStatus>;
 
   /** Legacy: Get Claude Code status (for backwards compatibility) */
   get claudeCodeStatus(): AgentStatus | null;
@@ -55,8 +56,8 @@ interface SettingsState {
   setIsCheckingClaudeCode: (checking: boolean) => void;
 }
 
-// Initialize empty status for all agents
-const initialAgentStatuses: Record<AgentId, AgentStatus | null> = {
+// Initialize empty status for all local CLI agents
+const initialAgentStatuses: Record<LocalAgentId, AgentStatus | null> = {
   "claude-code": null,
   opencode: null,
   cursor: null,
@@ -91,7 +92,7 @@ export const useSettingsStore = create<SettingsState>()(
       checkAgentStatus: async (agentId) => {
         set({ isCheckingAgent: true });
         try {
-          const adapter = getAdapter(agentId);
+          const adapter = getLocalAdapter(agentId);
           const status = await adapter.checkStatus();
           get().setAgentStatus(agentId, status);
           return status;
@@ -147,31 +148,63 @@ export const useSettingsStore = create<SettingsState>()(
 );
 
 /**
- * Helper to check if the current agent mode is ready to use
+ * Helper to check if the current global agent mode is ready to use
+ * @deprecated Use isWorkspaceAgentReady instead for per-workspace agents
  */
 export function isAgentReady(state: SettingsState): boolean {
   // Cloud mode is always ready
   if (state.agentMode === "cloud") return true;
 
   // For local agents, check if installed and authenticated
-  const agentId = state.agentMode as AgentId;
+  if (!isLocalAgent(state.agentMode)) return true; // Cloud models always ready
+
+  const status = state.agentStatuses[state.agentMode];
+  return status?.installed === true && status?.authenticated === true;
+}
+
+/**
+ * Check if a specific agent is ready to use
+ * - Cloud models are always ready
+ * - Local agents need to be installed and authenticated
+ */
+export function isWorkspaceAgentReady(
+  state: SettingsState,
+  agentId: AgentId
+): boolean {
+  // Cloud models are always ready
+  if (!isLocalAgent(agentId)) return true;
+
+  // Local agents need status check
   const status = state.agentStatuses[agentId];
   return status?.installed === true && status?.authenticated === true;
 }
 
 /**
- * Get the status for the currently selected agent
+ * Get the status for the currently selected global agent
+ * @deprecated Use getAgentStatus for per-workspace agents
  */
 export function getCurrentAgentStatus(
   state: SettingsState
 ): AgentStatus | null {
   if (state.agentMode === "cloud") return null;
-  return state.agentStatuses[state.agentMode as AgentId];
+  if (!isLocalAgent(state.agentMode)) return null;
+  return state.agentStatuses[state.agentMode];
+}
+
+/**
+ * Get the status for a specific local agent
+ */
+export function getAgentStatus(
+  state: SettingsState,
+  agentId: AgentId
+): AgentStatus | null {
+  if (!isLocalAgent(agentId)) return null;
+  return state.agentStatuses[agentId];
 }
 
 /**
  * Legacy: Helper to check if BYOA mode is ready to use
- * @deprecated Use isAgentReady instead
+ * @deprecated Use isWorkspaceAgentReady instead
  */
 export function isBYOAReady(state: SettingsState): boolean {
   // For backwards compatibility, check if any local agent is selected and ready
@@ -181,16 +214,16 @@ export function isBYOAReady(state: SettingsState): boolean {
 
 /**
  * Check if a specific agent is ready
+ * @deprecated Use isWorkspaceAgentReady instead
  */
 export function isSpecificAgentReady(
   state: SettingsState,
   agentId: AgentId
 ): boolean {
-  const status = state.agentStatuses[agentId];
-  return status?.installed === true && status?.authenticated === true;
+  return isWorkspaceAgentReady(state, agentId);
 }
 
 /**
  * Get list of all agent IDs
  */
-export { AGENT_IDS };
+export { ALL_AGENT_IDS, LOCAL_AGENT_IDS };

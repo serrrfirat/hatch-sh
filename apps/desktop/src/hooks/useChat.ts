@@ -2,11 +2,13 @@ import { useCallback, useRef } from "react";
 import { useChatStore, type Message, type ToolUse } from "../stores/chatStore";
 import {
   useSettingsStore,
-  isAgentReady,
-  getCurrentAgentStatus,
+  isWorkspaceAgentReady,
+  getAgentStatus,
 } from "../stores/settingsStore";
-import type { AgentId, StreamEvent, AgentMessage } from "../lib/agents/types";
-import { getAdapter, getConfig } from "../lib/agents/registry";
+import { useRepositoryStore } from "../stores/repositoryStore";
+import type { AgentId, StreamEvent, AgentMessage, LocalAgentId } from "../lib/agents/types";
+import { isLocalAgent } from "../lib/agents/types";
+import { getLocalAdapter, getConfig } from "../lib/agents/registry";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
@@ -39,7 +41,11 @@ export function useChat() {
   } = useChatStore();
 
   const settingsState = useSettingsStore();
-  const { agentMode, agentStatuses } = settingsState;
+  const { agentStatuses } = settingsState;
+
+  // Get current workspace and its selected agent
+  const { currentWorkspace } = useRepositoryStore();
+  const workspaceAgentId = currentWorkspace?.agentId || 'claude-code';
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
@@ -58,67 +64,11 @@ export function useChat() {
   };
 
   /**
-   * Send message via Cloud mode (vibed.fun API)
+   * Send message via a local CLI agent (Claude Code, Opencode, Cursor)
    */
-  const sendCloudMessage = useCallback(
-    async (content: string, assistantMessageId: string) => {
-      abortControllerRef.current = new AbortController();
-
-      const response = await fetch(`${API_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: currentProjectId,
-          message: content,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!response.ok) throw new Error("Chat request failed");
-      if (!response.body) throw new Error("No response body");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let streamComplete = false;
-
-      while (!streamComplete) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.text) {
-                fullContent += data.text;
-                updateMessage(assistantMessageId, fullContent, true);
-              }
-              if (data.done) {
-                streamComplete = true;
-                break;
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
-
-      return fullContent;
-    },
-    [currentProjectId, updateMessage]
-  );
-
-  /**
-   * Send message via any local agent (Claude Code, Opencode, Cursor)
-   */
-  const sendAgentMessage = useCallback(
+  const sendLocalAgentMessage = useCallback(
     async (
-      agentId: AgentId,
+      agentId: LocalAgentId,
       content: string,
       assistantMessageId: string
     ) => {
@@ -189,7 +139,7 @@ export function useChat() {
 
       try {
         // Get the adapter and send message
-        const adapter = getAdapter(agentId);
+        const adapter = getLocalAdapter(agentId);
         fullContent = await adapter.sendMessage(
           formattedMessages,
           SYSTEM_PROMPT,
@@ -214,26 +164,87 @@ export function useChat() {
     ]
   );
 
+  /**
+   * Send message via cloud API (for cloud models like Opus, Sonnet, Haiku, GPT)
+   * Uses the vibed.fun API with model selection
+   */
+  const sendCloudModelMessage = useCallback(
+    async (modelId: AgentId, content: string, assistantMessageId: string) => {
+      abortControllerRef.current = new AbortController();
+
+      const response = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: currentProjectId,
+          message: content,
+          model: modelId, // Pass the selected model
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) throw new Error("Chat request failed");
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
+      let streamComplete = false;
+
+      while (!streamComplete) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.text) {
+                fullContent += data.text;
+                updateMessage(assistantMessageId, fullContent, true);
+              }
+              if (data.done) {
+                streamComplete = true;
+                break;
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      return fullContent;
+    },
+    [currentProjectId, updateMessage]
+  );
+
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim()) return;
 
-      // For cloud mode, require project selection
+      // Get the workspace's selected agent
+      const agentId = workspaceAgentId;
+      const config = getConfig(agentId);
+      const isLocal = isLocalAgent(agentId);
+
+      // For cloud models, require project selection
       // For local agents, allow chat without project (standalone mode)
-      if (agentMode === "cloud" && !currentProjectId) {
+      if (!isLocal && !currentProjectId) {
         console.error("No project selected");
         addMessage({
           role: "assistant",
-          content: "Please select a project before sending messages.",
+          content: "Please select a project before sending messages with cloud models.",
         });
         return;
       }
 
-      // Check local agent mode requirements
-      if (agentMode !== "cloud" && !isAgentReady(settingsState)) {
-        const agentId = agentMode as AgentId;
-        const status = getCurrentAgentStatus(settingsState);
-        const config = getConfig(agentId);
+      // Check local agent requirements
+      if (isLocal && !isWorkspaceAgentReady(settingsState, agentId)) {
+        const status = getAgentStatus(settingsState, agentId);
 
         if (!status?.installed) {
           addMessage({
@@ -275,12 +286,17 @@ export function useChat() {
       try {
         let fullContent: string;
 
-        if (agentMode === "cloud") {
-          fullContent = await sendCloudMessage(content, assistantMessageId);
+        if (isLocal) {
+          // Send via local CLI agent adapter
+          fullContent = await sendLocalAgentMessage(
+            agentId as LocalAgentId,
+            content,
+            assistantMessageId
+          );
         } else {
-          // Send via local agent adapter
-          fullContent = await sendAgentMessage(
-            agentMode as AgentId,
+          // Send via cloud API with model selection
+          fullContent = await sendCloudModelMessage(
+            agentId,
             content,
             assistantMessageId
           );
@@ -318,14 +334,14 @@ export function useChat() {
     },
     [
       currentProjectId,
-      agentMode,
+      workspaceAgentId,
       settingsState,
       addMessage,
       updateMessage,
       setMessageDuration,
       setLoading,
-      sendCloudMessage,
-      sendAgentMessage,
+      sendLocalAgentMessage,
+      sendCloudModelMessage,
     ]
   );
 
@@ -358,7 +374,7 @@ export function useChat() {
   return {
     messages,
     isLoading,
-    agentMode,
+    workspaceAgentId,
     sendMessage,
     stopGeneration,
   };

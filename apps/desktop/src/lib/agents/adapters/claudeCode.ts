@@ -17,8 +17,10 @@ import type {
 
 const config: AgentConfig = {
   id: 'claude-code',
+  type: 'local',
   name: 'Claude Code',
   description: "Anthropic's AI coding assistant",
+  provider: 'Anthropic',
   installUrl: 'https://docs.anthropic.com/en/docs/claude-code',
   authCommand: 'claude login',
 }

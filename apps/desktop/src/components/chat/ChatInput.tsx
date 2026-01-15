@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { cn } from '@vibed/ui'
+import { AgentPicker } from './AgentPicker'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -37,6 +38,11 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
 
   return (
     <div className="border-t border-white/10 bg-neutral-900 p-4">
+      {/* Agent Picker Row */}
+      <div className="flex items-center justify-between mb-3">
+        <AgentPicker />
+      </div>
+
       <div className="flex items-center gap-3">
         {/* Textarea */}
         <div className="flex-1 relative">

@@ -4,10 +4,11 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
-import { useSettingsStore, isAgentReady } from '../../stores/settingsStore'
+import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
+import { isLocalAgent } from '../../lib/agents/types'
 
 export function ChatArea() {
-  const { messages, isLoading, agentMode, sendMessage, stopGeneration } = useChat()
+  const { messages, isLoading, workspaceAgentId, sendMessage, stopGeneration } = useChat()
   const settingsState = useSettingsStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
@@ -22,8 +23,8 @@ export function ChatArea() {
 
   const showWelcome = messages.length === 0
 
-  // Check if local agent mode but agent not connected
-  const needsAgent = agentMode !== 'cloud' && !isAgentReady(settingsState)
+  // Check if workspace's agent requires setup (only for local agents)
+  const needsAgent = isLocalAgent(workspaceAgentId) && !isWorkspaceAgentReady(settingsState, workspaceAgentId)
 
   return (
     <div className="flex flex-col h-full">

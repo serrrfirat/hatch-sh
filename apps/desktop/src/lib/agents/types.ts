@@ -1,12 +1,38 @@
 /**
  * Multi-Agent Adapter System - Core Types
  *
- * Defines the interfaces for supporting multiple CLI-based AI agents
- * (Claude Code, Opencode, Cursor Agent) through a unified adapter pattern.
+ * Defines the interfaces for supporting multiple AI agents including:
+ * - Local CLI agents (Claude Code, Opencode, Cursor Agent)
+ * - Cloud API models (Opus, Sonnet, Haiku, GPT variants)
  */
 
-/** Supported agent identifiers */
-export type AgentId = 'claude-code' | 'opencode' | 'cursor'
+/** Local CLI agent identifiers */
+export type LocalAgentId = 'claude-code' | 'opencode' | 'cursor'
+
+/** Cloud model identifiers */
+export type CloudModelId =
+  | 'opus-4.5'
+  | 'sonnet-4.5'
+  | 'haiku-4.5'
+  | 'gpt-5.2-codex'
+  | 'gpt-5.2'
+  | 'gpt-5.1-codex-max'
+
+/** All supported agent/model identifiers */
+export type AgentId = LocalAgentId | CloudModelId
+
+/** Agent type classification */
+export type AgentType = 'local' | 'cloud'
+
+/** Helper to check if an agent is a local CLI agent */
+export function isLocalAgent(agentId: AgentId): agentId is LocalAgentId {
+  return ['claude-code', 'opencode', 'cursor'].includes(agentId)
+}
+
+/** Helper to check if an agent is a cloud model */
+export function isCloudModel(agentId: AgentId): agentId is CloudModelId {
+  return !isLocalAgent(agentId)
+}
 
 /** Agent installation and authentication status */
 export interface AgentStatus {
@@ -21,11 +47,19 @@ export interface AgentStatus {
 /** Static configuration for an agent */
 export interface AgentConfig {
   id: AgentId
+  type: AgentType
   name: string
   description: string
-  installUrl: string
-  authCommand: string
+  /** Provider (e.g., "Anthropic", "OpenAI", "Local") */
+  provider: string
+  /** Install URL for local agents */
+  installUrl?: string
+  /** Auth command for local agents */
+  authCommand?: string
+  /** Icon identifier */
   icon?: string
+  /** Color for UI theming */
+  color?: string
 }
 
 /** Streaming event emitted during agent message processing */

@@ -20,8 +20,10 @@ import type {
 
 const config: AgentConfig = {
   id: 'cursor',
+  type: 'local',
   name: 'Cursor Agent',
   description: "Cursor's AI agent for code editing",
+  provider: 'Cursor',
   installUrl: 'https://cursor.com/docs/cli',
   authCommand: 'agent login',
 }

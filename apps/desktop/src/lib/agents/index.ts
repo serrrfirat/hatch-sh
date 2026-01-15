@@ -8,6 +8,9 @@
 // Types
 export type {
   AgentId,
+  LocalAgentId,
+  CloudModelId,
+  AgentType,
   AgentStatus,
   AgentConfig,
   AgentMessage,
@@ -16,14 +19,21 @@ export type {
   CommandResult,
 } from './types'
 
+// Type guards
+export { isLocalAgent } from './types'
+
 // Registry
 export {
   AGENT_CONFIGS,
-  AGENT_IDS,
-  agentAdapters,
-  getAdapter,
+  ALL_AGENT_IDS,
+  LOCAL_AGENT_IDS,
+  CLOUD_MODEL_IDS,
+  localAgentAdapters,
+  getLocalAdapter,
   getConfig,
   isValidAgentId,
+  getAgentsByProvider,
+  DEFAULT_AGENT_ID,
 } from './registry'
 
 // Adapters (for direct access if needed)
