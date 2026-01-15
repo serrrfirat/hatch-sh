@@ -949,6 +949,131 @@ fn parse_repo_full_name(url: &str) -> Result<String, String> {
     Err(format!("Could not parse repository URL: {}", url))
 }
 
+/// Pull request information returned from GitHub API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PullRequestInfo {
+    pub number: u32,
+    pub title: String,
+    pub state: String,           // "open" | "closed"
+    pub merged: bool,
+    pub mergeable: Option<bool>,
+    pub mergeable_state: String, // "clean" | "dirty" | "blocked" | "behind" | "unstable"
+    pub html_url: String,
+}
+
+/// Result of merging a pull request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeResult {
+    pub merged: bool,
+    pub message: String,
+    pub sha: Option<String>,
+}
+
+/// Get pull request details from GitHub API
+#[tauri::command]
+pub async fn git_get_pr(
+    repo_full_name: String,
+    pr_number: u32,
+) -> Result<PullRequestInfo, String> {
+    let token = get_access_token()
+        .ok_or("Not authenticated with GitHub. Please sign in first.")?;
+
+    let client = reqwest::Client::new();
+
+    #[derive(Deserialize)]
+    struct GitHubPR {
+        number: u32,
+        title: String,
+        state: String,
+        merged: bool,
+        mergeable: Option<bool>,
+        mergeable_state: Option<String>,
+        html_url: String,
+    }
+
+    let response = client
+        .get(format!("https://api.github.com/repos/{}/pulls/{}", repo_full_name, pr_number))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "vibed-desktop")
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch PR: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("GitHub API error: {}", error_text));
+    }
+
+    let pr: GitHubPR = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse PR response: {}", e))?;
+
+    Ok(PullRequestInfo {
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        merged: pr.merged,
+        mergeable: pr.mergeable,
+        mergeable_state: pr.mergeable_state.unwrap_or_else(|| "unknown".to_string()),
+        html_url: pr.html_url,
+    })
+}
+
+/// Merge a pull request using GitHub API
+#[tauri::command]
+pub async fn git_merge_pr(
+    repo_full_name: String,
+    pr_number: u32,
+    merge_method: String,
+) -> Result<MergeResult, String> {
+    let token = get_access_token()
+        .ok_or("Not authenticated with GitHub. Please sign in first.")?;
+
+    let client = reqwest::Client::new();
+
+    #[derive(Serialize)]
+    struct MergeRequest {
+        merge_method: String, // "merge" | "squash" | "rebase"
+    }
+
+    #[derive(Deserialize)]
+    struct MergeResponse {
+        merged: bool,
+        message: String,
+        sha: Option<String>,
+    }
+
+    let response = client
+        .put(format!("https://api.github.com/repos/{}/pulls/{}/merge", repo_full_name, pr_number))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", "vibed-desktop")
+        .header("Accept", "application/vnd.github.v3+json")
+        .json(&MergeRequest {
+            merge_method,
+        })
+        .send()
+        .await
+        .map_err(|e| format!("Failed to merge PR: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("GitHub API error: {}", error_text));
+    }
+
+    let merge_response: MergeResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse merge response: {}", e))?;
+
+    Ok(MergeResult {
+        merged: merge_response.merged,
+        message: merge_response.message,
+        sha: merge_response.sha,
+    })
+}
+
 // We need uuid for generating workspace IDs
 mod uuid {
     pub struct Uuid;

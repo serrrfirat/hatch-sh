@@ -10,7 +10,7 @@ use github::{github_start_device_flow, github_poll_for_token, github_get_auth_st
 use git::{
     git_clone_repo, git_open_local_repo, git_create_workspace_branch, git_delete_workspace_branch,
     git_status, git_commit, git_push, git_create_pr, git_create_github_repo, git_diff,
-    git_diff_stats, list_directory_files, read_file, git_file_diff
+    git_diff_stats, list_directory_files, read_file, git_file_diff, git_get_pr, git_merge_pr
 };
 
 /// Status for any agent (installed, authenticated, version, etc.)
@@ -658,7 +658,9 @@ pub fn run() {
             git_diff_stats,
             list_directory_files,
             read_file,
-            git_file_diff
+            git_file_diff,
+            git_get_pr,
+            git_merge_pr
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

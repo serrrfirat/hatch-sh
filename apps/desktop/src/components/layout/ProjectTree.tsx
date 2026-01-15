@@ -88,7 +88,19 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-neutral-500">
-            <span>{workspace.status === 'working' ? 'Working...' : formatTimeAgo(workspace.lastActive)}</span>
+            {workspace.prNumber ? (
+              // Show PR status
+              <span className="flex items-center gap-1">
+                <span className="text-emerald-400">PR #{workspace.prNumber}</span>
+                <span>•</span>
+                <span className={workspace.prState === 'merged' ? 'text-purple-400' : 'text-emerald-400'}>
+                  {workspace.prState === 'merged' ? 'Archive' : 'Ready to Merge'}
+                </span>
+              </span>
+            ) : (
+              // No PR - show status or time
+              <span>{workspace.status === 'working' ? 'Working...' : formatTimeAgo(workspace.lastActive)}</span>
+            )}
           </div>
         </div>
       </button>
