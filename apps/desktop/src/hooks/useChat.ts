@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useChatStore, type Message } from "../stores/chatStore";
-import { useSettingsStore } from "../stores/settingsStore";
+import { useSettingsStore, isBYOAReady } from "../stores/settingsStore";
+import { sendWithHistory, type StreamEvent } from "../lib/claudeCode/bridge";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
@@ -28,15 +29,17 @@ export function useChat() {
     setLoading,
   } = useChatStore();
 
-  const { agentMode, anthropicApiKey } = useSettingsStore();
+  const settingsState = useSettingsStore();
+  const { agentMode, claudeCodeStatus } = settingsState;
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const shouldStopRef = useRef(false);
 
   /**
-   * Convert chat messages to Anthropic API format
+   * Convert chat messages to simple format for Claude Code
    */
-  const formatMessagesForAnthropic = (msgs: Message[]) => {
+  const formatMessagesForClaudeCode = (msgs: Message[]) => {
     return msgs
       .filter((m) => !m.isStreaming && m.content.trim())
       .map((m) => ({
@@ -102,85 +105,65 @@ export function useChat() {
   );
 
   /**
-   * Send message via BYOA mode (direct Anthropic API call)
+   * Send message via BYOA mode (local Claude Code)
    */
   const sendBYOAMessage = useCallback(
     async (content: string, assistantMessageId: string) => {
-      if (!anthropicApiKey) {
-        throw new Error("Please configure your Anthropic API key in settings");
+      // Check Claude Code is ready
+      if (!claudeCodeStatus?.installed) {
+        throw new Error(
+          "Claude Code is not installed. Install it from https://claude.ai/download"
+        );
+      }
+      if (!claudeCodeStatus?.authenticated) {
+        throw new Error(
+          'Claude Code is not authenticated. Run "claude login" in your terminal'
+        );
       }
 
-      abortControllerRef.current = new AbortController();
+      shouldStopRef.current = false;
 
       // Get current messages for context (excluding the streaming placeholder)
       const currentMessages = useChatStore.getState().messages;
-      const formattedMessages = formatMessagesForAnthropic(
+      const formattedMessages = formatMessagesForClaudeCode(
         currentMessages.filter((m) => m.id !== assistantMessageId)
       );
 
       // Add the new user message
       formattedMessages.push({ role: "user", content });
 
-      // Call Anthropic API directly with streaming
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicApiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4096,
-          system: SYSTEM_PROMPT,
-          messages: formattedMessages,
-          stream: true,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "API request failed");
-      }
-
-      if (!response.body) throw new Error("No response body");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
       let fullContent = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Stream handler
+      const onStream = (event: StreamEvent) => {
+        if (shouldStopRef.current) return;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(data);
-
-              // Handle content_block_delta events
-              if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-                fullContent += parsed.delta.text;
-                updateMessage(assistantMessageId, fullContent, true);
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
+        if (event.type === "text" && event.content) {
+          fullContent += event.content;
+          updateMessage(assistantMessageId, fullContent, true);
+        } else if (event.type === "error") {
+          console.error("Claude Code error:", event.content);
         }
+      };
+
+      try {
+        // Send to Claude Code via bridge
+        fullContent = await sendWithHistory(
+          formattedMessages,
+          SYSTEM_PROMPT,
+          onStream
+        );
+      } catch (error) {
+        if (shouldStopRef.current) {
+          // User stopped generation
+          return fullContent || "Generation stopped.";
+        }
+        throw error;
       }
 
       return fullContent;
     },
-    [anthropicApiKey, updateMessage]
+    [claudeCodeStatus, updateMessage]
   );
 
   const sendMessage = useCallback(
@@ -199,12 +182,27 @@ export function useChat() {
       }
 
       // Check BYOA mode requirements
-      if (agentMode === "byoa" && !anthropicApiKey) {
-        addMessage({
-          role: "assistant",
-          content:
-            "Please configure your Anthropic API key in settings to use BYOA mode.",
-        });
+      if (agentMode === "byoa" && !isBYOAReady(settingsState)) {
+        const status = claudeCodeStatus;
+        if (!status?.installed) {
+          addMessage({
+            role: "assistant",
+            content:
+              "Claude Code is not installed. Please install it from https://claude.ai/download and then click 'Check Connection' in settings.",
+          });
+        } else if (!status?.authenticated) {
+          addMessage({
+            role: "assistant",
+            content:
+              'Claude Code is not authenticated. Please run "claude login" in your terminal, then click "Check Connection" in settings.',
+          });
+        } else {
+          addMessage({
+            role: "assistant",
+            content:
+              "Please connect to Claude Code in settings to use BYOA mode.",
+          });
+        }
         return;
       }
 
@@ -262,7 +260,8 @@ export function useChat() {
     [
       currentProjectId,
       agentMode,
-      anthropicApiKey,
+      claudeCodeStatus,
+      settingsState,
       addMessage,
       updateMessage,
       setLoading,
@@ -272,7 +271,11 @@ export function useChat() {
   );
 
   const stopGeneration = useCallback(() => {
+    // For cloud mode, abort the fetch
     abortControllerRef.current?.abort();
+
+    // For BYOA mode, set the stop flag
+    shouldStopRef.current = true;
 
     // Update the streaming message to mark it as complete
     if (streamingMessageIdRef.current) {

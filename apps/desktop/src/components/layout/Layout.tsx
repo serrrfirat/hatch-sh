@@ -5,13 +5,13 @@ import { useChatStore } from '../../stores/chatStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
-import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cloud, Key } from 'lucide-react'
+import { GitBranch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cloud, Terminal } from 'lucide-react'
 
 export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { currentWorkspace, addProject, setCurrentProject, setCurrentWorkspace, addWorkspace } = useProjectStore()
   const { setProjectId, clearMessages } = useChatStore()
-  const { agentMode, anthropicApiKey } = useSettingsStore()
+  const { agentMode, claudeCodeStatus } = useSettingsStore()
   const projects = useProjectStore((state) => state.projects)
 
   const handleNewProject = () => {
@@ -86,10 +86,12 @@ export function Layout() {
           >
             {agentMode === 'byoa' ? (
               <>
-                <Key size={12} />
+                <Terminal size={12} />
                 <span>BYOA</span>
-                {anthropicApiKey && (
+                {claudeCodeStatus?.installed && claudeCodeStatus?.authenticated ? (
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                ) : (
+                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
                 )}
               </>
             ) : (

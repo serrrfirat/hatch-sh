@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { ArrowUpRight, Key } from 'lucide-react'
+import { ArrowUpRight, Terminal } from 'lucide-react'
 
 interface WelcomeScreenProps {
   onSendMessage: (message: string) => void
-  needsApiKey?: boolean
+  needsClaudeCode?: boolean
 }
 
 const SUGGESTIONS = [
@@ -80,7 +80,7 @@ function AnimatedTitle({ text }: { text: string }) {
   )
 }
 
-export function WelcomeScreen({ onSendMessage, needsApiKey }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 overflow-hidden bg-neutral-950">
       <div className="text-center max-w-4xl">
@@ -98,8 +98,8 @@ export function WelcomeScreen({ onSendMessage, needsApiKey }: WelcomeScreenProps
           </motion.p>
         </div>
 
-        {/* API Key Warning for BYOA mode */}
-        {needsApiKey && (
+        {/* Claude Code Connection Warning for BYOA mode */}
+        {needsClaudeCode && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -107,12 +107,12 @@ export function WelcomeScreen({ onSendMessage, needsApiKey }: WelcomeScreenProps
             className="mb-10 p-6 bg-purple-500/10 border border-purple-500/30 rounded-xl"
           >
             <div className="flex items-center gap-3 mb-3">
-              <Key className="w-5 h-5 text-purple-400" />
+              <Terminal className="w-5 h-5 text-purple-400" />
               <span className="font-medium text-purple-300">BYOA Mode Active</span>
             </div>
             <p className="text-neutral-400 text-sm">
-              Configure your Anthropic API key in settings to start building.
-              Click the settings icon in the header to get started.
+              Connect to your local Claude Code installation in settings.
+              Click the settings icon in the header to check connection status.
             </p>
           </motion.div>
         )}
@@ -143,8 +143,8 @@ export function WelcomeScreen({ onSendMessage, needsApiKey }: WelcomeScreenProps
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.5 + i * 0.1 }}
-              onClick={() => !needsApiKey && onSendMessage(suggestion.prompt)}
-              className={`group text-left ${needsApiKey ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              onClick={() => !needsClaudeCode && onSendMessage(suggestion.prompt)}
+              className={`group text-left ${needsClaudeCode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <div className="border-t border-white/10 pt-4">
                 <div className="flex justify-between items-start">
@@ -159,7 +159,7 @@ export function WelcomeScreen({ onSendMessage, needsApiKey }: WelcomeScreenProps
                       {suggestion.prompt}
                     </p>
                   </div>
-                  {!needsApiKey && (
+                  {!needsClaudeCode && (
                     <div className="bg-neutral-800 rounded-full p-2 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                       <ArrowUpRight size={16} className="text-white" />
                     </div>

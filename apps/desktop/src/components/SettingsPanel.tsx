@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useSettingsStore, type AgentMode } from "../stores/settingsStore";
+import { checkClaudeCodeStatus } from "../lib/claudeCode/bridge";
+import { CheckCircle2, XCircle, Loader2, Terminal, ExternalLink, RefreshCw } from "lucide-react";
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -9,59 +11,53 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const {
     agentMode,
-    anthropicApiKey,
-    apiKeyValidated,
+    claudeCodeStatus,
+    isCheckingClaudeCode,
     setAgentMode,
-    setAnthropicApiKey,
-    setApiKeyValidated,
-    clearApiKey,
+    setClaudeCodeStatus,
+    setIsCheckingClaudeCode,
   } = useSettingsStore();
 
-  const [apiKeyInput, setApiKeyInput] = useState(anthropicApiKey || "");
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // Check Claude Code status when switching to BYOA mode or opening settings
+  useEffect(() => {
+    if (isOpen && agentMode === "byoa" && !claudeCodeStatus) {
+      checkConnection();
+    }
+  }, [isOpen, agentMode]);
 
   const handleModeChange = (mode: AgentMode) => {
     setAgentMode(mode);
-    setValidationError(null);
+    if (mode === "byoa" && !claudeCodeStatus) {
+      checkConnection();
+    }
   };
 
-  const validateApiKey = async () => {
-    if (!apiKeyInput.trim()) {
-      setValidationError("Please enter an API key");
-      return;
-    }
-
-    setIsValidating(true);
-    setValidationError(null);
-
+  const checkConnection = async () => {
+    setIsCheckingClaudeCode(true);
     try {
-      // Simple validation: check if key starts with correct prefix
-      if (!apiKeyInput.startsWith("sk-ant-")) {
-        throw new Error("Invalid API key format. Should start with 'sk-ant-'");
-      }
-
-      // In production, you'd make a test API call to validate
-      // For now, we'll just check the format
-      setAnthropicApiKey(apiKeyInput);
-      setApiKeyValidated(true);
+      const status = await checkClaudeCodeStatus();
+      setClaudeCodeStatus({
+        ...status,
+        lastChecked: Date.now(),
+      });
     } catch (error) {
-      setValidationError(
-        error instanceof Error ? error.message : "Validation failed"
-      );
-      setApiKeyValidated(false);
-    } finally {
-      setIsValidating(false);
+      setClaudeCodeStatus({
+        installed: false,
+        authenticated: false,
+        error: error instanceof Error ? error.message : "Failed to check Claude Code status",
+        lastChecked: Date.now(),
+      });
     }
   };
 
-  const handleClearApiKey = () => {
-    setApiKeyInput("");
-    clearApiKey();
-    setValidationError(null);
+  const openClaudeDownload = () => {
+    // Open Claude Code download page
+    window.open("https://claude.ai/download", "_blank");
   };
 
   if (!isOpen) return null;
+
+  const isConnected = claudeCodeStatus?.installed && claudeCodeStatus?.authenticated;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -115,70 +111,97 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 }`} />
                 <div className="text-left">
                   <div className="text-sm font-medium text-white">BYOA</div>
-                  <div className="text-xs text-zinc-400">Use your API key</div>
+                  <div className="text-xs text-zinc-400">Use Claude Code</div>
                 </div>
               </div>
             </button>
           </div>
         </div>
 
-        {/* API Key Configuration (only show for BYOA mode) */}
+        {/* Claude Code Connection (only show for BYOA mode) */}
         {agentMode === "byoa" && (
           <div className="mb-6">
             <h3 className="text-sm font-medium text-zinc-300 mb-3">
-              Anthropic API Key
+              Claude Code Connection
             </h3>
-            <div className="space-y-3">
-              <div className="relative">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500"
-                />
-                {apiKeyValidated && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-              </div>
 
-              {validationError && (
-                <p className="text-sm text-red-400">{validationError}</p>
+            {/* Status Card */}
+            <div className={`rounded-lg border p-4 mb-4 ${
+              isCheckingClaudeCode
+                ? "border-zinc-700 bg-zinc-800/50"
+                : isConnected
+                ? "border-green-500/50 bg-green-500/10"
+                : "border-red-500/50 bg-red-500/10"
+            }`}>
+              {isCheckingClaudeCode ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                  <span className="text-zinc-300">Checking Claude Code...</span>
+                </div>
+              ) : isConnected ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span className="text-green-400 font-medium">Connected</span>
+                  </div>
+                  {claudeCodeStatus?.version && (
+                    <p className="text-xs text-zinc-400 ml-7">
+                      Version: {claudeCodeStatus.version}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="w-5 h-5 text-red-500" />
+                    <span className="text-red-400 font-medium">Not Connected</span>
+                  </div>
+                  {claudeCodeStatus?.error && (
+                    <p className="text-xs text-red-300/80 ml-7">
+                      {claudeCodeStatus.error}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <button
+                onClick={checkConnection}
+                disabled={isCheckingClaudeCode}
+                className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${isCheckingClaudeCode ? "animate-spin" : ""}`} />
+                {isCheckingClaudeCode ? "Checking..." : "Check Connection"}
+              </button>
+
+              {!claudeCodeStatus?.installed && (
+                <button
+                  onClick={openClaudeDownload}
+                  className="w-full flex items-center justify-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Download Claude Code
+                </button>
               )}
 
-              <div className="flex gap-2">
-                <button
-                  onClick={validateApiKey}
-                  disabled={isValidating}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                >
-                  {isValidating ? "Validating..." : "Save API Key"}
-                </button>
-                {anthropicApiKey && (
-                  <button
-                    onClick={handleClearApiKey}
-                    className="bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              <p className="text-xs text-zinc-500">
-                Get your API key from{" "}
-                <a
-                  href="https://console.anthropic.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300"
-                >
-                  console.anthropic.com
-                </a>
-              </p>
+              {claudeCodeStatus?.installed && !claudeCodeStatus?.authenticated && (
+                <div className="bg-zinc-800/50 rounded-lg p-3">
+                  <div className="flex items-start gap-2 text-sm text-zinc-300">
+                    <Terminal className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium mb-1">Login Required</p>
+                      <p className="text-zinc-400 text-xs">
+                        Open your terminal and run:
+                      </p>
+                      <code className="block mt-2 bg-zinc-900 px-2 py-1 rounded text-xs text-purple-400">
+                        claude login
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -197,8 +220,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             <div className="text-sm text-zinc-400">
               <p className="font-medium text-white mb-1">BYOA Mode (Bring Your Own Agent)</p>
               <p>
-                Use your own Anthropic API key for unlimited usage. Your API key
-                is stored locally and never sent to our servers.
+                Use your local Claude Code installation with your Claude Max/Pro
+                subscription. Unlimited usage with your own account.
               </p>
             </div>
           )}

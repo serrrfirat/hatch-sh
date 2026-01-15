@@ -4,11 +4,11 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
-import { useSettingsStore } from '../../stores/settingsStore'
+import { useSettingsStore, isBYOAReady } from '../../stores/settingsStore'
 
 export function ChatArea() {
   const { messages, isLoading, agentMode, sendMessage, stopGeneration } = useChat()
-  const { anthropicApiKey } = useSettingsStore()
+  const settingsState = useSettingsStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
 
@@ -22,15 +22,15 @@ export function ChatArea() {
 
   const showWelcome = messages.length === 0
 
-  // Check if BYOA mode but no API key configured
-  const needsApiKey = agentMode === 'byoa' && !anthropicApiKey
+  // Check if BYOA mode but Claude Code not connected
+  const needsClaudeCode = agentMode === 'byoa' && !isBYOAReady(settingsState)
 
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
         {showWelcome ? (
-          <WelcomeScreen onSendMessage={sendMessage} needsApiKey={needsApiKey} />
+          <WelcomeScreen onSendMessage={sendMessage} needsClaudeCode={needsClaudeCode} />
         ) : (
           <div className="max-w-4xl mx-auto">
             <AnimatePresence mode="popLayout">
@@ -70,7 +70,7 @@ export function ChatArea() {
         onSend={sendMessage}
         isLoading={isLoading}
         onStop={stopGeneration}
-        disabled={needsApiKey}
+        disabled={needsClaudeCode}
       />
     </div>
   )
