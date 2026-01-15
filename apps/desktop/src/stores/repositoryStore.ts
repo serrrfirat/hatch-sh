@@ -5,6 +5,8 @@ import * as githubBridge from '../lib/github/bridge'
 import type { Repository, GitStatus } from '../lib/git/bridge'
 import type { GitHubAuthState } from '../lib/github/bridge'
 import { useChatStore } from './chatStore'
+import type { AgentId } from '../lib/agents/types'
+import { DEFAULT_AGENT_ID } from '../lib/agents/registry'
 
 export interface Workspace {
   id: string
@@ -16,6 +18,11 @@ export interface Workspace {
   lastActive: Date
   additions?: number
   deletions?: number
+  agentId: AgentId
+  // PR tracking
+  prNumber?: number
+  prUrl?: string
+  prState?: 'open' | 'merged'
 }
 
 interface RepositoryState {
@@ -54,6 +61,7 @@ interface RepositoryState {
   setCurrentWorkspace: (workspace: Workspace | null) => void
   updateWorkspaceStatus: (workspaceId: string, status: Workspace['status']) => void
   updateWorkspaceStats: (workspaceId: string, additions: number, deletions: number) => void
+  updateWorkspaceAgent: (workspaceId: string, agentId: AgentId) => void
   removeWorkspace: (workspaceId: string) => Promise<void>
 
   // Actions - Git operations
@@ -61,6 +69,7 @@ interface RepositoryState {
   commitChanges: (workspaceId: string, message: string) => Promise<string>
   pushChanges: (workspaceId: string) => Promise<void>
   createPullRequest: (workspaceId: string, title: string, body: string) => Promise<string>
+  mergePullRequest: (workspaceId: string, mergeMethod?: string) => Promise<void>
 }
 
 export const useRepositoryStore = create<RepositoryState>()(
@@ -217,6 +226,7 @@ export const useRepositoryStore = create<RepositoryState>()(
             repoPath: repo.local_path,         // Keep reference to main repo
             status: 'idle',
             lastActive: new Date(),
+            agentId: DEFAULT_AGENT_ID,
           }
 
           set((state) => ({
@@ -268,6 +278,18 @@ export const useRepositoryStore = create<RepositoryState>()(
           currentWorkspace:
             state.currentWorkspace?.id === workspaceId
               ? { ...state.currentWorkspace, additions, deletions }
+              : state.currentWorkspace,
+        }))
+      },
+
+      updateWorkspaceAgent: (workspaceId, agentId) => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId ? { ...w, agentId } : w
+          ),
+          currentWorkspace:
+            state.currentWorkspace?.id === workspaceId
+              ? { ...state.currentWorkspace, agentId }
               : state.currentWorkspace,
         }))
       },
@@ -378,7 +400,61 @@ export const useRepositoryStore = create<RepositoryState>()(
           body
         )
 
+        // Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123)
+        const prNumber = parseInt(prUrl.split('/').pop() || '0', 10)
+
+        // Update workspace with PR info
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId
+              ? { ...w, prNumber, prUrl, prState: 'open' as const }
+              : w
+          ),
+          currentWorkspace: state.currentWorkspace?.id === workspaceId
+            ? { ...state.currentWorkspace, prNumber, prUrl, prState: 'open' as const }
+            : state.currentWorkspace,
+        }))
+
         return prUrl
+      },
+
+      mergePullRequest: async (workspaceId: string, mergeMethod: string = 'squash') => {
+        const workspace = get().workspaces.find((w) => w.id === workspaceId)
+        if (!workspace) {
+          throw new Error('Workspace not found')
+        }
+
+        if (!workspace.prNumber) {
+          throw new Error('No PR associated with this workspace')
+        }
+
+        const repo = get().repositories.find((r) => r.id === workspace.repositoryId)
+        if (!repo) {
+          throw new Error('Repository not found')
+        }
+
+        // Merge the PR
+        const result = await gitBridge.mergePullRequest(
+          repo.full_name,
+          workspace.prNumber,
+          mergeMethod
+        )
+
+        if (!result.merged) {
+          throw new Error(result.message || 'Failed to merge PR')
+        }
+
+        // Update workspace state to merged
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId
+              ? { ...w, prState: 'merged' as const }
+              : w
+          ),
+          currentWorkspace: state.currentWorkspace?.id === workspaceId
+            ? { ...state.currentWorkspace, prState: 'merged' as const }
+            : state.currentWorkspace,
+        }))
       },
     }),
     {
@@ -389,6 +465,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           ...w,
           status: 'idle' as const, // Reset status on reload
           lastActive: w.lastActive,
+          agentId: w.agentId || DEFAULT_AGENT_ID, // Ensure agentId is always set
         })),
         // Don't persist auth - load from disk on startup
       }),

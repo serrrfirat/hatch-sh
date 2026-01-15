@@ -7,7 +7,7 @@ import { Plasma } from '../Plasma'
 
 interface WelcomeScreenProps {
   onSendMessage: (message: string) => void
-  needsClaudeCode?: boolean
+  needsAgent?: boolean
 }
 
 type ModalView = 'none' | 'clone' | 'quickstart' | 'github-login'

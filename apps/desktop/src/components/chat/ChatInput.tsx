@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type KeyboardEvent, type ReactNode } from 
 import { motion } from 'framer-motion'
 import { cn } from '@vibed/ui'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { AgentPicker } from './AgentPicker'
 
 // Editorial easing - smooth, elegant motion
 const editorialEase = [0.16, 1, 0.3, 1] as const
@@ -109,22 +110,25 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   return (
     <div className="border-t border-white/10 px-6 py-4">
       <div className="max-w-3xl mx-auto">
-        {/* Mode toggles */}
-        <div className="flex items-center gap-8 mb-4">
-          <ModeToggle
-            label="Plan"
-            icon={<MapIcon />}
-            isActive={planModeEnabled}
-            onToggle={() => setPlanModeEnabled(!planModeEnabled)}
-          />
-          {/* Display-only toggle: hides/shows thinking blocks in the UI.
-              Claude Code always generates thinking - this just controls visibility. */}
-          <ModeToggle
-            label="Thinking"
-            icon={<BrainIcon />}
-            isActive={thinkingEnabled}
-            onToggle={() => setThinkingEnabled(!thinkingEnabled)}
-          />
+        {/* Agent Picker and Mode toggles */}
+        <div className="flex items-center justify-between mb-4">
+          <AgentPicker />
+          <div className="flex items-center gap-8">
+            <ModeToggle
+              label="Plan"
+              icon={<MapIcon />}
+              isActive={planModeEnabled}
+              onToggle={() => setPlanModeEnabled(!planModeEnabled)}
+            />
+            {/* Display-only toggle: hides/shows thinking blocks in the UI.
+                Claude Code always generates thinking - this just controls visibility. */}
+            <ModeToggle
+              label="Thinking"
+              icon={<BrainIcon />}
+              isActive={thinkingEnabled}
+              onToggle={() => setThinkingEnabled(!thinkingEnabled)}
+            />
+          </div>
         </div>
 
         {/* Input area */}

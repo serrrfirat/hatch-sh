@@ -108,7 +108,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const showActivitySection = hasThinking || hasToolUses
 
   const components: Components = {
-    code({ className, children, node, ...props }) {
+    code({ className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '')
       const content = String(children).replace(/\n$/, '')
 
@@ -142,6 +142,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     ol({ children }) {
       return <ol className="list-decimal list-outside ml-5 mb-4 text-white/80 leading-[1.8] space-y-1">{children}</ol>
     },
+    li({ children }) {
+      return <li className="text-white/80">{children}</li>
+    },
     h1({ children }) {
       return <h1 className="text-2xl font-medium tracking-tight mb-4 text-white">{children}</h1>
     },
@@ -150,6 +153,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     },
     h3({ children }) {
       return <h3 className="text-lg font-medium tracking-tight mb-2 text-white">{children}</h3>
+    },
+    h4({ children }) {
+      return <h4 className="text-base font-medium tracking-tight mb-2 text-white">{children}</h4>
     },
     a({ href, children }) {
       return (
@@ -163,6 +169,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </a>
       )
     },
+    strong({ children }) {
+      return <strong className="font-semibold text-white">{children}</strong>
+    },
+    em({ children }) {
+      return <em className="italic text-white/70">{children}</em>
+    },
     blockquote({ children }) {
       return (
         <blockquote className="border-l-2 border-white/20 pl-4 my-4 text-white/60 italic">
@@ -172,6 +184,30 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     },
     hr() {
       return <hr className="border-white/10 my-6" />
+    },
+    table({ children }) {
+      return (
+        <div className="overflow-x-auto my-4">
+          <table className="min-w-full border-collapse text-sm">
+            {children}
+          </table>
+        </div>
+      )
+    },
+    thead({ children }) {
+      return <thead className="bg-white/5 border-b border-white/10">{children}</thead>
+    },
+    tbody({ children }) {
+      return <tbody className="divide-y divide-white/5">{children}</tbody>
+    },
+    tr({ children }) {
+      return <tr className="hover:bg-white/5 transition-colors">{children}</tr>
+    },
+    th({ children }) {
+      return <th className="px-3 py-2 text-left font-semibold text-white">{children}</th>
+    },
+    td({ children }) {
+      return <td className="px-3 py-2 text-white/80">{children}</td>
     },
   }
 
