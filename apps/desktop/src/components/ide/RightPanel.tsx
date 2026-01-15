@@ -8,6 +8,7 @@ import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useEditorStore } from '../../stores/editorStore'
 import { getDiffStats, listDirectoryFiles, type FileChange, type FileEntry } from '../../lib/git/bridge'
 import { FileIcon } from '../icons/FileIcon'
+import { DEFAULT_AGENT_ID } from '../../lib/agents/registry'
 
 type TopTab = 'changes' | 'files' | 'checks' | 'preview'
 type BottomTab = 'terminal' | 'token'
@@ -310,6 +311,7 @@ function FilesPanel() {
           localPath: repo.local_path,
           status: 'idle' as const,
           lastActive: new Date(),
+          agentId: DEFAULT_AGENT_ID,
         }
         // Update the store
         useRepositoryStore.setState((state) => ({

@@ -3,7 +3,7 @@ import { ArrowUpRight, Terminal } from 'lucide-react'
 
 interface WelcomeScreenProps {
   onSendMessage: (message: string) => void
-  needsClaudeCode?: boolean
+  needsAgent?: boolean
 }
 
 const SUGGESTIONS = [
@@ -80,7 +80,7 @@ function AnimatedTitle({ text }: { text: string }) {
   )
 }
 
-export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSendMessage, needsAgent }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 overflow-hidden bg-neutral-950">
       <div className="text-center max-w-4xl">
@@ -99,7 +99,7 @@ export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenP
         </div>
 
         {/* Claude Code Connection Warning for BYOA mode */}
-        {needsClaudeCode && (
+        {needsAgent && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -143,8 +143,8 @@ export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenP
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.5 + i * 0.1 }}
-              onClick={() => !needsClaudeCode && onSendMessage(suggestion.prompt)}
-              className={`group text-left ${needsClaudeCode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              onClick={() => !needsAgent && onSendMessage(suggestion.prompt)}
+              className={`group text-left ${needsAgent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <div className="border-t border-white/10 pt-4">
                 <div className="flex justify-between items-start">
@@ -159,7 +159,7 @@ export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenP
                       {suggestion.prompt}
                     </p>
                   </div>
-                  {!needsClaudeCode && (
+                  {!needsAgent && (
                     <div className="bg-neutral-800 rounded-full p-2 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                       <ArrowUpRight size={16} className="text-white" />
                     </div>

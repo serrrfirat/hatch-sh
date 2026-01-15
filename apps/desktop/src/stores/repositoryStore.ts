@@ -4,6 +4,8 @@ import * as gitBridge from '../lib/git/bridge'
 import * as githubBridge from '../lib/github/bridge'
 import type { Repository, GitStatus } from '../lib/git/bridge'
 import type { GitHubAuthState } from '../lib/github/bridge'
+import type { AgentId } from '../lib/agents/types'
+import { DEFAULT_AGENT_ID } from '../lib/agents/registry'
 
 export interface Workspace {
   id: string
@@ -14,6 +16,7 @@ export interface Workspace {
   lastActive: Date
   additions?: number
   deletions?: number
+  agentId: AgentId
   // PR tracking
   prNumber?: number
   prUrl?: string
@@ -56,6 +59,7 @@ interface RepositoryState {
   setCurrentWorkspace: (workspace: Workspace | null) => void
   updateWorkspaceStatus: (workspaceId: string, status: Workspace['status']) => void
   updateWorkspaceStats: (workspaceId: string, additions: number, deletions: number) => void
+  updateWorkspaceAgent: (workspaceId: string, agentId: AgentId) => void
   removeWorkspace: (workspaceId: string) => Promise<void>
 
   // Actions - Git operations
@@ -218,6 +222,7 @@ export const useRepositoryStore = create<RepositoryState>()(
             localPath: repo.local_path,
             status: 'idle',
             lastActive: new Date(),
+            agentId: DEFAULT_AGENT_ID,
           }
 
           set((state) => ({
@@ -263,6 +268,18 @@ export const useRepositoryStore = create<RepositoryState>()(
           currentWorkspace:
             state.currentWorkspace?.id === workspaceId
               ? { ...state.currentWorkspace, additions, deletions }
+              : state.currentWorkspace,
+        }))
+      },
+
+      updateWorkspaceAgent: (workspaceId, agentId) => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId ? { ...w, agentId } : w
+          ),
+          currentWorkspace:
+            state.currentWorkspace?.id === workspaceId
+              ? { ...state.currentWorkspace, agentId }
               : state.currentWorkspace,
         }))
       },
@@ -427,6 +444,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           ...w,
           status: 'idle' as const, // Reset status on reload
           lastActive: w.lastActive,
+          agentId: w.agentId || DEFAULT_AGENT_ID, // Ensure agentId is always set
         })),
         // Don't persist auth - load from disk on startup
       }),

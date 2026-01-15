@@ -4,10 +4,11 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
-import { useSettingsStore, isBYOAReady } from '../../stores/settingsStore'
+import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
+import { isLocalAgent } from '../../lib/agents/types'
 
 export function ChatArea() {
-  const { messages, isLoading, agentMode, sendMessage, stopGeneration } = useChat()
+  const { messages, isLoading, workspaceAgentId, sendMessage, stopGeneration } = useChat()
   const settingsState = useSettingsStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
@@ -22,15 +23,15 @@ export function ChatArea() {
 
   const showWelcome = messages.length === 0
 
-  // Check if BYOA mode but Claude Code not connected
-  const needsClaudeCode = agentMode === 'byoa' && !isBYOAReady(settingsState)
+  // Check if workspace's agent requires setup (only for local agents)
+  const needsAgent = isLocalAgent(workspaceAgentId) && !isWorkspaceAgentReady(settingsState, workspaceAgentId)
 
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
         {showWelcome ? (
-          <WelcomeScreen onSendMessage={sendMessage} needsClaudeCode={needsClaudeCode} />
+          <WelcomeScreen onSendMessage={sendMessage} needsAgent={needsAgent} />
         ) : (
           <div className="max-w-4xl mx-auto">
             <AnimatePresence mode="popLayout">
@@ -51,7 +52,7 @@ export function ChatArea() {
         onSend={sendMessage}
         isLoading={isLoading}
         onStop={stopGeneration}
-        disabled={needsClaudeCode}
+        disabled={needsAgent}
       />
     </div>
   )
