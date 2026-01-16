@@ -7,12 +7,14 @@ import { WelcomeScreen } from './WelcomeScreen'
 import { WorkspaceInitScreen } from './WorkspaceInitScreen'
 import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
 import { useRepositoryStore } from '../../stores/repositoryStore'
+import { useChatStore } from '../../stores/chatStore'
 import { isLocalAgent } from '../../lib/agents/types'
 
 export function ChatArea() {
-  const { messages, isLoading, workspaceAgentId, sendMessage, stopGeneration } = useChat()
+  const { messages, isLoading, workspaceAgentId, sendMessage, sendOpenPRMessage, stopGeneration } = useChat()
   const settingsState = useSettingsStore()
   const { currentWorkspace, currentRepository } = useRepositoryStore()
+  const { pendingOpenPR, clearPendingOpenPR } = useChatStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
 
@@ -23,6 +25,14 @@ export function ChatArea() {
     }
     prevMessagesLengthRef.current = messages.length
   }, [messages.length])
+
+  // Watch for pending "Open PR" request from header button
+  useEffect(() => {
+    if (pendingOpenPR && !isLoading) {
+      clearPendingOpenPR()
+      sendOpenPRMessage(pendingOpenPR.uncommittedChanges)
+    }
+  }, [pendingOpenPR, isLoading, clearPendingOpenPR, sendOpenPRMessage])
 
 // Check if workspace's agent requires setup (only for local agents)
   const needsAgent = isLocalAgent(workspaceAgentId) && !isWorkspaceAgentReady(settingsState, workspaceAgentId)
