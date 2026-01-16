@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useIdeaMazeStore } from '../../stores/ideaMazeStore'
 import { IdeaCard } from './nodes/IdeaCard'
 import { ConnectionsLayer } from './connections/ConnectionsLayer'
+import { ConnectionLegend } from './connections/ConnectionLegend'
 import { IdeaMazeMinimap } from './IdeaMazeMinimap'
 import type { Position, ImageContent } from '../../lib/ideaMaze/types'
 
@@ -315,6 +316,9 @@ export function IdeaMazeCanvas() {
           onViewportChange={setViewport}
         />
       )}
+
+      {/* Connection filter legend */}
+      <ConnectionLegend />
     </div>
   )
 }
