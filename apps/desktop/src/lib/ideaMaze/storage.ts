@@ -14,10 +14,9 @@ import {
   remove,
   readFile,
   writeFile,
-  BaseDirectory,
 } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import type { Moodboard, IdeaNode, NodeContent, ImageContent } from './types'
+import type { Moodboard, IdeaNode, ImageContent } from './types'
 
 // Storage directory names
 const IDEA_MAZE_DIR = 'idea-maze'
@@ -34,11 +33,6 @@ interface StoredMoodboard extends Omit<Moodboard, 'createdAt' | 'updatedAt'> {
   createdAt: string // ISO date string
   updatedAt: string // ISO date string
   storageVersion: number
-}
-
-interface StorageIndex {
-  version: number
-  moodboards: { id: string; name: string; updatedAt: string }[]
 }
 
 /**
@@ -118,8 +112,16 @@ export async function saveMoodboard(moodboard: Moodboard): Promise<void> {
       storageVersion: STORAGE_VERSION,
     }
 
-    await writeTextFile(filePath, JSON.stringify(storedMoodboard, null, 2))
-    console.log('[IdeaMaze Storage] Saved moodboard:', moodboard.id)
+    const jsonContent = JSON.stringify(storedMoodboard, null, 2)
+    await writeTextFile(filePath, jsonContent)
+
+    // Verify the save by reading back the file
+    const verifyContent = await readTextFile(filePath)
+    if (verifyContent !== jsonContent) {
+      throw new Error('Save verification failed: content mismatch after write')
+    }
+
+    console.log('[IdeaMaze Storage] Saved and verified moodboard:', moodboard.id)
   } catch (error) {
     console.error('[IdeaMaze Storage] Failed to save moodboard:', error)
     throw error
@@ -395,8 +397,8 @@ export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
     }
 
     // Clear localStorage after successful migration
-    // Comment this out if you want to keep localStorage as backup
-    // localStorage.removeItem(localStorageKey)
+    localStorage.removeItem(localStorageKey)
+    console.log('[IdeaMaze Storage] Cleared localStorage after migration')
 
     console.log('[IdeaMaze Storage] Migration complete')
     return migratedMoodboards

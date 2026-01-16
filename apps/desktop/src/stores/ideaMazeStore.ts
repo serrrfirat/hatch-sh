@@ -51,7 +51,6 @@ import {
 import {
   initializeStorage,
   saveMoodboard,
-  loadMoodboard as loadMoodboardFromStorage,
   loadAllMoodboards,
   deleteMoodboard as deleteMoodboardFromStorage,
   migrateFromLocalStorage,
@@ -60,6 +59,10 @@ import {
 // Debounce timer for auto-save
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 const SAVE_DEBOUNCE_MS = 1000
+
+// Track pending save for flush on app close
+let pendingMoodboard: Moodboard | null = null
+let isSaving = false
 
 interface IdeaMazeState {
   // Storage state
@@ -143,15 +146,47 @@ function debouncedSave(moodboard: Moodboard | null) {
     clearTimeout(saveTimeout)
   }
   if (moodboard) {
+    pendingMoodboard = moodboard
     saveTimeout = setTimeout(async () => {
       try {
+        isSaving = true
         await saveMoodboard(moodboard)
+        pendingMoodboard = null
         console.log('[IdeaMaze Store] Auto-saved moodboard:', moodboard.id)
       } catch (error) {
         console.error('[IdeaMaze Store] Failed to auto-save:', error)
+        // Keep pendingMoodboard so it can be retried
+      } finally {
+        isSaving = false
       }
     }, SAVE_DEBOUNCE_MS)
   }
+}
+
+// Force save any pending changes immediately (call on app close)
+export async function flushPendingSave(): Promise<void> {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout)
+    saveTimeout = null
+  }
+  if (pendingMoodboard && !isSaving) {
+    try {
+      isSaving = true
+      console.log('[IdeaMaze Store] Flushing pending save:', pendingMoodboard.id)
+      await saveMoodboard(pendingMoodboard)
+      pendingMoodboard = null
+      console.log('[IdeaMaze Store] Flush save complete')
+    } catch (error) {
+      console.error('[IdeaMaze Store] Flush save failed:', error)
+    } finally {
+      isSaving = false
+    }
+  }
+}
+
+// Check if there are unsaved changes
+export function hasUnsavedChanges(): boolean {
+  return pendingMoodboard !== null || saveTimeout !== null
 }
 
 export const useIdeaMazeStore = create<IdeaMazeState>()(
