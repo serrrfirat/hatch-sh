@@ -64,6 +64,25 @@ const SAVE_DEBOUNCE_MS = 1000
 let pendingMoodboard: Moodboard | null = null
 let isSaving = false
 
+// Connection filter state
+export interface ConnectionFilters {
+  related: boolean
+  'depends-on': boolean
+  contradicts: boolean
+  extends: boolean
+  alternative: boolean
+  showAISuggested: boolean
+}
+
+const DEFAULT_CONNECTION_FILTERS: ConnectionFilters = {
+  related: true,
+  'depends-on': true,
+  contradicts: true,
+  extends: true,
+  alternative: true,
+  showAISuggested: true,
+}
+
 interface IdeaMazeState {
   // Storage state
   isStorageInitialized: boolean
@@ -78,6 +97,10 @@ interface IdeaMazeState {
   viewport: Viewport
   toolMode: ToolMode
   selection: SelectionState
+
+  // Connection filter state
+  connectionFilters: ConnectionFilters
+  focusMode: boolean
 
   // AI state
   aiSuggestions: AISuggestion[]
@@ -138,6 +161,11 @@ interface IdeaMazeState {
   // Actions - UI
   toggleSidebar: () => void
   toggleMinimap: () => void
+
+  // Actions - Connection Filters
+  setConnectionFilter: (key: keyof ConnectionFilters, value: boolean) => void
+  toggleFocusMode: () => void
+  resetConnectionFilters: () => void
 }
 
 // Helper function to trigger debounced save
@@ -200,6 +228,8 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     viewport: { ...DEFAULT_VIEWPORT },
     toolMode: 'select',
     selection: { nodeIds: [], connectionIds: [] },
+    connectionFilters: { ...DEFAULT_CONNECTION_FILTERS },
+    focusMode: false,
     aiSuggestions: [],
     isAIProcessing: false,
     isSidebarOpen: true,
@@ -739,6 +769,24 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
     toggleMinimap: () => set((state) => ({ isMinimapVisible: !state.isMinimapVisible })),
+
+    // Connection filter actions
+    setConnectionFilter: (key, value) => {
+      set((state) => ({
+        connectionFilters: {
+          ...state.connectionFilters,
+          [key]: value,
+        },
+      }))
+    },
+
+    toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
+
+    resetConnectionFilters: () =>
+      set({
+        connectionFilters: { ...DEFAULT_CONNECTION_FILTERS },
+        focusMode: false,
+      }),
   }))
 )
 

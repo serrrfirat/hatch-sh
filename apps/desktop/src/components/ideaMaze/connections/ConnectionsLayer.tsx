@@ -1,7 +1,32 @@
-import { motion } from 'framer-motion'
-import type { IdeaConnection, IdeaNode, Position } from '../../../lib/ideaMaze/types'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
+import type { IdeaConnection, IdeaNode, Position, ConnectionRelationship } from '../../../lib/ideaMaze/types'
 import { connectionVariants, COLORS } from '../../../lib/ideaMaze/animations'
 import { useIdeaMazeStore } from '../../../stores/ideaMazeStore'
+
+// Relationship descriptions for tooltip
+const RELATIONSHIP_INFO: Record<ConnectionRelationship, { label: string; description: string }> = {
+  related: {
+    label: 'Related',
+    description: 'Semantically connected concepts',
+  },
+  'depends-on': {
+    label: 'Depends On',
+    description: 'Causal or prerequisite relationship',
+  },
+  contradicts: {
+    label: 'Contradicts',
+    description: 'Opposing or conflicting ideas',
+  },
+  extends: {
+    label: 'Extends',
+    description: 'Builds upon or elaborates',
+  },
+  alternative: {
+    label: 'Alternative',
+    description: 'Different approach to same goal',
+  },
+}
 
 interface ConnectionsLayerProps {
   connections: IdeaConnection[]
@@ -108,12 +133,23 @@ interface ConnectionProps {
 }
 
 function Connection({ connection, sourceNode, targetNode, isSelected, onClick }: ConnectionProps) {
+  const [isHovered, setIsHovered] = useState(false)
   const { source, target } = getConnectionPoints(sourceNode, targetNode)
   const path = generateBezierPath(source, target)
   const color = COLORS.connection[connection.relationship] || COLORS.connection.related
+  const relationshipInfo = RELATIONSHIP_INFO[connection.relationship]
+
+  // Calculate midpoint for tooltip positioning
+  const midX = (source.x + target.x) / 2
+  const midY = (source.y + target.y) / 2
 
   return (
-    <g onClick={onClick} className="cursor-pointer">
+    <g
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="cursor-pointer"
+    >
       {/* Hit area (invisible, wider for easier clicking) */}
       <path
         d={path}
@@ -123,15 +159,18 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
         className="pointer-events-auto"
       />
 
-      {/* Glow effect for selected */}
-      {isSelected && (
+      {/* Glow effect for selected or hovered */}
+      {(isSelected || isHovered) && (
         <motion.path
           d={path}
           fill="none"
           stroke={color}
           strokeWidth={6}
-          strokeOpacity={0.3}
+          strokeOpacity={isSelected ? 0.3 : 0.2}
           filter="blur(4px)"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
         />
       )}
 
@@ -140,7 +179,7 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
         d={path}
         fill="none"
         stroke={color}
-        strokeWidth={isSelected ? 3 : 2}
+        strokeWidth={isSelected || isHovered ? 3 : 2}
         strokeDasharray={connection.type === 'dashed' ? '8,4' : undefined}
         strokeLinecap="round"
         variants={connectionVariants}
@@ -152,19 +191,68 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
       {/* AI suggestion indicator */}
       {connection.aiSuggested && (
         <circle
-          cx={(source.x + target.x) / 2}
-          cy={(source.y + target.y) / 2}
+          cx={midX}
+          cy={midY}
           r={8}
           fill={COLORS.aiSuggestion}
           opacity={0.8}
         />
       )}
 
-      {/* Relationship label */}
-      {connection.label && (
+      {/* Relationship tooltip on hover */}
+      <AnimatePresence>
+        {isHovered && (
+          <motion.g
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 5 }}
+            transition={{ duration: 0.15 }}
+          >
+            {/* Tooltip background */}
+            <rect
+              x={midX - 70}
+              y={midY - 42}
+              width={140}
+              height={36}
+              rx={6}
+              fill="rgba(17, 17, 17, 0.95)"
+              stroke={color}
+              strokeWidth={1}
+              strokeOpacity={0.5}
+            />
+            {/* Color indicator dot */}
+            <circle
+              cx={midX - 54}
+              cy={midY - 24}
+              r={4}
+              fill={color}
+            />
+            {/* Relationship label */}
+            <text
+              x={midX - 44}
+              y={midY - 20}
+              className="text-[11px] font-medium fill-white pointer-events-none"
+            >
+              {relationshipInfo.label}
+            </text>
+            {/* Description */}
+            <text
+              x={midX}
+              y={midY - 8}
+              textAnchor="middle"
+              className="text-[9px] fill-neutral-400 pointer-events-none"
+            >
+              {relationshipInfo.description}
+            </text>
+          </motion.g>
+        )}
+      </AnimatePresence>
+
+      {/* Manual label if set */}
+      {connection.label && !isHovered && (
         <text
-          x={(source.x + target.x) / 2}
-          y={(source.y + target.y) / 2 - 10}
+          x={midX}
+          y={midY - 10}
           textAnchor="middle"
           className="text-[10px] fill-neutral-400 pointer-events-none"
         >
@@ -181,7 +269,32 @@ export function ConnectionsLayer({
   connectingFrom,
   connectingPosition,
 }: ConnectionsLayerProps) {
-  const { selection, selectConnection } = useIdeaMazeStore()
+  const { selection, selectConnection, connectionFilters, focusMode } = useIdeaMazeStore()
+
+  // Filter connections based on connection filters
+  const filteredConnections = connections.filter((connection) => {
+    // Filter by relationship type
+    if (!connectionFilters[connection.relationship]) {
+      return false
+    }
+
+    // Filter by AI suggested
+    if (connection.aiSuggested && !connectionFilters.showAISuggested) {
+      return false
+    }
+
+    // Focus mode: only show connections to/from selected nodes
+    if (focusMode && selection.nodeIds.length > 0) {
+      const isConnectedToSelection =
+        selection.nodeIds.includes(connection.sourceId) ||
+        selection.nodeIds.includes(connection.targetId)
+      if (!isConnectedToSelection) {
+        return false
+      }
+    }
+
+    return true
+  })
 
   // Find connecting source node
   const connectingSourceNode = connectingFrom
@@ -228,8 +341,8 @@ export function ConnectionsLayer({
         </linearGradient>
       </defs>
 
-      {/* Existing connections */}
-      {connections.map((connection) => {
+      {/* Existing connections (filtered) */}
+      {filteredConnections.map((connection) => {
         const sourceNode = nodes.find((n) => n.id === connection.sourceId)
         const targetNode = nodes.find((n) => n.id === connection.targetId)
 
