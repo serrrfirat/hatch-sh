@@ -228,27 +228,19 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     },
   }
 
-  // User message - simple inline style
+  // User message - right-aligned with dark grey box
   if (isUser) {
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2 }}
-        className="py-3 border-b border-white/[0.06]"
+        className="py-3 flex justify-end"
       >
-        <div className="flex items-start gap-3">
-          <div className="w-4 h-4 flex items-center justify-center shrink-0 mt-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
-          </div>
-          <div className="flex-1 min-w-0 font-sans">
-            <span className="text-[10px] font-light text-white/30 uppercase tracking-wider">
-              You
-            </span>
-            <p className="text-sm font-normal text-white mt-1 leading-relaxed">
-              {message.content}
-            </p>
-          </div>
+        <div className="max-w-[80%] bg-neutral-800 rounded-2xl rounded-br-sm px-4 py-3">
+          <p className="text-sm font-normal text-white leading-relaxed">
+            {message.content}
+          </p>
         </div>
       </motion.div>
     )

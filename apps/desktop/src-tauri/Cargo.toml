@@ -25,6 +25,16 @@ dirs = "5"
 open = "5"
 lazy_static = "1.4"
 
+# Dev profile - optimized for fast compilation
+[profile.dev]
+debug = 0              # No debug symbols (faster compile + link)
+opt-level = 0          # No optimizations (faster compile)
+incremental = true     # Incremental compilation
+
+# Dev dependencies - optimize deps even in dev (they rarely change)
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 panic = "abort"
 codegen-units = 1
