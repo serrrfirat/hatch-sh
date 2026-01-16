@@ -105,6 +105,16 @@ export function Layout() {
             >
               Discover
             </Link>
+            <Link
+              to="/marketplace"
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                location.pathname === '/marketplace'
+                  ? 'bg-white/10 text-white'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Marketplace
+            </Link>
           </nav>
 
           <div className="h-4 w-px bg-white/10" />

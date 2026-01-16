@@ -2,12 +2,11 @@ import { useCallback, useRef } from "react";
 import { useChatStore, selectCurrentMessages, type Message, type ToolUse } from "../stores/chatStore";
 import {
   useSettingsStore,
-  isBYOAReady,
   isWorkspaceAgentReady,
   getAgentStatus,
 } from "../stores/settingsStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
-import { sendWithHistoryStreaming, type StreamEvent as ClaudeStreamEvent } from "../lib/claudeCode/bridge";
+import { sendWithHistoryStreaming } from "../lib/claudeCode/bridge";
 import type { AgentId, StreamEvent, AgentMessage, LocalAgentId } from "../lib/agents/types";
 import { isLocalAgent } from "../lib/agents/types";
 import { getLocalAdapter, getConfig } from "../lib/agents/registry";
@@ -45,7 +44,7 @@ export function useChat() {
   } = useChatStore();
 
   const settingsState = useSettingsStore();
-  const { agentStatuses, claudeCodeStatus } = settingsState;
+  const { agentStatuses } = settingsState;
 
   // Get current workspace and its selected agent
   const { currentWorkspace } = useRepositoryStore();
@@ -94,9 +93,9 @@ export function useChat() {
       shouldStopRef.current = false;
 
       // Get current messages for context (excluding the streaming placeholder)
-      const currentMessages = useChatStore.getState().messages;
+      const currentMessages = selectCurrentMessages(useChatStore.getState());
       const formattedMessages = formatMessagesForAgent(
-        currentMessages.filter((m) => m.id !== assistantMessageId)
+        currentMessages.filter((m: Message) => m.id !== assistantMessageId)
       );
 
       // Add the new user message
@@ -224,101 +223,6 @@ export function useChat() {
       return fullContent;
     },
     [currentProjectId, updateMessage]
-  );
-
-  /**
-   * Send message via BYOA mode (local Claude Code)
-   */
-  const sendBYOAMessage = useCallback(
-    async (content: string, assistantMessageId: string) => {
-      // Check Claude Code is ready
-      if (!claudeCodeStatus?.installed) {
-        throw new Error(
-          "Claude Code is not installed. Install it from https://claude.ai/download"
-        );
-      }
-      if (!claudeCodeStatus?.authenticated) {
-        throw new Error(
-          'Claude Code is not authenticated. Run "claude login" in your terminal'
-        );
-      }
-
-      shouldStopRef.current = false;
-
-      // Get current messages for context (excluding the streaming placeholder)
-      const currentMessages = selectCurrentMessages(useChatStore.getState());
-      const formattedMessages = formatMessagesForClaudeCode(
-        currentMessages.filter((m) => m.id !== assistantMessageId)
-      );
-
-      // Add the new user message
-      formattedMessages.push({ role: "user", content });
-
-      let fullContent = "";
-      let thinkingContent = "";
-      const toolUseMap = new Map<string, string>(); // toolId -> messageToolId
-
-      // Stream handler
-      const onStream = (event: StreamEvent) => {
-        console.log('[useChat] Received stream event:', event.type, event);
-        if (shouldStopRef.current) return;
-
-        if (event.type === "text" && event.content) {
-          fullContent += event.content;
-          updateMessage(assistantMessageId, fullContent, true);
-        } else if (event.type === "thinking" && event.content) {
-          console.log('[useChat] THINKING event, updating message', assistantMessageId);
-          thinkingContent += event.content;
-          updateMessageThinking(assistantMessageId, thinkingContent);
-        } else if (event.type === "tool_use" && event.toolName && event.toolId) {
-          console.log('[useChat] TOOL_USE event:', event.toolName, event.toolId);
-          // Add tool use to the message
-          const tool: ToolUse = {
-            id: event.toolId,
-            name: event.toolName,
-            input: event.toolInput || {},
-            status: "running",
-          };
-          addToolUse(assistantMessageId, tool);
-          toolUseMap.set(event.toolId, event.toolId);
-        } else if (event.type === "tool_result" && event.toolId) {
-          console.log('[useChat] TOOL_RESULT event:', event.toolId);
-          // Update tool use with result
-          updateToolUse(assistantMessageId, event.toolId, {
-            result: event.toolResult,
-            status: "completed",
-          });
-        } else if (event.type === "error") {
-          console.error("Claude Code error:", event.content);
-        }
-      };
-
-      // Get current options from settings store
-      const { planModeEnabled, thinkingEnabled } = useSettingsStore.getState();
-
-      // Get workspace path for working directory
-      const { currentWorkspace } = useRepositoryStore.getState();
-      const workingDirectory = currentWorkspace?.localPath;
-
-      try {
-        // Send to Claude Code via bridge with real-time streaming
-        fullContent = await sendWithHistoryStreaming(
-          formattedMessages,
-          SYSTEM_PROMPT,
-          onStream,
-          { planMode: planModeEnabled, thinkingEnabled, workingDirectory }
-        );
-      } catch (error) {
-        if (shouldStopRef.current) {
-          // User stopped generation
-          return fullContent || "Generation stopped.";
-        }
-        throw error;
-      }
-
-      return fullContent;
-    },
-    [claudeCodeStatus, updateMessage, updateMessageThinking, addToolUse, updateToolUse]
   );
 
   const sendMessage = useCallback(

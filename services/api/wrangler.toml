@@ -11,6 +11,9 @@ ENVIRONMENT = "development"
 [dev]
 port = 8787
 
+# Secrets (set via `wrangler secret put SKILLSMP_API_KEY`)
+# - SKILLSMP_API_KEY: API key for SkillsMP marketplace
+
 # KV namespace for session storage (optional)
 # [[kv_namespaces]]
 # binding = "SESSIONS"

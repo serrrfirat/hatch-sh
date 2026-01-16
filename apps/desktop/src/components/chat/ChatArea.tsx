@@ -5,7 +5,7 @@ import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
 import { WorkspaceInitScreen } from './WorkspaceInitScreen'
-import { useSettingsStore, isBYOAReady, isWorkspaceAgentReady } from '../../stores/settingsStore'
+import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { isLocalAgent } from '../../lib/agents/types'
 
@@ -24,10 +24,7 @@ export function ChatArea() {
     prevMessagesLengthRef.current = messages.length
   }, [messages.length])
 
-// Check if BYOA mode but Claude Code not connected (legacy)
-  const needsClaudeCode = settingsState.agentMode === 'byoa' && !isBYOAReady(settingsState)
-
-  // Check if workspace's agent requires setup (only for local agents)
+// Check if workspace's agent requires setup (only for local agents)
   const needsAgent = isLocalAgent(workspaceAgentId) && !isWorkspaceAgentReady(settingsState, workspaceAgentId)
 
   // Determine which view to show
@@ -39,7 +36,7 @@ export function ChatArea() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 overflow-y-auto">
-          <WelcomeScreen onSendMessage={sendMessage} needsClaudeCode={needsClaudeCode} />
+          <WelcomeScreen />
         </div>
         <ChatInput
           onSend={sendMessage}
@@ -65,7 +62,7 @@ export function ChatArea() {
           onSend={sendMessage}
           isLoading={isLoading}
           onStop={stopGeneration}
-          disabled={needsClaudeCode}
+          disabled={needsAgent}
         />
       </div>
     )

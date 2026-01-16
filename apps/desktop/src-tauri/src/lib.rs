@@ -8,12 +8,17 @@ use tauri::Emitter;
 
 mod github;
 mod git;
+mod skills;
 
 use github::{github_start_device_flow, github_poll_for_token, github_get_auth_state, github_sign_out};
 use git::{
     git_clone_repo, git_open_local_repo, git_create_workspace_branch, git_delete_workspace_branch,
     git_status, git_commit, git_push, git_create_pr, git_create_github_repo, git_diff,
     git_diff_stats, list_directory_files, read_file, git_file_diff, git_get_pr, git_merge_pr
+};
+use skills::{
+    install_skill, uninstall_skill, list_installed_skills, is_skill_installed, get_skill_install_path,
+    run_shell_command
 };
 
 /// Status for any agent (installed, authenticated, version, etc.)
@@ -785,7 +790,14 @@ pub fn run() {
             read_file,
             git_file_diff,
             git_get_pr,
-            git_merge_pr
+            git_merge_pr,
+            // Skill installation commands
+            install_skill,
+            uninstall_skill,
+            list_installed_skills,
+            is_skill_installed,
+            get_skill_install_path,
+            run_shell_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

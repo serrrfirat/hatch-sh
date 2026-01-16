@@ -56,25 +56,6 @@ import {
   migrateFromLocalStorage,
 } from '../lib/ideaMaze/storage'
 
-// Chat message type for AI Assistant
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
-  isStreaming?: boolean
-}
-
-// Connection visualization filter state
-export interface ConnectionFilters {
-  related: boolean
-  'depends-on': boolean
-  contradicts: boolean
-  extends: boolean
-  alternative: boolean
-  showAISuggested: boolean
-}
-
 // Debounce timer for auto-save
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 const SAVE_DEBOUNCE_MS = 1000
@@ -101,16 +82,10 @@ interface IdeaMazeState {
   // AI state
   aiSuggestions: AISuggestion[]
   isAIProcessing: boolean
-  chatMessagesByMoodboard: Record<string, ChatMessage[]>
 
   // UI state
   isSidebarOpen: boolean
   isMinimapVisible: boolean
-
-  // Connection visualization state
-  connectionFilters: ConnectionFilters
-  focusMode: boolean  // Only show connections for selected/hovered nodes
-  hoveredNodeId: string | null
 
   // Actions - Storage
   initializeStore: () => Promise<void>
@@ -160,26 +135,9 @@ interface IdeaMazeState {
   clearAISuggestions: () => void
   setAIProcessing: (processing: boolean) => void
 
-  // Actions - Critiques
-  addCritiqueToNode: (nodeId: string, critique: Omit<import('../lib/ideaMaze/types').NodeCritique, 'id' | 'createdAt'>) => void
-  dismissCritique: (nodeId: string, critiqueId: string) => void
-  undismissCritique: (nodeId: string, critiqueId: string) => void
-  clearNodeCritiques: (nodeId: string) => void
-
-  // Actions - Chat
-  addChatMessage: (moodboardId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
-  updateChatMessage: (moodboardId: string, messageId: string, content: string, isStreaming?: boolean) => void
-  clearChatMessages: (moodboardId: string) => void
-
   // Actions - UI
   toggleSidebar: () => void
   toggleMinimap: () => void
-
-  // Actions - Connection Visualization
-  setConnectionFilter: (filter: keyof ConnectionFilters, enabled: boolean) => void
-  toggleFocusMode: () => void
-  setHoveredNode: (nodeId: string | null) => void
-  resetConnectionFilters: () => void
 }
 
 // Helper function to trigger debounced save
@@ -244,19 +202,8 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     selection: { nodeIds: [], connectionIds: [] },
     aiSuggestions: [],
     isAIProcessing: false,
-    chatMessagesByMoodboard: {},
     isSidebarOpen: true,
     isMinimapVisible: false,
-    connectionFilters: {
-      related: true,
-      'depends-on': true,
-      contradicts: true,
-      extends: true,
-      alternative: true,
-      showAISuggested: true,
-    },
-    focusMode: false,
-    hoveredNodeId: null,
 
     // Storage initialization
     initializeStore: async () => {
@@ -749,7 +696,6 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         const suggestion = get().aiSuggestions.find((s) => {
           if (s.type === 'connection') return s.data.id === suggestionId
           if (s.type === 'node') return s.data.id === suggestionId
-          if (s.type === 'critique') return s.data.id === suggestionId
           return false
         })
 
@@ -780,13 +726,6 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           if (suggestion.data.relatedToNodeId) {
             get().addConnection(suggestion.data.relatedToNodeId, node.id, 'extends')
           }
-        } else if (suggestion.type === 'critique') {
-          // Add critique to the referenced node
-          get().addCritiqueToNode(suggestion.data.nodeId, {
-            critique: suggestion.data.critique,
-            suggestions: suggestion.data.suggestions,
-            severity: suggestion.data.severity,
-          })
         }
 
         get().removeAISuggestion(suggestionId)
@@ -796,158 +735,10 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
 
     setAIProcessing: (processing) => set({ isAIProcessing: processing }),
 
-    // Critique actions
-    addCritiqueToNode: (nodeId, critique) => {
-      const moodboard = get().currentMoodboard
-      if (!moodboard) return
-
-      const fullCritique = {
-        ...critique,
-        id: crypto.randomUUID(),
-        createdAt: new Date(),
-      }
-
-      const updatedNodes = moodboard.nodes.map((node) =>
-        node.id === nodeId
-          ? { ...node, critiques: [...(node.critiques || []), fullCritique], updatedAt: new Date() }
-          : node
-      )
-
-      const updatedMoodboard = { ...moodboard, nodes: updatedNodes, updatedAt: new Date() }
-      set({ currentMoodboard: updatedMoodboard })
-      debouncedSave(updatedMoodboard)
-    },
-
-    dismissCritique: (nodeId, critiqueId) => {
-      const moodboard = get().currentMoodboard
-      if (!moodboard) return
-
-      const updatedNodes = moodboard.nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              critiques: (node.critiques || []).map((c) =>
-                c.id === critiqueId ? { ...c, dismissed: true } : c
-              ),
-              updatedAt: new Date(),
-            }
-          : node
-      )
-
-      const updatedMoodboard = { ...moodboard, nodes: updatedNodes, updatedAt: new Date() }
-      set({ currentMoodboard: updatedMoodboard })
-      debouncedSave(updatedMoodboard)
-    },
-
-    undismissCritique: (nodeId, critiqueId) => {
-      const moodboard = get().currentMoodboard
-      if (!moodboard) return
-
-      const updatedNodes = moodboard.nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              critiques: (node.critiques || []).map((c) =>
-                c.id === critiqueId ? { ...c, dismissed: false } : c
-              ),
-              updatedAt: new Date(),
-            }
-          : node
-      )
-
-      const updatedMoodboard = { ...moodboard, nodes: updatedNodes, updatedAt: new Date() }
-      set({ currentMoodboard: updatedMoodboard })
-      debouncedSave(updatedMoodboard)
-    },
-
-    clearNodeCritiques: (nodeId) => {
-      const moodboard = get().currentMoodboard
-      if (!moodboard) return
-
-      const updatedNodes = moodboard.nodes.map((node) =>
-        node.id === nodeId
-          ? { ...node, critiques: [], updatedAt: new Date() }
-          : node
-      )
-
-      const updatedMoodboard = { ...moodboard, nodes: updatedNodes, updatedAt: new Date() }
-      set({ currentMoodboard: updatedMoodboard })
-      debouncedSave(updatedMoodboard)
-    },
-
-    // Chat actions
-    addChatMessage: (moodboardId, message) => {
-      const id = crypto.randomUUID()
-      const fullMessage: ChatMessage = {
-        ...message,
-        id,
-        timestamp: new Date(),
-      }
-      set((state) => ({
-        chatMessagesByMoodboard: {
-          ...state.chatMessagesByMoodboard,
-          [moodboardId]: [...(state.chatMessagesByMoodboard[moodboardId] || []), fullMessage],
-        },
-      }))
-      return id
-    },
-
-    updateChatMessage: (moodboardId, messageId, content, isStreaming) => {
-      set((state) => {
-        const messages = state.chatMessagesByMoodboard[moodboardId] || []
-        const updatedMessages = messages.map((msg) =>
-          msg.id === messageId
-            ? { ...msg, content: msg.content + content, isStreaming: isStreaming ?? msg.isStreaming }
-            : msg
-        )
-        return {
-          chatMessagesByMoodboard: {
-            ...state.chatMessagesByMoodboard,
-            [moodboardId]: updatedMessages,
-          },
-        }
-      })
-    },
-
-    clearChatMessages: (moodboardId) => {
-      set((state) => ({
-        chatMessagesByMoodboard: {
-          ...state.chatMessagesByMoodboard,
-          [moodboardId]: [],
-        },
-      }))
-    },
-
     // UI actions
     toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
     toggleMinimap: () => set((state) => ({ isMinimapVisible: !state.isMinimapVisible })),
-
-    // Connection visualization actions
-    setConnectionFilter: (filter, enabled) => {
-      set((state) => ({
-        connectionFilters: {
-          ...state.connectionFilters,
-          [filter]: enabled,
-        },
-      }))
-    },
-
-    toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
-
-    setHoveredNode: (nodeId) => set({ hoveredNodeId: nodeId }),
-
-    resetConnectionFilters: () => set({
-      connectionFilters: {
-        related: true,
-        'depends-on': true,
-        contradicts: true,
-        extends: true,
-        alternative: true,
-        showAISuggested: true,
-      },
-      focusMode: false,
-    }),
   }))
 )
 

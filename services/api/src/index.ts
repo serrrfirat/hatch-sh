@@ -6,6 +6,7 @@ import { chatRouter } from './routes/chat'
 import { deployRouter } from './routes/deploy'
 import { tokensRouter } from './routes/tokens'
 import { discoveryRouter } from './routes/discovery'
+import { skillsmpRouter } from './routes/skillsmp'
 import { createDb, createMockDb, type Database } from './db/client'
 
 type Bindings = {
@@ -15,6 +16,7 @@ type Bindings = {
   CF_API_TOKEN: string
   CF_ACCOUNT_ID: string
   ENVIRONMENT: string
+  SKILLSMP_API_KEY?: string
 }
 
 type Variables = {
@@ -54,5 +56,6 @@ app.route('/api/chat', chatRouter)
 app.route('/api/deploy', deployRouter)
 app.route('/api/tokens', tokensRouter)
 app.route('/api/discovery', discoveryRouter)
+app.route('/api/skillsmp', skillsmpRouter)
 
 export default app
