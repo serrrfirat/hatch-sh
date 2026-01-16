@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::process::Command as AsyncCommand;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use std::process::Stdio;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 mod github;
 mod git;
@@ -752,6 +752,26 @@ async fn run_claude_code(prompt: String) -> CommandResult {
 }
 
 // =============================================================================
+// Webview Navigation Commands
+// =============================================================================
+
+/// Navigate a webview by executing JavaScript (history.back/forward)
+#[tauri::command]
+async fn webview_navigate(app: tauri::AppHandle, webview_label: String, direction: String) -> Result<(), String> {
+    let webview = app.get_webview(&webview_label)
+        .ok_or_else(|| format!("Webview '{}' not found", webview_label))?;
+
+    let script = match direction.as_str() {
+        "back" => "history.back()",
+        "forward" => "history.forward()",
+        _ => return Err(format!("Invalid direction: {}. Use 'back' or 'forward'", direction)),
+    };
+
+    webview.eval(script)
+        .map_err(|e| format!("Failed to execute navigation: {}", e))
+}
+
+// =============================================================================
 // Application Entry Point
 // =============================================================================
 
@@ -797,7 +817,9 @@ pub fn run() {
             list_installed_skills,
             is_skill_installed,
             get_skill_install_path,
-            run_shell_command
+            run_shell_command,
+            // Webview navigation
+            webview_navigate
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

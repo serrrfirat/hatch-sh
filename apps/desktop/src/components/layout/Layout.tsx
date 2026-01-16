@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useRepositoryStore } from '../../stores/repositoryStore'
@@ -9,11 +9,13 @@ import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
-import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X } from 'lucide-react'
+import { DesignPage } from '../../pages/DesignPage'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
+  { id: 'design', label: 'Design', icon: Palette },
   { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'idea-maze', label: 'Idea Maze', icon: Lightbulb },
   { id: 'marketplace', label: 'Skills', icon: ShoppingBag },
@@ -53,16 +55,59 @@ export function Layout() {
     await removeWorkspace(currentWorkspace.id)
   }
 
+  // Navigate the Design webview back/forward using Tauri command
+  const handleWebviewBack = useCallback(async () => {
+    if (currentPage !== 'design') return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('webview_navigate', {
+        webviewLabel: 'superdesign-embed',
+        direction: 'back'
+      })
+    } catch (err) {
+      console.error('Failed to navigate back:', err)
+    }
+  }, [currentPage])
+
+  const handleWebviewForward = useCallback(async () => {
+    if (currentPage !== 'design') return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('webview_navigate', {
+        webviewLabel: 'superdesign-embed',
+        direction: 'forward'
+      })
+    } catch (err) {
+      console.error('Failed to navigate forward:', err)
+    }
+  }, [currentPage])
+
   return (
     <div className="h-screen flex flex-col bg-neutral-950 text-white selection:bg-white selection:text-black">
       {/* Top Bar - Compact Header */}
       <header className="h-10 flex items-center justify-between px-3 bg-neutral-900 border-b border-white/10">
-        {/* Left: Navigation arrows */}
+        {/* Left: Navigation arrows (active on Design page for webview navigation) */}
         <div className="flex items-center gap-1">
-          <button className="p-1.5 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors">
+          <button
+            onClick={handleWebviewBack}
+            className={`p-1.5 rounded transition-colors ${
+              currentPage === 'design'
+                ? 'text-neutral-400 hover:text-white hover:bg-white/10'
+                : 'text-neutral-600 cursor-default'
+            }`}
+            title={currentPage === 'design' ? 'Go back' : ''}
+          >
             <ChevronLeft size={16} />
           </button>
-          <button className="p-1.5 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors">
+          <button
+            onClick={handleWebviewForward}
+            className={`p-1.5 rounded transition-colors ${
+              currentPage === 'design'
+                ? 'text-neutral-400 hover:text-white hover:bg-white/10'
+                : 'text-neutral-600 cursor-default'
+            }`}
+            title={currentPage === 'design' ? 'Go forward' : ''}
+          >
             <ChevronRight size={16} />
           </button>
         </div>
@@ -225,6 +270,11 @@ export function Layout() {
               <Outlet />
             </div>
           </>
+        ) : currentPage === 'design' ? (
+          /* Full-page Design */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <DesignPage />
+          </div>
         ) : currentPage === 'discover' ? (
           /* Full-page Discover */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
