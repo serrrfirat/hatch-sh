@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GripVertical, Sparkles, Type, Image, Link } from 'lucide-react'
 import type { IdeaNode, Position, NodeContent } from '../../../lib/ideaMaze/types'
-import { CritiqueIndicator } from './CritiqueIndicator'
 import {
   MIN_NODE_WIDTH,
   MAX_NODE_WIDTH,
@@ -49,7 +48,7 @@ export function IdeaCard({
   const [resizeDirection, setResizeDirection] = useState<string | null>(null)
   const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number; nodeX: number; nodeY: number } | null>(null)
 
-  const { updateNode, addContentToNode, resizeNode, moveNode: moveNodeStore, setHoveredNode, focusMode } = useIdeaMazeStore()
+  const { updateNode, addContentToNode, resizeNode, moveNode: moveNodeStore } = useIdeaMazeStore()
 
   // Handle mouse move for parallax effect
   const handleMouseMove = useCallback(
@@ -68,20 +67,9 @@ export function IdeaCard({
     [isDragging]
   )
 
-  const handleMouseEnter = () => {
-    setIsHovered(true)
-    // Only update hovered node in focus mode to avoid unnecessary re-renders
-    if (focusMode) {
-      setHoveredNode(node.id)
-    }
-  }
-
   const handleMouseLeave = () => {
     setParallax({ x: 0, y: 0 })
     setIsHovered(false)
-    if (focusMode) {
-      setHoveredNode(null)
-    }
   }
 
   // Handle drag start
@@ -342,7 +330,7 @@ export function IdeaCard({
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
       onMouseMove={handleMouseMove}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleDragEnd}
     >
@@ -381,11 +369,6 @@ export function IdeaCard({
           >
             <Sparkles size={12} style={{ color: COLORS.aiSuggestion }} />
           </div>
-        )}
-
-        {/* Critique indicator */}
-        {node.critiques && node.critiques.length > 0 && (
-          <CritiqueIndicator nodeId={node.id} critiques={node.critiques} nodeTitle={node.title} />
         )}
 
         {/* Header */}

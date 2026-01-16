@@ -3,6 +3,7 @@ import { AuthProvider } from './providers/AuthProvider'
 import { Layout } from './components/layout/Layout'
 import { IDEPage } from './pages/IDEPage'
 import { DiscoveryPage } from './pages/DiscoveryPage'
+import { MarketplacePage } from './pages/MarketplacePage'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<IDEPage />} />
             <Route path="discover" element={<DiscoveryPage />} />
+            <Route path="marketplace" element={<MarketplacePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -8,7 +8,7 @@ import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/r
 export type AgentMode = "cloud" | AgentId;
 
 /** App page navigation */
-export type AppPage = "byoa" | "discover" | "idea-maze";
+export type AppPage = "byoa" | "discover" | "idea-maze" | "marketplace";
 
 /** Legacy type alias for backwards compatibility */
 export type ClaudeCodeStatus = AgentStatus;
@@ -76,7 +76,7 @@ const initialAgentStatuses: Record<LocalAgentId, AgentStatus | null> = {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      agentMode: "byoa",
+      agentMode: "claude-code",
       agentStatuses: { ...initialAgentStatuses },
       isCheckingAgent: false,
       isAppReady: false,

@@ -44,3 +44,6 @@ yarn-error.log*
 # Context directory
 .context/
 *.tsbuildinfo
+
+# Claude skills (installed locally)
+.claude/skills/

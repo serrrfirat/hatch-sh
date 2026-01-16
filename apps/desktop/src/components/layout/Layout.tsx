@@ -7,13 +7,15 @@ import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
-import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, Loader2, ExternalLink, Archive, AlertCircle, X } from 'lucide-react'
+import { MarketplacePage } from '../../pages/MarketplacePage'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
-  { id: 'byoa', label: 'BYOA', icon: Terminal },
+  { id: 'byoa', label: 'Build', icon: Terminal },
   { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'idea-maze', label: 'Idea Maze', icon: Lightbulb },
+  { id: 'marketplace', label: 'Skills', icon: ShoppingBag },
 ]
 
 export function Layout() {
@@ -22,8 +24,7 @@ export function Layout() {
   const [isMerging, setIsMerging] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } = useRepositoryStore()
-  const { agentStatuses, currentPage, setCurrentPage } = useSettingsStore()
-  const claudeCodeStatus = agentStatuses['claude-code']
+  const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
 
   const handleMergePR = async () => {
     if (!currentWorkspace?.prNumber) return
@@ -219,6 +220,11 @@ export function Layout() {
           /* Full-page Discover */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <DiscoverPage />
+          </div>
+        ) : currentPage === 'marketplace' ? (
+          /* Full-page Marketplace/Skills */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <MarketplacePage />
           </div>
         ) : (
           /* Full-page Idea Maze */

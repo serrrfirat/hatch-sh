@@ -5,14 +5,14 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { Plasma } from '../Plasma'
 
-interface WelcomeScreenProps {
-  onSendMessage: (message: string) => void
+export interface WelcomeScreenProps {
+  onSendMessage?: (message: string) => void
   needsAgent?: boolean
 }
 
 type ModalView = 'none' | 'clone' | 'quickstart' | 'github-login'
 
-export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenProps) {
+export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
   const [modalView, setModalView] = useState<ModalView>('none')
   const [cloneUrl, setCloneUrl] = useState('')
   const [repoName, setRepoName] = useState('')
@@ -195,8 +195,7 @@ export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenP
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 + index * 0.1, duration: 0.4 }}
             onClick={card.onClick}
-            disabled={needsClaudeCode}
-            className={`group flex-1 p-5 bg-neutral-900 border border-white/10 rounded-xl hover:border-white/20 hover:bg-neutral-800/50 transition-all duration-200 text-left ${needsClaudeCode ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className="group flex-1 p-5 bg-neutral-900 border border-white/10 rounded-xl hover:border-white/20 hover:bg-neutral-800/50 transition-all duration-200 text-left"
           >
             <card.icon className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors mb-3" />
             <h3 className="text-sm font-medium text-white mb-1">{card.label}</h3>
@@ -204,18 +203,6 @@ export function WelcomeScreen({ onSendMessage, needsClaudeCode }: WelcomeScreenP
           </motion.button>
         ))}
       </motion.div>
-
-      {/* Claude Code Warning */}
-      {needsClaudeCode && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-6 text-sm text-amber-500"
-        >
-          Connect to Claude Code in settings to start building
-        </motion.p>
-      )}
 
       {/* Modal Overlay */}
       <AnimatePresence>

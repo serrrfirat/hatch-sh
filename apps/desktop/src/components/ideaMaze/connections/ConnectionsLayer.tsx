@@ -1,8 +1,7 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
-import type { IdeaConnection, IdeaNode, Position, ConnectionRelationship } from '../../../lib/ideaMaze/types'
-import { connectionVariants, COLORS, TRANSITION_FAST, PREMIUM_EASING } from '../../../lib/ideaMaze/animations'
-import { useIdeaMazeStore, type ConnectionFilters } from '../../../stores/ideaMazeStore'
+import { motion } from 'framer-motion'
+import type { IdeaConnection, IdeaNode, Position } from '../../../lib/ideaMaze/types'
+import { connectionVariants, COLORS } from '../../../lib/ideaMaze/animations'
+import { useIdeaMazeStore } from '../../../stores/ideaMazeStore'
 
 interface ConnectionsLayerProps {
   connections: IdeaConnection[]
@@ -100,85 +99,21 @@ function generateBezierPath(source: ConnectionPoint, target: ConnectionPoint): s
   return `M ${source.x} ${source.y} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${target.x} ${target.y}`
 }
 
-// Relationship display names
-const RELATIONSHIP_LABELS: Record<ConnectionRelationship, string> = {
-  related: 'Related',
-  'depends-on': 'Depends on',
-  contradicts: 'Contradicts',
-  extends: 'Extends',
-  alternative: 'Alternative',
-}
-
-/**
- * Wrap text into multiple lines for SVG rendering
- */
-function wrapText(text: string, maxCharsPerLine: number): string[] {
-  const words = text.split(' ')
-  const lines: string[] = []
-  let currentLine = ''
-
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word
-    if (testLine.length > maxCharsPerLine && currentLine) {
-      lines.push(currentLine)
-      currentLine = word
-    } else {
-      currentLine = testLine
-    }
-  }
-
-  if (currentLine) {
-    lines.push(currentLine)
-  }
-
-  // Limit to 5 lines max to fit in tooltip
-  return lines.slice(0, 5)
-}
-
 interface ConnectionProps {
   connection: IdeaConnection
   sourceNode: IdeaNode
   targetNode: IdeaNode
   isSelected: boolean
-  isRelevant: boolean  // True if connected to selected/hovered node
-  isDimmed: boolean    // True if focus mode is on and not relevant
   onClick: () => void
 }
 
-function Connection({
-  connection,
-  sourceNode,
-  targetNode,
-  isSelected,
-  isRelevant,
-  isDimmed,
-  onClick
-}: ConnectionProps) {
-  const [isHovered, setIsHovered] = useState(false)
+function Connection({ connection, sourceNode, targetNode, isSelected, onClick }: ConnectionProps) {
   const { source, target } = getConnectionPoints(sourceNode, targetNode)
   const path = generateBezierPath(source, target)
   const color = COLORS.connection[connection.relationship] || COLORS.connection.related
 
-  // Calculate midpoint for labels and indicators
-  const midX = (source.x + target.x) / 2
-  const midY = (source.y + target.y) / 2
-
-  // Determine opacity based on state
-  const getOpacity = () => {
-    if (isDimmed && !isHovered && !isSelected) return 0.15
-    if (isRelevant || isSelected || isHovered) return 1
-    return 0.6
-  }
-
-  const opacity = getOpacity()
-
   return (
-    <g
-      onClick={onClick}
-      className="cursor-pointer"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <g onClick={onClick} className="cursor-pointer">
       {/* Hit area (invisible, wider for easier clicking) */}
       <path
         d={path}
@@ -188,179 +123,56 @@ function Connection({
         className="pointer-events-auto"
       />
 
-      {/* Glow effect for selected or hovered */}
-      <AnimatePresence>
-        {(isSelected || (isHovered && !isDimmed)) && (
-          <motion.path
-            d={path}
-            fill="none"
-            stroke={color}
-            strokeWidth={8}
-            strokeOpacity={0.3}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={TRANSITION_FAST}
-            style={{ filter: 'blur(6px)' }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Glow effect for selected */}
+      {isSelected && (
+        <motion.path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth={6}
+          strokeOpacity={0.3}
+          filter="blur(4px)"
+        />
+      )}
 
       {/* Main connection line */}
       <motion.path
         d={path}
         fill="none"
         stroke={color}
-        strokeWidth={isSelected || isHovered ? 3 : 2}
+        strokeWidth={isSelected ? 3 : 2}
         strokeDasharray={connection.type === 'dashed' ? '8,4' : undefined}
         strokeLinecap="round"
         variants={connectionVariants}
         initial="initial"
-        animate={{
-          pathLength: 1,
-          opacity,
-          strokeWidth: isSelected || isHovered ? 3 : 2,
-        }}
-        transition={{
-          opacity: { duration: 0.3, ease: PREMIUM_EASING },
-          strokeWidth: { duration: 0.15 },
-        }}
+        animate="animate"
         whileHover="hover"
       />
 
-      {/* AI suggestion indicator - pulsing dot */}
+      {/* AI suggestion indicator */}
       {connection.aiSuggested && (
-        <motion.circle
-          cx={midX}
-          cy={midY}
-          r={6}
+        <circle
+          cx={(source.x + target.x) / 2}
+          cy={(source.y + target.y) / 2}
+          r={8}
           fill={COLORS.aiSuggestion}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{
-            opacity: isDimmed ? 0.2 : 0.9,
-            scale: 1,
-          }}
-          transition={{ duration: 0.3 }}
+          opacity={0.8}
         />
       )}
 
-      {/* Hover tooltip with connection details */}
-      <AnimatePresence>
-        {isHovered && !isDimmed && (
-          <motion.g
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 5 }}
-            transition={{ duration: 0.15 }}
-          >
-            {/* Tooltip background */}
-            <rect
-              x={midX - 150}
-              y={midY - 70}
-              width={300}
-              height={connection.reasoning ? 120 : 50}
-              rx={12}
-              fill="rgba(17, 17, 17, 0.95)"
-              stroke="rgba(255, 255, 255, 0.1)"
-              strokeWidth={1}
-              style={{ filter: 'drop-shadow(0 8px 32px rgba(0, 0, 0, 0.4))' }}
-            />
-
-            {/* Relationship label */}
-            <text
-              x={midX - 138}
-              y={midY - 45}
-              fill={color}
-              fontSize={12}
-              fontWeight={600}
-              fontFamily="system-ui, -apple-system, sans-serif"
-            >
-              {RELATIONSHIP_LABELS[connection.relationship]}
-            </text>
-
-            {/* Confidence badge */}
-            {connection.confidence && (
-              <>
-                <rect
-                  x={midX + 60}
-                  y={midY - 60}
-                  width={75}
-                  height={20}
-                  rx={10}
-                  fill={`${color}20`}
-                />
-                <text
-                  x={midX + 97}
-                  y={midY - 46}
-                  fill={color}
-                  fontSize={10}
-                  fontFamily="system-ui, -apple-system, sans-serif"
-                  textAnchor="middle"
-                >
-                  {Math.round(connection.confidence * 100)}%
-                </text>
-              </>
-            )}
-
-            {/* Reasoning text - wrapped across multiple lines */}
-            {connection.reasoning && (
-              <text
-                x={midX - 138}
-                y={midY - 22}
-                fill="rgba(255, 255, 255, 0.7)"
-                fontSize={11}
-                fontFamily="system-ui, -apple-system, sans-serif"
-              >
-                {wrapText(connection.reasoning, 50).map((line, i) => (
-                  <tspan key={i} x={midX - 138} dy={i === 0 ? 0 : 15}>
-                    {line}
-                  </tspan>
-                ))}
-              </text>
-            )}
-          </motion.g>
-        )}
-      </AnimatePresence>
+      {/* Relationship label */}
+      {connection.label && (
+        <text
+          x={(source.x + target.x) / 2}
+          y={(source.y + target.y) / 2 - 10}
+          textAnchor="middle"
+          className="text-[10px] fill-neutral-400 pointer-events-none"
+        >
+          {connection.label}
+        </text>
+      )}
     </g>
   )
-}
-
-/**
- * Check if a connection passes the current filters
- */
-function passesFilters(
-  connection: IdeaConnection,
-  filters: ConnectionFilters
-): boolean {
-  // Check relationship type filter
-  if (!filters[connection.relationship]) {
-    return false
-  }
-
-  // Check AI suggested filter
-  if (connection.aiSuggested && !filters.showAISuggested) {
-    return false
-  }
-
-  return true
-}
-
-/**
- * Check if a connection is relevant to the current selection/hover
- */
-function isConnectionRelevant(
-  connection: IdeaConnection,
-  selectedNodeIds: string[],
-  hoveredNodeId: string | null
-): boolean {
-  const relevantNodeIds = new Set([
-    ...selectedNodeIds,
-    ...(hoveredNodeId ? [hoveredNodeId] : []),
-  ])
-
-  if (relevantNodeIds.size === 0) return true
-
-  return relevantNodeIds.has(connection.sourceId) || relevantNodeIds.has(connection.targetId)
 }
 
 export function ConnectionsLayer({
@@ -369,13 +181,7 @@ export function ConnectionsLayer({
   connectingFrom,
   connectingPosition,
 }: ConnectionsLayerProps) {
-  const {
-    selection,
-    selectConnection,
-    connectionFilters,
-    focusMode,
-    hoveredNodeId
-  } = useIdeaMazeStore()
+  const { selection, selectConnection } = useIdeaMazeStore()
 
   // Find connecting source node
   const connectingSourceNode = connectingFrom
@@ -385,12 +191,6 @@ export function ConnectionsLayer({
   // Calculate canvas bounds from nodes to size the SVG appropriately
   const canvasSize = 10000 // Large enough to cover most use cases
   const canvasOffset = -canvasSize / 2
-
-  // Filter and categorize connections
-  const filteredConnections = connections.filter(c => passesFilters(c, connectionFilters))
-
-  // Determine if we should show focus mode dimming
-  const hasFocusTarget = focusMode && (selection.nodeIds.length > 0 || hoveredNodeId !== null)
 
   return (
     <svg
@@ -426,46 +226,26 @@ export function ConnectionsLayer({
           <stop offset="50%" stopColor={COLORS.aiSuggestion} stopOpacity={0.8} />
           <stop offset="100%" stopColor={COLORS.aiSuggestion} stopOpacity={0.2} />
         </linearGradient>
-
-        {/* Blur filter for glow effects */}
-        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
       </defs>
 
-      {/* Existing connections - render dimmed ones first, then relevant ones on top */}
-      <AnimatePresence>
-        {filteredConnections.map((connection) => {
-          const sourceNode = nodes.find((n) => n.id === connection.sourceId)
-          const targetNode = nodes.find((n) => n.id === connection.targetId)
+      {/* Existing connections */}
+      {connections.map((connection) => {
+        const sourceNode = nodes.find((n) => n.id === connection.sourceId)
+        const targetNode = nodes.find((n) => n.id === connection.targetId)
 
-          if (!sourceNode || !targetNode) return null
+        if (!sourceNode || !targetNode) return null
 
-          const isRelevant = isConnectionRelevant(
-            connection,
-            selection.nodeIds,
-            hoveredNodeId
-          )
-          const isDimmed = hasFocusTarget && !isRelevant
-
-          return (
-            <Connection
-              key={connection.id}
-              connection={connection}
-              sourceNode={sourceNode}
-              targetNode={targetNode}
-              isSelected={selection.connectionIds.includes(connection.id)}
-              isRelevant={isRelevant}
-              isDimmed={isDimmed}
-              onClick={() => selectConnection(connection.id)}
-            />
-          )
-        })}
-      </AnimatePresence>
+        return (
+          <Connection
+            key={connection.id}
+            connection={connection}
+            sourceNode={sourceNode}
+            targetNode={targetNode}
+            isSelected={selection.connectionIds.includes(connection.id)}
+            onClick={() => selectConnection(connection.id)}
+          />
+        )
+      })}
 
       {/* Temporary connection while drawing */}
       {connectingSourceNode && connectingPosition && (
