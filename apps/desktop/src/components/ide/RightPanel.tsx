@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn } from '@vibed/ui'
-import { Search, Plus, ChevronRight, ChevronDown, Terminal as TerminalIcon, Coins, RefreshCw, Eye, EyeOff, FolderOpen } from 'lucide-react'
+import { Search, Plus, ChevronRight, ChevronDown, Terminal as TerminalIcon, RefreshCw, Eye, EyeOff, FolderOpen } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import '@xterm/xterm/css/xterm.css'
 import { PreviewPanel } from '../preview/PreviewPanel'
-import { TokenPanel } from '../token/TokenPanel'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useEditorStore } from '../../stores/editorStore'
 import { getDiffStats, listDirectoryFiles, type FileChange, type FileEntry } from '../../lib/git/bridge'
@@ -11,7 +15,7 @@ import { FileIcon } from '../icons/FileIcon'
 import { DEFAULT_AGENT_ID } from '../../lib/agents/registry'
 
 type TopTab = 'changes' | 'files' | 'checks' | 'preview'
-type BottomTab = 'terminal' | 'token'
+type BottomTab = 'terminal'
 
 interface FileChangeItemProps {
   file: FileChange
@@ -513,19 +517,262 @@ function FilesPanel() {
   )
 }
 
-function TerminalPanel() {
+function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const xtermRef = useRef<Terminal | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
+  const [commandHistory, setCommandHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [currentInput, setCurrentInput] = useState('')
+  const cursorPositionRef = useRef(0)
+
+  // Initialize terminal
+  useEffect(() => {
+    if (!terminalRef.current || xtermRef.current) return
+
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 13,
+      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace',
+      theme: {
+        background: '#0a0a0a',
+        foreground: '#e5e5e5',
+        cursor: '#e5e5e5',
+        cursorAccent: '#0a0a0a',
+        black: '#0a0a0a',
+        red: '#f87171',
+        green: '#4ade80',
+        yellow: '#facc15',
+        blue: '#60a5fa',
+        magenta: '#c084fc',
+        cyan: '#22d3ee',
+        white: '#e5e5e5',
+        brightBlack: '#525252',
+        brightRed: '#fca5a5',
+        brightGreen: '#86efac',
+        brightYellow: '#fde047',
+        brightBlue: '#93c5fd',
+        brightMagenta: '#d8b4fe',
+        brightCyan: '#67e8f9',
+        brightWhite: '#fafafa',
+      },
+      allowProposedApi: true,
+    })
+
+    const fitAddon = new FitAddon()
+    const webLinksAddon = new WebLinksAddon()
+
+    term.loadAddon(fitAddon)
+    term.loadAddon(webLinksAddon)
+    term.open(terminalRef.current)
+
+    // Initial fit
+    setTimeout(() => fitAddon.fit(), 0)
+
+    xtermRef.current = term
+    fitAddonRef.current = fitAddon
+
+    // Write initial prompt
+    const cwd = workspacePath || '~'
+    const shortPath = cwd.replace(/^\/Users\/[^/]+/, '~')
+    term.write(`\x1b[32m➜\x1b[0m \x1b[36m${shortPath}\x1b[0m $ `)
+
+    return () => {
+      term.dispose()
+      xtermRef.current = null
+      fitAddonRef.current = null
+    }
+  }, [])
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit()
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    // Also fit when the component mounts
+    const timeoutId = setTimeout(handleResize, 100)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      clearTimeout(timeoutId)
+    }
+  }, [])
+
+  // Update prompt when workspace changes
+  useEffect(() => {
+    if (!xtermRef.current) return
+    // This is handled by re-rendering the component with a new key
+  }, [workspacePath])
+
+  // Handle keyboard input
+  useEffect(() => {
+    if (!xtermRef.current) return
+
+    const term = xtermRef.current
+    let inputBuffer = ''
+    let cursorPos = 0
+
+    const writePrompt = () => {
+      const cwd = workspacePath || '~'
+      const shortPath = cwd.replace(/^\/Users\/[^/]+/, '~')
+      term.write(`\x1b[32m➜\x1b[0m \x1b[36m${shortPath}\x1b[0m $ `)
+    }
+
+    const clearLine = () => {
+      // Move to start of input and clear to end
+      term.write('\x1b[2K\r')
+      writePrompt()
+    }
+
+    const redrawLine = () => {
+      clearLine()
+      term.write(inputBuffer)
+      // Move cursor to correct position
+      if (cursorPos < inputBuffer.length) {
+        term.write(`\x1b[${inputBuffer.length - cursorPos}D`)
+      }
+    }
+
+    const runCommand = async (cmd: string) => {
+      if (!cmd.trim()) {
+        term.write('\r\n')
+        writePrompt()
+        return
+      }
+
+      // Add to history
+      setCommandHistory(prev => [...prev, cmd])
+      setHistoryIndex(-1)
+
+      term.write('\r\n')
+
+      // Handle built-in commands
+      if (cmd.trim() === 'clear') {
+        term.clear()
+        writePrompt()
+        return
+      }
+
+      if (cmd.trim().startsWith('cd ')) {
+        const path = cmd.trim().slice(3).trim()
+        term.write(`\x1b[33mcd: directory change not supported in this terminal\x1b[0m\r\n`)
+        term.write(`\x1b[90mHint: The terminal runs in ${workspacePath || 'the default directory'}\x1b[0m\r\n`)
+        writePrompt()
+        return
+      }
+
+      try {
+        // Execute command using Tauri backend
+        const result = await invoke<{ success: boolean; message: string; path: string | null }>('run_shell_command', {
+          command: cmd,
+          workingDirectory: workspacePath || null,
+        })
+
+        if (result.message) {
+          // Handle output line by line for proper rendering
+          const lines = result.message.split('\n')
+          lines.forEach((line, i) => {
+            if (result.success) {
+              term.write(line)
+            } else {
+              term.write(`\x1b[31m${line}\x1b[0m`)
+            }
+            if (i < lines.length - 1) term.write('\r\n')
+          })
+          if (!result.message.endsWith('\n')) term.write('\r\n')
+        }
+      } catch (error) {
+        term.write(`\x1b[31mError: ${error instanceof Error ? error.message : 'Command failed'}\x1b[0m\r\n`)
+      }
+
+      writePrompt()
+    }
+
+    const disposable = term.onData((data) => {
+      // Handle special keys
+      if (data === '\r') {
+        // Enter
+        runCommand(inputBuffer)
+        inputBuffer = ''
+        cursorPos = 0
+      } else if (data === '\x7f') {
+        // Backspace
+        if (cursorPos > 0) {
+          inputBuffer = inputBuffer.slice(0, cursorPos - 1) + inputBuffer.slice(cursorPos)
+          cursorPos--
+          redrawLine()
+        }
+      } else if (data === '\x1b[A') {
+        // Up arrow - history
+        setHistoryIndex(prev => {
+          const newIndex = Math.min(prev + 1, commandHistory.length - 1)
+          if (newIndex >= 0 && commandHistory.length > 0) {
+            inputBuffer = commandHistory[commandHistory.length - 1 - newIndex] || ''
+            cursorPos = inputBuffer.length
+            redrawLine()
+          }
+          return newIndex
+        })
+      } else if (data === '\x1b[B') {
+        // Down arrow - history
+        setHistoryIndex(prev => {
+          const newIndex = Math.max(prev - 1, -1)
+          if (newIndex === -1) {
+            inputBuffer = ''
+          } else if (commandHistory.length > 0) {
+            inputBuffer = commandHistory[commandHistory.length - 1 - newIndex] || ''
+          }
+          cursorPos = inputBuffer.length
+          redrawLine()
+          return newIndex
+        })
+      } else if (data === '\x1b[C') {
+        // Right arrow
+        if (cursorPos < inputBuffer.length) {
+          cursorPos++
+          term.write(data)
+        }
+      } else if (data === '\x1b[D') {
+        // Left arrow
+        if (cursorPos > 0) {
+          cursorPos--
+          term.write(data)
+        }
+      } else if (data === '\x03') {
+        // Ctrl+C
+        term.write('^C\r\n')
+        inputBuffer = ''
+        cursorPos = 0
+        writePrompt()
+      } else if (data === '\x0c') {
+        // Ctrl+L - clear screen
+        term.clear()
+        writePrompt()
+        term.write(inputBuffer)
+      } else if (data >= ' ' && data <= '~') {
+        // Regular printable characters
+        inputBuffer = inputBuffer.slice(0, cursorPos) + data + inputBuffer.slice(cursorPos)
+        cursorPos++
+        redrawLine()
+      }
+    })
+
+    return () => {
+      disposable.dispose()
+    }
+  }, [workspacePath, commandHistory])
+
   return (
-    <div className="h-full bg-neutral-950 font-mono text-sm p-3">
-      <div className="text-neutral-400">
-        <span className="text-emerald-400">user</span>
-        <span className="text-neutral-600">@</span>
-        <span className="text-cyan-400">vibed</span>
-        <span className="text-neutral-600">:</span>
-        <span className="text-blue-400">~/project</span>
-        <span className="text-neutral-400"> $ </span>
-        <span className="animate-pulse">▋</span>
-      </div>
-    </div>
+    <div
+      ref={terminalRef}
+      className="h-full w-full bg-[#0a0a0a]"
+      style={{ padding: '8px' }}
+    />
   )
 }
 
@@ -543,7 +790,6 @@ export function RightPanel() {
 
   const bottomTabs: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'terminal', label: 'Terminal', icon: <TerminalIcon size={14} /> },
-    { id: 'token', label: 'Token', icon: <Coins size={14} /> },
   ]
 
   return (
@@ -617,8 +863,7 @@ export function RightPanel() {
 
         {/* Bottom Content */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          {bottomTab === 'terminal' && <TerminalPanel />}
-          {bottomTab === 'token' && <TokenPanel />}
+          {bottomTab === 'terminal' && <TerminalPanel key={currentWorkspace?.localPath || 'default'} workspacePath={currentWorkspace?.localPath} />}
         </div>
       </div>
     </div>
