@@ -472,6 +472,96 @@ pub async fn git_create_github_repo(name: String, is_private: bool) -> Result<Re
     })
 }
 
+/// Information about a git worktree
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorktreeInfo {
+    pub path: String,
+    pub head: String,
+    pub branch: Option<String>,
+    pub is_bare: bool,
+    pub is_detached: bool,
+    pub is_locked: bool,
+    pub is_prunable: bool,
+}
+
+/// List all worktrees for a repository
+#[tauri::command]
+pub async fn git_list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, String> {
+    // Run git worktree list with porcelain output for easier parsing
+    let output = AsyncCommand::new("git")
+        .args(["-C", &repo_path, "worktree", "list", "--porcelain"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to list worktrees: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to list worktrees: {}", stderr));
+    }
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let mut worktrees = Vec::new();
+    let mut current_worktree: Option<WorktreeInfo> = None;
+
+    for line in output_str.lines() {
+        if line.starts_with("worktree ") {
+            // Save previous worktree if exists
+            if let Some(wt) = current_worktree.take() {
+                worktrees.push(wt);
+            }
+            // Start new worktree
+            current_worktree = Some(WorktreeInfo {
+                path: line.strip_prefix("worktree ").unwrap_or("").to_string(),
+                head: String::new(),
+                branch: None,
+                is_bare: false,
+                is_detached: false,
+                is_locked: false,
+                is_prunable: false,
+            });
+        } else if let Some(ref mut wt) = current_worktree {
+            if line.starts_with("HEAD ") {
+                wt.head = line.strip_prefix("HEAD ").unwrap_or("").to_string();
+            } else if line.starts_with("branch ") {
+                wt.branch = Some(line.strip_prefix("branch ").unwrap_or("").to_string());
+            } else if line == "bare" {
+                wt.is_bare = true;
+            } else if line == "detached" {
+                wt.is_detached = true;
+            } else if line.starts_with("locked") {
+                wt.is_locked = true;
+            } else if line.starts_with("prunable") {
+                wt.is_prunable = true;
+            }
+        }
+    }
+
+    // Don't forget the last worktree
+    if let Some(wt) = current_worktree {
+        worktrees.push(wt);
+    }
+
+    Ok(worktrees)
+}
+
+/// Prune stale worktree references
+#[tauri::command]
+pub async fn git_prune_worktrees(repo_path: String) -> Result<String, String> {
+    let output = AsyncCommand::new("git")
+        .args(["-C", &repo_path, "worktree", "prune", "-v"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to prune worktrees: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to prune worktrees: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout.to_string())
+}
+
 /// Delete a workspace branch and its worktree
 #[tauri::command]
 pub async fn git_delete_workspace_branch(repo_path: String, branch_name: String, worktree_path: Option<String>) -> Result<(), String> {

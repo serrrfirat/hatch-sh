@@ -54,6 +54,16 @@ export interface WorkspaceResult {
   worktree_path: string
 }
 
+export interface WorktreeInfo {
+  path: string
+  head: string
+  branch: string | null
+  is_bare: boolean
+  is_detached: boolean
+  is_locked: boolean
+  is_prunable: boolean
+}
+
 export interface PullRequestInfo {
   number: number
   title: string
@@ -96,6 +106,20 @@ export async function createWorkspaceBranch(repoPath: string, workspaceId: strin
  */
 export async function deleteWorkspaceBranch(repoPath: string, branchName: string, worktreePath?: string): Promise<void> {
   return invoke('git_delete_workspace_branch', { repoPath, branchName, worktreePath })
+}
+
+/**
+ * List all worktrees for a repository
+ */
+export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
+  return invoke<WorktreeInfo[]>('git_list_worktrees', { repoPath })
+}
+
+/**
+ * Prune stale worktree references
+ */
+export async function pruneWorktrees(repoPath: string): Promise<string> {
+  return invoke<string>('git_prune_worktrees', { repoPath })
 }
 
 /**

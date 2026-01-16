@@ -12,7 +12,6 @@ import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useEditorStore } from '../../stores/editorStore'
 import { getDiffStats, listDirectoryFiles, type FileChange, type FileEntry } from '../../lib/git/bridge'
 import { FileIcon } from '../icons/FileIcon'
-import { DEFAULT_AGENT_ID } from '../../lib/agents/registry'
 
 type TopTab = 'changes' | 'files' | 'checks' | 'preview'
 type BottomTab = 'terminal'
@@ -230,7 +229,7 @@ function ChangesPanel() {
 }
 
 function FilesPanel() {
-  const { currentWorkspace, openLocalRepository } = useRepositoryStore()
+  const { currentWorkspace, openLocalRepository, createWorkspace } = useRepositoryStore()
   const { openFile } = useEditorStore()
   const [files, setFiles] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -306,22 +305,8 @@ function FilesPanel() {
       if (selected && typeof selected === 'string') {
         // Open the selected folder as a repository
         const repo = await openLocalRepository(selected)
-        // Create a workspace for it automatically
-        const workspaceId = crypto.randomUUID()
-        const workspace = {
-          id: workspaceId,
-          repositoryId: repo.id,
-          branchName: repo.default_branch,
-          localPath: repo.local_path,
-          status: 'idle' as const,
-          lastActive: new Date(),
-          agentId: DEFAULT_AGENT_ID,
-        }
-        // Update the store
-        useRepositoryStore.setState((state) => ({
-          workspaces: [...state.workspaces, workspace],
-          currentWorkspace: workspace,
-        }))
+        // Create a workspace with proper git worktree isolation
+        await createWorkspace(repo.id)
       }
     } catch (e) {
       console.error('Failed to open folder:', e)
@@ -521,10 +506,8 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const [commandHistory, setCommandHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
-  const [currentInput, setCurrentInput] = useState('')
-  const cursorPositionRef = useRef(0)
+  const commandHistoryRef = useRef<string[]>([])
+  const historyIndexRef = useRef(-1)
 
   // Initialize terminal
   useEffect(() => {
@@ -646,8 +629,8 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
       }
 
       // Add to history
-      setCommandHistory(prev => [...prev, cmd])
-      setHistoryIndex(-1)
+      commandHistoryRef.current = [...commandHistoryRef.current, cmd]
+      historyIndexRef.current = -1
 
       term.write('\r\n')
 
@@ -659,9 +642,8 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
       }
 
       if (cmd.trim().startsWith('cd ')) {
-        const path = cmd.trim().slice(3).trim()
         term.write(`\x1b[33mcd: directory change not supported in this terminal\x1b[0m\r\n`)
-        term.write(`\x1b[90mHint: The terminal runs in ${workspacePath || 'the default directory'}\x1b[0m\r\n`)
+        term.write(`\x1b[90mHint: Commands always run in the workspace directory\x1b[0m\r\n`)
         writePrompt()
         return
       }
@@ -709,28 +691,26 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
         }
       } else if (data === '\x1b[A') {
         // Up arrow - history
-        setHistoryIndex(prev => {
-          const newIndex = Math.min(prev + 1, commandHistory.length - 1)
-          if (newIndex >= 0 && commandHistory.length > 0) {
-            inputBuffer = commandHistory[commandHistory.length - 1 - newIndex] || ''
-            cursorPos = inputBuffer.length
-            redrawLine()
-          }
-          return newIndex
-        })
-      } else if (data === '\x1b[B') {
-        // Down arrow - history
-        setHistoryIndex(prev => {
-          const newIndex = Math.max(prev - 1, -1)
-          if (newIndex === -1) {
-            inputBuffer = ''
-          } else if (commandHistory.length > 0) {
-            inputBuffer = commandHistory[commandHistory.length - 1 - newIndex] || ''
-          }
+        const history = commandHistoryRef.current
+        if (history.length > 0) {
+          const newIndex = Math.min(historyIndexRef.current + 1, history.length - 1)
+          historyIndexRef.current = newIndex
+          inputBuffer = history[history.length - 1 - newIndex] || ''
           cursorPos = inputBuffer.length
           redrawLine()
-          return newIndex
-        })
+        }
+      } else if (data === '\x1b[B') {
+        // Down arrow - history
+        const history = commandHistoryRef.current
+        const newIndex = Math.max(historyIndexRef.current - 1, -1)
+        historyIndexRef.current = newIndex
+        if (newIndex === -1) {
+          inputBuffer = ''
+        } else if (history.length > 0) {
+          inputBuffer = history[history.length - 1 - newIndex] || ''
+        }
+        cursorPos = inputBuffer.length
+        redrawLine()
       } else if (data === '\x1b[C') {
         // Right arrow
         if (cursorPos < inputBuffer.length) {
@@ -765,7 +745,7 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
     return () => {
       disposable.dispose()
     }
-  }, [workspacePath, commandHistory])
+  }, [workspacePath])
 
   return (
     <div
