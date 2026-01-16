@@ -6,12 +6,14 @@ import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
-import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Loader2, ExternalLink, Archive, AlertCircle, X } from 'lucide-react'
+import { IdeaMazePage } from '../../pages/IdeaMazePage'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, Loader2, ExternalLink, Archive, AlertCircle, X } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'BYOA', icon: Terminal },
   { id: 'discover', label: 'Discover', icon: Compass },
+  { id: 'idea-maze', label: 'Idea Maze', icon: Lightbulb },
 ]
 
 export function Layout() {
@@ -212,10 +214,15 @@ export function Layout() {
               <Outlet />
             </div>
           </>
-        ) : (
+        ) : currentPage === 'discover' ? (
           /* Full-page Discover */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <DiscoverPage />
+          </div>
+        ) : (
+          /* Full-page Idea Maze */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <IdeaMazePage />
           </div>
         )}
       </main>
