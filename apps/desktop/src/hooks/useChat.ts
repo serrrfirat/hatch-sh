@@ -45,7 +45,7 @@ export function useChat() {
   } = useChatStore();
 
   const settingsState = useSettingsStore();
-  const { agentStatuses } = settingsState;
+  const { agentStatuses, claudeCodeStatus } = settingsState;
 
   // Get current workspace and its selected agent
   const { currentWorkspace } = useRepositoryStore();

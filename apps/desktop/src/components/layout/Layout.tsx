@@ -22,7 +22,8 @@ export function Layout() {
   const [isMerging, setIsMerging] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } = useRepositoryStore()
-  const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
+  const { agentStatuses, currentPage, setCurrentPage } = useSettingsStore()
+  const claudeCodeStatus = agentStatuses['claude-code']
 
   const handleMergePR = async () => {
     if (!currentWorkspace?.prNumber) return
