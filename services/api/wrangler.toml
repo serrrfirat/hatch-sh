@@ -1,0 +1,20 @@
+name = "vibed-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "development"
+# DATABASE_URL and DATABASE_AUTH_TOKEN should be set in .dev.vars for real DB
+# When not set, the mock in-memory database will be used automatically
+
+# For local development
+[dev]
+port = 8787
+
+# Secrets (set via `wrangler secret put SKILLSMP_API_KEY`)
+# - SKILLSMP_API_KEY: API key for SkillsMP marketplace
+
+# KV namespace for session storage (optional)
+# [[kv_namespaces]]
+# binding = "SESSIONS"
+# id = "xxx"

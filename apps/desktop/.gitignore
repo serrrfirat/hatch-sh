@@ -1,0 +1,15 @@
+# Build artifacts
+dist/
+node_modules/
+src-tauri/target/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

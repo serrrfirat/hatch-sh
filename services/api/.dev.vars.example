@@ -1,0 +1,7 @@
+# Copy this file to .dev.vars and fill in your values
+DATABASE_URL=libsql://your-turso-db.turso.io
+DATABASE_AUTH_TOKEN=your-turso-auth-token
+CLAUDE_API_KEY=your-claude-api-key
+CF_API_TOKEN=your-cloudflare-api-token
+CF_ACCOUNT_ID=your-cloudflare-account-id
+SKILLSMP_API_KEY=your-skillsmp-api-key
