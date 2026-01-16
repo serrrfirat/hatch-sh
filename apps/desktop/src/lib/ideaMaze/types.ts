@@ -49,6 +49,7 @@ export interface IdeaNode {
   title?: string
   tags: string[]
   aiGenerated?: boolean
+  critiques?: NodeCritique[]
   zIndex: number
   createdAt: Date
   updatedAt: Date
@@ -129,6 +130,16 @@ export interface CritiqueSuggestion {
   critique: string
   suggestions: string[]
   severity: 'info' | 'warning' | 'critical'
+}
+
+/** Stored critique on a node */
+export interface NodeCritique {
+  id: string
+  critique: string
+  suggestions: string[]
+  severity: 'info' | 'warning' | 'critical'
+  createdAt: Date
+  dismissed?: boolean
 }
 
 export type AISuggestion =

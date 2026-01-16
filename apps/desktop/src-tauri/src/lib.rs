@@ -241,7 +241,7 @@ async fn run_claude_code_streaming(
     let _thinking_enabled = thinkingEnabled.unwrap_or(true);
     let working_dir = workingDirectory;
 
-    let claude_path = match find_claude_path_async().await {
+    let claude_path = match find_claude_path().await {
         Some(path) => path,
         None => {
             return CommandResult {
