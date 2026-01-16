@@ -10,6 +10,7 @@ import {
 } from '../../lib/agents/registry'
 import type { AgentId } from '../../lib/agents/types'
 import { isLocalAgent } from '../../lib/agents/types'
+import { getAgentIcon } from '../icons/AgentIcons'
 
 export function AgentPicker() {
   const [isOpen, setIsOpen] = useState(false)
@@ -60,10 +61,17 @@ export function AgentPicker() {
           'transition-colors text-sm'
         )}
       >
-        <div
-          className="w-2 h-2 rounded-full"
-          style={{ backgroundColor: selectedConfig?.color || '#8b5cf6' }}
-        />
+        {(() => {
+          const IconComponent = selectedConfig ? getAgentIcon(selectedConfig.id) : undefined
+          return IconComponent ? (
+            <IconComponent size={14} style={{ color: selectedConfig?.color || '#8b5cf6' }} />
+          ) : (
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: selectedConfig?.color || '#8b5cf6' }}
+            />
+          )
+        })()}
         <span className="text-white">{selectedConfig?.name || 'Select Agent'}</span>
         <ChevronDown
           size={14}
@@ -110,11 +118,22 @@ export function AgentPicker() {
                         isSelected && 'bg-white/10'
                       )}
                     >
-                      {/* Color indicator */}
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: config.color }}
-                      />
+                      {/* Agent icon or color indicator */}
+                      {(() => {
+                        const IconComponent = getAgentIcon(config.id)
+                        return IconComponent ? (
+                          <IconComponent
+                            size={16}
+                            className="flex-shrink-0"
+                            style={{ color: config.color }}
+                          />
+                        ) : (
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: config.color }}
+                          />
+                        )
+                      })()}
 
                       {/* Agent info */}
                       <div className="flex-1 text-left min-w-0">
