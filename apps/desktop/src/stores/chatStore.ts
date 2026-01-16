@@ -25,12 +25,19 @@ export interface Message {
   startTime?: number
 }
 
+// Pending PR request info
+export interface PendingOpenPR {
+  uncommittedChanges?: number
+}
+
 interface ChatState {
   // Messages stored per workspace
   messagesByWorkspace: Record<string, Message[]>
   currentWorkspaceId: string | null
   isLoading: boolean
   currentProjectId: string | null
+  // Pending PR request - set by UI, consumed by ChatArea
+  pendingOpenPR: PendingOpenPR | null
 
   // Actions
   setWorkspaceId: (workspaceId: string | null) => void
@@ -43,6 +50,9 @@ interface ChatState {
   setLoading: (loading: boolean) => void
   setProjectId: (id: string) => void
   clearMessages: () => void
+  // PR actions
+  triggerOpenPR: (uncommittedChanges?: number) => void
+  clearPendingOpenPR: () => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -52,6 +62,7 @@ export const useChatStore = create<ChatState>()(
       currentWorkspaceId: null,
       isLoading: false,
       currentProjectId: null,
+      pendingOpenPR: null,
 
       setWorkspaceId: (workspaceId) => {
         set({ currentWorkspaceId: workspaceId, isLoading: false })
@@ -193,6 +204,14 @@ export const useChatStore = create<ChatState>()(
             [currentWorkspaceId]: [],
           },
         }))
+      },
+
+      triggerOpenPR: (uncommittedChanges?: number) => {
+        set({ pendingOpenPR: { uncommittedChanges } })
+      },
+
+      clearPendingOpenPR: () => {
+        set({ pendingOpenPR: null })
       },
     }),
     {
