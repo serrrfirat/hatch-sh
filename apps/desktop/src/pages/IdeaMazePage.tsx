@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
-import { useIdeaMazeStore } from '../stores/ideaMazeStore'
+import { useIdeaMazeStore, flushPendingSave, hasUnsavedChanges } from '../stores/ideaMazeStore'
 import { AtmosphericBackground } from '../components/ideaMaze/AtmosphericBackground'
 import { VerticalToolbar } from '../components/ideaMaze/VerticalToolbar'
 import { IdeaMazeCanvas } from '../components/ideaMaze/IdeaMazeCanvas'
@@ -32,6 +32,36 @@ export function IdeaMazePage() {
       initializeStore()
     }
   }, [isStorageInitialized, initializeStore])
+
+  // Flush pending saves on app close/visibility change
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges()) {
+        // Synchronously warn user and attempt to save
+        e.preventDefault()
+        e.returnValue = ''
+        // Flush save - this may not complete if user closes immediately
+        flushPendingSave()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Flush save when tab/window loses focus
+        flushPendingSave()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      // Flush any pending saves when component unmounts
+      flushPendingSave()
+    }
+  }, [])
 
   // Create default moodboard if none exists after storage is initialized
   useEffect(() => {
