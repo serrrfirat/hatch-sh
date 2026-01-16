@@ -7,6 +7,7 @@ import type { GitHubAuthState } from '../lib/github/bridge'
 import { useChatStore } from './chatStore'
 import type { AgentId } from '../lib/agents/types'
 import { DEFAULT_AGENT_ID } from '../lib/agents/registry'
+import { generateWorkspaceName } from '../lib/pokemon'
 
 export interface Workspace {
   id: string
@@ -212,7 +213,9 @@ export const useRepositoryStore = create<RepositoryState>()(
           throw new Error('Repository not found')
         }
 
-        const workspaceId = crypto.randomUUID()
+        // Get existing workspace names to avoid collisions
+        const existingNames = get().workspaces.map(w => w.id)
+        const workspaceId = generateWorkspaceName(existingNames)
 
         try {
           // Create workspace with isolated worktree

@@ -4,9 +4,6 @@ import { cn } from '@vibed/ui'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentPicker } from './AgentPicker'
 
-// Editorial easing - smooth, elegant motion
-const editorialEase = [0.16, 1, 0.3, 1] as const
-
 interface ChatInputProps {
   onSend: (message: string) => void
   isLoading: boolean

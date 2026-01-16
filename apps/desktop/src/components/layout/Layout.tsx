@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
+import { useChatStore } from '../../stores/chatStore'
 import { ProjectTree } from './ProjectTree'
 import { SettingsPanel } from '../SettingsPanel'
 import { DiscoverPage } from '../DiscoverPage'
@@ -25,6 +26,14 @@ export function Layout() {
   const [mergeError, setMergeError] = useState<string | null>(null)
   const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } = useRepositoryStore()
   const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
+  const { triggerOpenPR } = useChatStore()
+
+  // Handler for "Create PR" button - triggers agent-based PR creation
+  const handleCreatePR = () => {
+    // Calculate uncommitted changes count from workspace stats
+    const uncommittedChanges = currentWorkspace?.additions
+    triggerOpenPR(uncommittedChanges)
+  }
 
   const handleMergePR = async () => {
     if (!currentWorkspace?.prNumber) return
@@ -178,9 +187,9 @@ export function Layout() {
                   )}
                 </>
               ) : (
-                // No PR - show Create PR button
+                // No PR - show Create PR button (triggers agent-based PR creation)
                 <button
-                  onClick={() => setPrModalOpen(true)}
+                  onClick={handleCreatePR}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
                 >
                   <GitPullRequest size={14} />

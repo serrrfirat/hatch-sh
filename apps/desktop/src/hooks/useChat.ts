@@ -27,6 +27,43 @@ Output format: When providing code, wrap it in a code block with the language sp
 
 Be concise but helpful. Focus on building what the user asks for.`;
 
+/**
+ * PR Creation prompt - injected when user triggers "Open PR"
+ * Instructs the agent on the exact steps to create a pull request
+ */
+const OPEN_PR_PROMPT = `The user likes the state of the code and wants to create a Pull Request.
+
+Follow these exact steps to create a PR:
+
+1. Run git diff to review uncommitted changes
+2. Commit them. Follow any instructions the user gave you about writing commit messages.
+3. Push to origin.
+4. Use the mcp__conductor__GetWorkspaceDiff tool to review the PR diff
+5. Use gh pr create --base {targetBranch} to create a PR onto the target branch. Keep the title under 80 characters and the description under five sentences (unless the user has given you other instructions).
+6. If any of these steps fail, ask the user for help.`;
+
+/**
+ * Build context for PR creation
+ */
+function buildPRContext(workspace: {
+  branchName: string;
+  localPath: string;
+  uncommittedChanges?: number;
+}, targetBranch: string): string {
+  let context = '\n\n**Workspace Context:**\n';
+  context += `- Current branch: ${workspace.branchName}\n`;
+  context += `- Target branch: origin/${targetBranch}\n`;
+  context += `- Working directory: ${workspace.localPath}\n`;
+
+  if (workspace.uncommittedChanges !== undefined) {
+    context += `- Uncommitted changes: ${workspace.uncommittedChanges} files\n`;
+  }
+
+  context += `\nThere is no upstream branch yet. The user requested a PR.\n`;
+
+  return context;
+}
+
 export function useChat() {
   // Use selector for reactive messages (per-workspace)
   const messages = useChatStore(selectCurrentMessages);
@@ -374,11 +411,50 @@ export function useChat() {
     setLoading(false);
   }, [setLoading, updateMessage]);
 
+  /**
+   * Send the "Open PR" message with PR creation instructions
+   * This is triggered when user clicks "Create PR" in the UI
+   */
+  const sendOpenPRMessage = useCallback(
+    async (uncommittedChanges?: number) => {
+      if (!currentWorkspace) {
+        addMessage({
+          role: "assistant",
+          content: "No workspace selected. Please select a workspace first.",
+        });
+        return;
+      }
+
+      const repo = useRepositoryStore.getState().repositories.find(
+        (r) => r.id === currentWorkspace.repositoryId
+      );
+      const targetBranch = repo?.default_branch || "master";
+
+      // Build the PR context
+      const context = buildPRContext(
+        {
+          branchName: currentWorkspace.branchName,
+          localPath: currentWorkspace.localPath,
+          uncommittedChanges,
+        },
+        targetBranch
+      );
+
+      // Replace placeholder in prompt with actual target branch
+      const promptWithBranch = OPEN_PR_PROMPT.replace("{targetBranch}", targetBranch);
+
+      // Send the PR creation prompt with context
+      await sendMessage(promptWithBranch + context);
+    },
+    [currentWorkspace, addMessage, sendMessage]
+  );
+
   return {
     messages,
     isLoading,
     workspaceAgentId,
     sendMessage,
+    sendOpenPRMessage,
     stopGeneration,
   };
 }

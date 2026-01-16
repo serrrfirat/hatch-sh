@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@vibed/ui'
 
-// Editorial easing - smooth, elegant motion
-const editorialEase = [0.16, 1, 0.3, 1] as const
+// Smooth easing for animations
+const smoothEase = [0.4, 0, 0.2, 1] as const
 
 interface CodeBlockProps {
   language?: string
@@ -11,110 +11,103 @@ interface CodeBlockProps {
   className?: string
 }
 
-export function CodeBlock({ language, children, className }: CodeBlockProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isCopied, setIsCopied] = useState(false)
-  const [copyError, setCopyError] = useState(false)
+// Chevron icon for expandable sections
+function ChevronIcon({ isExpanded }: { isExpanded: boolean }) {
+  return (
+    <motion.svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-white/30"
+      animate={{ rotate: isExpanded ? 90 : 0 }}
+      transition={{ duration: 0.15, ease: smoothEase }}
+    >
+      <polyline points="9 18 15 12 9 6" />
+    </motion.svg>
+  )
+}
 
-  const handleCopy = async () => {
+export function CodeBlock({ language, children, className }: CodeBlockProps) {
+  const [isExpanded, setIsExpanded] = useState(true)
+  const [isCopied, setIsCopied] = useState(false)
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     try {
       await navigator.clipboard.writeText(children)
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
-      setCopyError(true)
-      setTimeout(() => setCopyError(false), 2000)
     }
   }
 
   const lineCount = children.split('\n').length
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: editorialEase }}
-      className={cn('my-6', className)}
-    >
+    <div className={cn('my-3 bg-white/[0.02] rounded', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-mono text-white/40 uppercase tracking-wider">
-            {language || 'code'}
-          </span>
-          <span className="text-xs font-mono text-white/20">
-            {lineCount} {lineCount === 1 ? 'line' : 'lines'}
-          </span>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors duration-150 text-left"
+      >
+        <div className="w-4 h-4 flex items-center justify-center shrink-0">
+          <ChevronIcon isExpanded={isExpanded} />
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleCopy}
-            className={cn(
-              'text-xs font-mono uppercase tracking-wider transition-colors duration-300',
-              copyError
-                ? 'text-red-400'
-                : isCopied
-                  ? 'text-white'
-                  : 'text-white/30 hover:text-white/60'
-            )}
-          >
-            {copyError ? 'Failed' : isCopied ? 'Copied' : 'Copy'}
-          </button>
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-white/30 hover:text-white/60 transition-colors duration-300"
-          >
-            <motion.svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              animate={{ rotate: isCollapsed ? 0 : 45 }}
-              transition={{ duration: 0.3, ease: editorialEase }}
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </motion.svg>
-          </button>
-        </div>
-      </div>
+        <span className="text-xs font-sans font-light text-white/40 uppercase">
+          {language || 'code'}
+        </span>
+        <span className="text-xs font-sans font-light text-white/20">
+          {lineCount} line{lineCount !== 1 ? 's' : ''}
+        </span>
+        <div className="flex-1" />
+        <button
+          onClick={handleCopy}
+          className={cn(
+            'text-xs font-sans font-light uppercase tracking-wider transition-colors duration-150 px-2 py-0.5 rounded',
+            isCopied
+              ? 'text-green-400/70'
+              : 'text-white/30 hover:text-white/50 hover:bg-white/5'
+          )}
+        >
+          {isCopied ? 'copied' : 'copy'}
+        </button>
+      </button>
 
       {/* Code content */}
-      <AnimatePresence mode="wait">
-        {!isCollapsed && (
+      <AnimatePresence>
+        {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4, ease: editorialEase }}
+            transition={{ duration: 0.15, ease: smoothEase }}
             className="overflow-hidden"
           >
-            <pre className="pt-4 overflow-x-auto">
-              <code className="text-sm font-mono leading-[1.8] text-white/70">
-                {children}
-              </code>
-            </pre>
+            <div className="px-3 pb-3">
+              <pre className="overflow-x-auto">
+                <code className="text-xs font-mono leading-relaxed text-white/60">
+                  {children}
+                </code>
+              </pre>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Collapsed state */}
-      <AnimatePresence>
-        {isCollapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="pt-3 text-sm font-mono text-white/30"
-          >
-            {lineCount} lines collapsed
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {/* Collapsed preview */}
+      {!isExpanded && (
+        <div className="px-3 pb-2">
+          <code className="text-xs font-mono text-white/30 truncate block">
+            {children.split('\n')[0]}{lineCount > 1 ? '...' : ''}
+          </code>
+        </div>
+      )}
+    </div>
   )
 }
