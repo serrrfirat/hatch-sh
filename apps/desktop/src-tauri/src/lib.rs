@@ -41,6 +41,22 @@ pub struct CommandResult {
     code: Option<i32>,
 }
 
+/// Model information returned from an agent
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ModelInfo {
+    id: String,
+    name: String,
+    provider: Option<String>,
+}
+
+/// Result from getting available models
+#[derive(Serialize, Deserialize)]
+pub struct AvailableModels {
+    success: bool,
+    models: Vec<ModelInfo>,
+    error: Option<String>,
+}
+
 // =============================================================================
 // Claude Code Implementation
 // =============================================================================
@@ -478,7 +494,7 @@ async fn check_opencode_impl() -> AgentStatus {
     }
 }
 
-async fn run_opencode_impl(prompt: String) -> CommandResult {
+async fn run_opencode_impl(prompt: String, model: Option<String>) -> CommandResult {
     let opencode_path = match find_opencode_path().await {
         Some(path) => path,
         None => {
@@ -491,11 +507,24 @@ async fn run_opencode_impl(prompt: String) -> CommandResult {
         }
     };
 
+    // Build arguments based on whether model is specified
+    let mut args = vec!["run".to_string()];
+
+    // Add model flag if specified and not "default"
+    if let Some(ref m) = model {
+        if m != "default" {
+            args.push("--model".to_string());
+            args.push(m.clone());
+        }
+    }
+
+    args.push(prompt);
+
     // Use opencode's CLI to run a prompt
     // Note: This is a simplified version. Full ACP support would require
     // spawning the ACP server and using JSON-RPC.
     let result = AsyncCommand::new(&opencode_path)
-        .args(["run", &prompt])
+        .args(&args)
         .output()
         .await;
 
@@ -667,7 +696,7 @@ async fn check_cursor_impl() -> AgentStatus {
     }
 }
 
-async fn run_cursor_impl(prompt: String) -> CommandResult {
+async fn run_cursor_impl(prompt: String, model: Option<String>) -> CommandResult {
     let cursor_path = match find_cursor_path().await {
         Some(path) => path,
         None => {
@@ -680,9 +709,25 @@ async fn run_cursor_impl(prompt: String) -> CommandResult {
         }
     };
 
+    // Build arguments based on whether model is specified
+    let mut args = vec!["chat".to_string()];
+
+    // Add model flag if specified and not "default"
+    if let Some(ref m) = model {
+        if m != "default" {
+            args.push("--model".to_string());
+            args.push(m.clone());
+        }
+    }
+
+    args.push(prompt);
+    args.push("-p".to_string());
+    args.push("--output-format".to_string());
+    args.push("stream-json".to_string());
+
     // Run cursor agent in headless mode with streaming JSON output
     let result = AsyncCommand::new(&cursor_path)
-        .args(["chat", &prompt, "-p", "--output-format", "stream-json"])
+        .args(&args)
         .output()
         .await;
 
@@ -702,6 +747,325 @@ async fn run_cursor_impl(prompt: String) -> CommandResult {
                 stderr: format!("Failed to run Cursor Agent: {}", e),
                 code: None,
             }
+        }
+    }
+}
+
+// =============================================================================
+// Get Available Models from Agents
+// =============================================================================
+
+/// Get available models from opencode
+async fn get_opencode_models_impl() -> AvailableModels {
+    let opencode_path = match find_opencode_path().await {
+        Some(path) => path,
+        None => {
+            return AvailableModels {
+                success: false,
+                models: vec![],
+                error: Some("Opencode not found".to_string()),
+            };
+        }
+    };
+
+    // Run `opencode models` to get list of available models
+    let result = AsyncCommand::new(&opencode_path)
+        .args(["models"])
+        .output()
+        .await;
+
+    match result {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let models = parse_opencode_models(&stdout);
+
+            if !models.is_empty() {
+                AvailableModels {
+                    success: true,
+                    models,
+                    error: None,
+                }
+            } else {
+                AvailableModels {
+                    success: false,
+                    models: vec![],
+                    error: Some("No models found in opencode output".to_string()),
+                }
+            }
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            AvailableModels {
+                success: false,
+                models: vec![],
+                error: Some(format!("opencode models failed: {}", stderr)),
+            }
+        }
+        Err(e) => {
+            AvailableModels {
+                success: false,
+                models: vec![],
+                error: Some(format!("Failed to run opencode: {}", e)),
+            }
+        }
+    }
+}
+
+/// Parse opencode models list output
+/// Handles format: provider/model-id (one per line)
+fn parse_opencode_models(output: &str) -> Vec<ModelInfo> {
+    let mut models = Vec::new();
+
+    // Parse line by line - opencode outputs "provider/model-id" format
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        // Skip header lines or non-model lines
+        if line.starts_with("ID") || line.starts_with("Model") || line.starts_with("NAME") ||
+           line.starts_with("---") || line.starts_with("===") || line.starts_with("Available") ||
+           line.starts_with("Usage:") || line.starts_with("Commands:") {
+            continue;
+        }
+
+        // Handle provider/model-id format (e.g., "anthropic/claude-3-5-haiku-20241022")
+        if line.contains('/') {
+            let parts: Vec<&str> = line.splitn(2, '/').collect();
+            if parts.len() == 2 {
+                let provider_raw = parts[0].trim();
+                let model_name = parts[1].trim();
+
+                // Map provider to display name
+                let provider = match provider_raw.to_lowercase().as_str() {
+                    "anthropic" => "Anthropic",
+                    "openai" => "OpenAI",
+                    "google" => "Google",
+                    "opencode" => "Opencode",
+                    "deepseek" => "DeepSeek",
+                    "mistral" => "Mistral",
+                    "cohere" => "Cohere",
+                    "amazon" | "bedrock" => "Amazon Bedrock",
+                    "azure" => "Azure",
+                    "groq" => "Groq",
+                    "together" => "Together",
+                    "fireworks" => "Fireworks",
+                    "replicate" => "Replicate",
+                    _ => provider_raw,
+                };
+
+                models.push(ModelInfo {
+                    id: line.to_string(),  // Full ID like "anthropic/claude-3-5-haiku-20241022"
+                    name: model_name.to_string(),  // Just the model name
+                    provider: Some(provider.to_string()),
+                });
+                continue;
+            }
+        }
+
+        // Fallback: treat the whole line as a model ID
+        // Skip if it looks like a command or help text
+        if !line.contains(' ') && line.len() > 2 && !line.ends_with(':') {
+            models.push(ModelInfo {
+                id: line.to_string(),
+                name: line.to_string(),
+                provider: None,
+            });
+        }
+    }
+
+    models
+}
+
+/// Get available models from cursor agent
+async fn get_cursor_models_impl() -> AvailableModels {
+    let cursor_path = match find_cursor_path().await {
+        Some(path) => path,
+        None => {
+            return AvailableModels {
+                success: false,
+                models: vec![],
+                error: Some("Cursor Agent not found".to_string()),
+            };
+        }
+    };
+
+    // Try `agent models` or `agent models list`
+    let result = AsyncCommand::new(&cursor_path)
+        .args(["models"])
+        .output()
+        .await;
+
+    match result {
+        Ok(output) => {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let models = parse_cursor_models(&stdout);
+                AvailableModels {
+                    success: true,
+                    models,
+                    error: None,
+                }
+            } else {
+                // Try alternate command
+                let alt_result = AsyncCommand::new(&cursor_path)
+                    .args(["models", "list"])
+                    .output()
+                    .await;
+
+                match alt_result {
+                    Ok(alt_output) if alt_output.status.success() => {
+                        let stdout = String::from_utf8_lossy(&alt_output.stdout);
+                        let models = parse_cursor_models(&stdout);
+                        AvailableModels {
+                            success: true,
+                            models,
+                            error: None,
+                        }
+                    }
+                    _ => {
+                        // Return a default set of models if command fails
+                        AvailableModels {
+                            success: true,
+                            models: get_default_cursor_models(),
+                            error: None,
+                        }
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            // Return default models if agent doesn't support model listing
+            AvailableModels {
+                success: true,
+                models: get_default_cursor_models(),
+                error: None,
+            }
+        }
+    }
+}
+
+/// Parse cursor agent models output
+fn parse_cursor_models(output: &str) -> Vec<ModelInfo> {
+    let mut models = Vec::new();
+
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Try to parse as JSON first
+        if line.starts_with('{') || line.starts_with('[') {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                // Handle array
+                if let Some(arr) = json.as_array() {
+                    for item in arr {
+                        if let Some(id) = item.get("id").or(item.get("model")).and_then(|v| v.as_str()) {
+                            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or(id);
+                            let provider = item.get("provider").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            models.push(ModelInfo {
+                                id: id.to_string(),
+                                name: name.to_string(),
+                                provider,
+                            });
+                        }
+                    }
+                    continue;
+                }
+                // Handle object
+                if let Some(id) = json.get("id").or(json.get("model")).and_then(|v| v.as_str()) {
+                    let name = json.get("name").and_then(|v| v.as_str()).unwrap_or(id);
+                    let provider = json.get("provider").and_then(|v| v.as_str()).map(|s| s.to_string());
+                    models.push(ModelInfo {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                        provider,
+                    });
+                    continue;
+                }
+            }
+        }
+
+        // Parse plain text output
+        let model_id = line.trim_start_matches('-').trim_start_matches('*').trim();
+        if !model_id.is_empty() && model_id.len() > 2 {
+            let provider = if model_id.contains("claude") {
+                Some("Anthropic".to_string())
+            } else if model_id.contains("gpt") || model_id.contains("o1") || model_id.contains("o3") {
+                Some("OpenAI".to_string())
+            } else if model_id.contains("gemini") {
+                Some("Google".to_string())
+            } else {
+                None
+            };
+
+            models.push(ModelInfo {
+                id: model_id.to_string(),
+                name: model_id.to_string(),
+                provider,
+            });
+        }
+    }
+
+    // If no models were parsed, return defaults
+    if models.is_empty() {
+        return get_default_cursor_models();
+    }
+
+    models
+}
+
+/// Default cursor models (fallback if agent doesn't support listing)
+fn get_default_cursor_models() -> Vec<ModelInfo> {
+    vec![
+        ModelInfo {
+            id: "claude-sonnet-4-20250514".to_string(),
+            name: "Claude Sonnet 4".to_string(),
+            provider: Some("Anthropic".to_string()),
+        },
+        ModelInfo {
+            id: "claude-opus-4-20250514".to_string(),
+            name: "Claude Opus 4".to_string(),
+            provider: Some("Anthropic".to_string()),
+        },
+        ModelInfo {
+            id: "gpt-4.1".to_string(),
+            name: "GPT-4.1".to_string(),
+            provider: Some("OpenAI".to_string()),
+        },
+        ModelInfo {
+            id: "o3".to_string(),
+            name: "o3".to_string(),
+            provider: Some("OpenAI".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-2.5-pro".to_string(),
+            name: "Gemini 2.5 Pro".to_string(),
+            provider: Some("Google".to_string()),
+        },
+    ]
+}
+
+/// Get available models for any supported agent
+#[tauri::command]
+async fn get_agent_models(agent_id: String) -> AvailableModels {
+    match agent_id.as_str() {
+        "opencode" => get_opencode_models_impl().await,
+        "cursor" => get_cursor_models_impl().await,
+        "claude-code" => {
+            // Claude Code doesn't support model selection
+            AvailableModels {
+                success: true,
+                models: vec![],
+                error: Some("Claude Code uses its own model".to_string()),
+            }
+        }
+        _ => AvailableModels {
+            success: false,
+            models: vec![],
+            error: Some(format!("Unknown agent: {}", agent_id)),
         }
     }
 }
@@ -729,11 +1093,11 @@ async fn check_agent(agent_id: String) -> AgentStatus {
 
 /// Run a prompt with any supported agent
 #[tauri::command]
-async fn run_agent(agent_id: String, prompt: String) -> CommandResult {
+async fn run_agent(agent_id: String, prompt: String, model: Option<String>) -> CommandResult {
     match agent_id.as_str() {
         "claude-code" => run_claude_code_impl(prompt).await,
-        "opencode" => run_opencode_impl(prompt).await,
-        "cursor" => run_cursor_impl(prompt).await,
+        "opencode" => run_opencode_impl(prompt, model).await,
+        "cursor" => run_cursor_impl(prompt, model).await,
         _ => CommandResult {
             success: false,
             stdout: String::new(),
@@ -795,6 +1159,7 @@ pub fn run() {
             // Generic agent commands
             check_agent,
             run_agent,
+            get_agent_models,
             // Legacy Claude Code commands (backwards compatibility)
             check_claude_code,
             run_claude_code,

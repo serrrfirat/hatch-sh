@@ -86,6 +86,30 @@ export interface CommandResult {
   code?: number
 }
 
+/** Model information returned from an agent */
+export interface ModelInfo {
+  id: string
+  name: string
+  provider?: string
+}
+
+/** Result from getting available models */
+export interface AvailableModels {
+  success: boolean
+  models: ModelInfo[]
+  error?: string
+}
+
+/** Options for sending messages to an agent */
+export interface SendMessageOptions {
+  /** Optional system prompt */
+  systemPrompt?: string
+  /** Callback for streaming events */
+  onStream?: (event: StreamEvent) => void
+  /** Model to use (for agents that support model selection) */
+  model?: string
+}
+
 /**
  * Agent Adapter Interface
  *
@@ -111,14 +135,12 @@ export interface AgentAdapter {
    * Send a message to the agent and receive streaming responses
    *
    * @param messages - Conversation history
-   * @param systemPrompt - Optional system prompt
-   * @param onStream - Callback for streaming events
+   * @param options - Send options including systemPrompt, onStream callback, and model
    * @returns The full response content
    */
   sendMessage(
     messages: AgentMessage[],
-    systemPrompt?: string,
-    onStream?: (event: StreamEvent) => void
+    options?: SendMessageOptions
   ): Promise<string>
 
   /**

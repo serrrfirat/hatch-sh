@@ -5,24 +5,21 @@ import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
 import { ProjectTree } from './ProjectTree'
-import { SettingsPanel } from '../SettingsPanel'
-import { DiscoverPage } from '../DiscoverPage'
+import { SettingsPage } from '../SettingsPanel'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
 import { DesignPage } from '../../pages/DesignPage'
-import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Compass, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
   { id: 'design', label: 'Design', icon: Palette },
-  { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'idea-maze', label: 'Idea Maze', icon: Lightbulb },
   { id: 'marketplace', label: 'Skills', icon: ShoppingBag },
 ]
 
 export function Layout() {
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [prModalOpen, setPrModalOpen] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
@@ -248,8 +245,10 @@ export function Layout() {
 
           {/* Settings button */}
           <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-1.5 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+            onClick={() => setCurrentPage('settings')}
+            className={`p-1.5 rounded hover:bg-white/10 transition-colors ${
+              currentPage === 'settings' ? 'text-white bg-white/10' : 'text-neutral-400 hover:text-white'
+            }`}
           >
             <Settings size={16} />
           </button>
@@ -275,15 +274,15 @@ export function Layout() {
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <DesignPage />
           </div>
-        ) : currentPage === 'discover' ? (
-          /* Full-page Discover */
-          <div className="flex-1 bg-neutral-950 overflow-hidden">
-            <DiscoverPage />
-          </div>
         ) : currentPage === 'marketplace' ? (
           /* Full-page Marketplace/Skills */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <MarketplacePage />
+          </div>
+        ) : currentPage === 'settings' ? (
+          /* Full-page Settings */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <SettingsPage />
           </div>
         ) : (
           /* Full-page Idea Maze */
@@ -292,9 +291,6 @@ export function Layout() {
           </div>
         )}
       </main>
-
-      {/* Settings Panel */}
-      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* Create PR Modal */}
       <CreatePRModal isOpen={prModalOpen} onClose={() => setPrModalOpen(false)} />
