@@ -23,11 +23,17 @@
     "fs:allow-exists",
     "fs:allow-mkdir",
     "fs:allow-read",
+    "fs:allow-read-text-file",
     "fs:allow-write",
     "fs:allow-remove",
     "fs:allow-rename",
     "fs:allow-read-dir",
     "fs:allow-app-read-recursive",
-    "fs:allow-app-write-recursive"
+    "fs:allow-app-write-recursive",
+    "fs:scope-home-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": ["/**/*", "$HOME/**/*"]
+    }
   ]
 }

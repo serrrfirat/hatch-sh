@@ -194,8 +194,10 @@ async fn run_claude_code_impl(prompt: String) -> CommandResult {
         }
     };
 
+    // Include --dangerously-skip-permissions and --add-dir for full filesystem access
+    // Use "--" to separate options from the positional prompt argument
     let result = AsyncCommand::new(&claude_path)
-        .args(["--print", &prompt])
+        .args(["--print", "--dangerously-skip-permissions", "--add-dir", "/", "--", &prompt])
         .output()
         .await;
 
@@ -270,7 +272,14 @@ stderr: "Claude Code not found".to_string(),
         args.push("--dangerously-skip-permissions");
     }
 
-    // Add the prompt as the last argument
+    // Add full filesystem access so agents can navigate across the entire codebase
+    // This allows agents to access files outside their working directory
+    args.push("--add-dir");
+    args.push("/");
+
+    // Use "--" to separate options from the positional prompt argument
+    // This prevents --add-dir from consuming the prompt as a directory
+    args.push("--");
     args.push(&prompt);
 
     // Use --output-format stream-json for streaming JSON output

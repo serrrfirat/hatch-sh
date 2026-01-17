@@ -121,11 +121,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   )
 
   const { thinkingEnabled } = useSettingsStore()
-  const [isContentExpanded, setIsContentExpanded] = useState(true)
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false) // Collapsed by default
 
   const hasToolUses = !isUser && message.toolUses && message.toolUses.length > 0
   const hasThinking = !isUser && message.thinking && thinkingEnabled
   const isStreaming = message.isStreaming ?? false
+  const toolCount = message.toolUses?.length || 0
 
   const components: Components = {
     code({ className, children, ...props }) {
@@ -270,29 +271,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Tool uses */}
+      {/* Tool uses - collapsed summary by default */}
       {hasToolUses && (
-        <div className="space-y-0.5 py-1">
-          {message.toolUses!.map((tool) => (
-            <ToolUseBlock key={tool.id} tool={tool} />
-          ))}
-        </div>
-      )}
-
-      {/* Response content */}
-      {displayedContent && (
-        <div className="py-2">
-          {/* Collapsible header */}
+        <div className="py-1">
+          {/* Summary header - always visible */}
           <button
-            onClick={() => setIsContentExpanded(!isContentExpanded)}
-            className="w-full flex items-center gap-2 py-1.5 hover:bg-white/[0.02] transition-colors duration-150 text-left"
+            onClick={() => setIsToolsExpanded(!isToolsExpanded)}
+            className="w-full flex items-center gap-2 py-1.5 hover:bg-white/[0.02] transition-colors duration-150 text-left group"
           >
             <div className="w-4 h-4 flex items-center justify-center shrink-0">
-              <ChevronIcon isExpanded={isContentExpanded} />
+              <ChevronIcon isExpanded={isToolsExpanded} />
             </div>
-            <span className="text-sm text-white/50">Response</span>
+            <span className="text-sm text-white/50">
+              {toolCount} tool call{toolCount !== 1 ? 's' : ''}
+            </span>
             {isStreaming && (
-              <span className="text-xs text-blue-400">streaming...</span>
+              <ActivityIndicator />
             )}
             <div className="flex-1" />
             {message.duration !== undefined && !isStreaming && (
@@ -302,9 +296,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             )}
           </button>
 
-          {/* Expandable content */}
+          {/* Expandable tool details */}
           <AnimatePresence>
-            {isContentExpanded && (
+            {isToolsExpanded && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -312,21 +306,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 transition={{ duration: 0.2, ease: smoothEase }}
                 className="overflow-hidden"
               >
-                <div className="pl-6 pt-2 pb-1">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={components}
-                  >
-                    {displayedContent}
-                  </ReactMarkdown>
-
-                  {!isComplete && (
-                    <motion.span
-                      className="inline-block w-[2px] h-4 bg-white/60 ml-0.5 align-middle"
-                      animate={{ opacity: [1, 0, 1] }}
-                      transition={{ repeat: Infinity, duration: 0.8 }}
-                    />
-                  )}
+                <div className="pl-6 space-y-0.5 py-1">
+                  {message.toolUses!.map((tool) => (
+                    <ToolUseBlock key={tool.id} tool={tool} />
+                  ))}
                 </div>
               </motion.div>
             )}
@@ -334,17 +317,29 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Footer with stats */}
-      {message.duration !== undefined && !isStreaming && hasToolUses && (
-        <div className="flex items-center gap-4 text-[10px] font-light text-white/20 py-2 pl-6">
-          <span className="tabular-nums">{formatDuration(message.duration)}</span>
-          <span>
-            {message.toolUses!.length} action{message.toolUses!.length !== 1 ? 's' : ''}
-          </span>
+      {/* Response content - always visible */}
+      {displayedContent && (
+        <div className="py-2">
+          <div className="pt-1 pb-1">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={components}
+            >
+              {displayedContent}
+            </ReactMarkdown>
+
+            {!isComplete && (
+              <motion.span
+                className="inline-block w-[2px] h-4 bg-white/60 ml-0.5 align-middle"
+                animate={{ opacity: [1, 0, 1] }}
+                transition={{ repeat: Infinity, duration: 0.8 }}
+              />
+            )}
+          </div>
         </div>
       )}
 
-      {/* Changed files pills */}
+      {/* Changed files pills - shown after tool calls complete */}
       {hasToolUses && !isStreaming && (
         <ChangedFilesPills toolUses={message.toolUses!} />
       )}

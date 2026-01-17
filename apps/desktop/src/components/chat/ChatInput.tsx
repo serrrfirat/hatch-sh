@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, type KeyboardEvent, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type ChangeEvent, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@vibed/ui'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentPicker } from './AgentPicker'
+import { MentionPopover, type MentionItem } from './MentionPopover'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -73,6 +74,9 @@ function ModeToggle({
 
 export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
+  const [showMentionPopover, setShowMentionPopover] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const {
@@ -91,13 +95,82 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   }, [message])
 
   const handleSend = () => {
-    if (message.trim() && !isLoading) {
+    if (message.trim() && !isLoading && !showMentionPopover) {
       onSend(message.trim())
       setMessage('')
     }
   }
 
+  // Detect @ mentions in the input
+  const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    const cursorPos = e.target.selectionStart || 0
+    setMessage(value)
+
+    // Find the last @ before cursor that isn't followed by a space
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex !== -1) {
+      const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1)
+      // Check if there's a space after @ (mention completed) or if @ is at the end
+      if (!textAfterAt.includes(' ')) {
+        setShowMentionPopover(true)
+        setMentionStartIndex(lastAtIndex)
+        setMentionQuery(textAfterAt)
+        return
+      }
+    }
+
+    setShowMentionPopover(false)
+    setMentionQuery('')
+    setMentionStartIndex(-1)
+  }, [])
+
+  // Handle mention selection
+  const handleMentionSelect = useCallback((item: MentionItem) => {
+    if (mentionStartIndex === -1) return
+
+    // Build the mention text based on type
+    let mentionText = ''
+    switch (item.type) {
+      case 'files':
+        mentionText = `@${item.path} `
+        break
+      case 'skills':
+        mentionText = `${item.name} `
+        break
+      case 'agents':
+        mentionText = `@${item.name} `
+        break
+    }
+
+    // Replace the @query with the selected mention
+    const beforeMention = message.slice(0, mentionStartIndex)
+    const afterMention = message.slice(mentionStartIndex + mentionQuery.length + 1) // +1 for @
+    const newMessage = beforeMention + mentionText + afterMention
+
+    setMessage(newMessage)
+    setShowMentionPopover(false)
+    setMentionQuery('')
+    setMentionStartIndex(-1)
+
+    // Focus back on textarea and move cursor after mention
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos = beforeMention.length + mentionText.length
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+      }
+    }, 0)
+  }, [message, mentionStartIndex, mentionQuery])
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Don't handle Enter/Escape if popover is open (let popover handle it)
+    if (showMentionPopover && (e.key === 'Enter' || e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Tab')) {
+      return // Let the popover handle these keys
+    }
+
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       handleSend()
@@ -114,6 +187,18 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
             'shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)]'
           )}
         >
+          {/* Mention Popover */}
+          <MentionPopover
+            isOpen={showMentionPopover}
+            searchQuery={mentionQuery}
+            onSelect={handleMentionSelect}
+            onClose={() => {
+              setShowMentionPopover(false)
+              setMentionQuery('')
+              setMentionStartIndex(-1)
+            }}
+          />
+
           {/* Top accent line */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
@@ -122,9 +207,9 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
             <textarea
               ref={textareaRef}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder={placeholder || "What do you want to build?"}
+              placeholder={placeholder || "What do you want to build? Type @ to mention files, skills, or agents"}
               disabled={isLoading || disabled}
               rows={1}
               className={cn(
@@ -141,6 +226,39 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
                 <button className="p-2 rounded-lg text-neutral-500 hover:text-white hover:bg-white/5 transition-colors">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+
+                {/* @ Mention button */}
+                <button
+                  onClick={() => {
+                    // Insert @ at cursor position and trigger popover
+                    if (textareaRef.current) {
+                      const cursorPos = textareaRef.current.selectionStart || message.length
+                      const newMessage = message.slice(0, cursorPos) + '@' + message.slice(cursorPos)
+                      setMessage(newMessage)
+                      setMentionStartIndex(cursorPos)
+                      setMentionQuery('')
+                      setShowMentionPopover(true)
+                      setTimeout(() => {
+                        if (textareaRef.current) {
+                          textareaRef.current.focus()
+                          textareaRef.current.setSelectionRange(cursorPos + 1, cursorPos + 1)
+                        }
+                      }, 0)
+                    }
+                  }}
+                  className={cn(
+                    "p-2 rounded-lg transition-colors",
+                    showMentionPopover
+                      ? "text-white bg-white/10"
+                      : "text-neutral-500 hover:text-white hover:bg-white/5"
+                  )}
+                  title="Mention files, skills, or agents (@)"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
                   </svg>
                 </button>
 
