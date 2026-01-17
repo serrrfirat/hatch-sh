@@ -229,14 +229,16 @@ export function Layout() {
                   )}
                 </>
               ) : (
-                // No PR - show Create PR button (triggers agent-based PR creation)
-                <button
-                  onClick={handleCreatePR}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
-                >
-                  <GitPullRequest size={14} />
-                  <span>Create PR</span>
-                </button>
+                // No PR - show Create PR button only if there are changes
+                (currentWorkspace.additions || currentWorkspace.deletions) ? (
+                  <button
+                    onClick={handleCreatePR}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
+                  >
+                    <GitPullRequest size={14} />
+                    <span>Create PR</span>
+                  </button>
+                ) : null
               )}
             </div>
           )}

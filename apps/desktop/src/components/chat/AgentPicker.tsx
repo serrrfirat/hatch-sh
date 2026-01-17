@@ -16,9 +16,10 @@ export function AgentPicker() {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { currentWorkspace, updateWorkspaceAgent } = useRepositoryStore()
-  const { agentStatuses } = useSettingsStore()
+  const { agentStatuses, agentMode, setAgentMode } = useSettingsStore()
 
-  const selectedAgentId = currentWorkspace?.agentId || 'claude-code'
+  // Use workspace-specific agent if workspace exists, otherwise use global agentMode
+  const selectedAgentId = currentWorkspace?.agentId || (agentMode === 'cloud' ? 'claude-code' : agentMode)
   const selectedConfig = AGENT_CONFIGS[selectedAgentId] || AGENT_CONFIGS['claude-code']
   // Only show local agents for now
   const agentsByProvider = getAgentsByProvider(true)
@@ -44,7 +45,11 @@ export function AgentPicker() {
 
   const handleSelectAgent = (agentId: AgentId) => {
     if (currentWorkspace) {
+      // Update workspace-specific agent
       updateWorkspaceAgent(currentWorkspace.id, agentId)
+    } else {
+      // Update global agent mode when no workspace is selected
+      setAgentMode(agentId)
     }
     setIsOpen(false)
   }

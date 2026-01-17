@@ -66,3 +66,17 @@ pnpm tauri build
 - **Workspaces**: Isolated branches for parallel agent work
 - **GitHub Integration**: Clone, create repos, and create PRs
 - **Claude Code Integration**: BYOA mode with local Claude Code CLI
+
+## Roadmap
+
+### Workspace Integration
+- [ ] Implement moodboard filtering by workspace
+- [ ] Store workspace-specific moodboards in workspace directories
+- [ ] Add workspace selector to sidebar
+
+### Moodboard & Idea Maze
+- [ ] Export/Import moodboards
+- [ ] Image and URL support in idea cards
+- [ ] AI Analysis for moodboards
+- [ ] Garbage collection for orphaned images
+- [ ] Cloud sync across devices

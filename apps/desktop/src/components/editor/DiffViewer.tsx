@@ -162,17 +162,16 @@ export function DiffViewer({ tab }: DiffViewerProps) {
             No changes in this file
           </div>
         ) : (
-          // Show side-by-side diff
+          // Show unified diff view with collapsed unchanged sections
           <ReactDiffViewer
             oldValue={oldContent}
             newValue={newContent}
-            splitView={true}
+            splitView={false}
             useDarkTheme={true}
             compareMethod={DiffMethod.WORDS}
             styles={diffStyles}
-            leftTitle="Original"
-            rightTitle="Modified"
-            showDiffOnly={false}
+            showDiffOnly={true}
+            extraLinesSurroundingDiff={3}
           />
         )}
       </div>
