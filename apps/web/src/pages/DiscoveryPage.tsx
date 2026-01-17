@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Button, letterAnimation, letterContainer } from '@vibed/ui'
+import { Button, letterAnimation, letterContainer } from '@hatch/ui'
 import { MasonryGallery, type MasonryItem } from '../components/discovery/MasonryGallery'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
@@ -269,7 +269,7 @@ export function DiscoveryPage() {
       {/* Footer */}
       <footer className="py-12 px-6 md:px-12 border-t border-white/10 mt-12 bg-white text-black">
         <div className="flex flex-col md:flex-row justify-between items-center text-sm">
-          <p>© 2024 vibed.fun</p>
+          <p>© 2024 hatch.sh</p>
           <p className="mt-4 md:mt-0">Built with vibes.</p>
         </div>
       </footer>

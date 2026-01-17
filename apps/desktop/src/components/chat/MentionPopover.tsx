@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
 import { useRepositoryStore } from '../../stores/repositoryStore'

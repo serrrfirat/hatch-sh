@@ -415,7 +415,7 @@ Create `apps/web/src/components/preview/PreviewFrame.tsx`:
 ```typescript
 import { useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface PreviewFrameProps {
   url: string
@@ -452,7 +452,7 @@ export function PreviewFrame({ url, className }: PreviewFrameProps) {
 ### 7. Create Preview Error Component
 Create `apps/web/src/components/preview/PreviewError.tsx`:
 ```typescript
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface PreviewErrorProps {
   error: string
@@ -499,7 +499,7 @@ export function PreviewLoading() {
 ### 9. Create Preview Panel Component
 Create `apps/web/src/components/preview/PreviewPanel.tsx`:
 ```typescript
-import { Button, Badge, Panel, PanelHeader, PanelContent } from '@vibed/ui'
+import { Button, Badge, Panel, PanelHeader, PanelContent } from '@hatch/ui'
 import { usePreview } from '../../hooks/usePreview'
 import { useProjectStore } from '../../stores/projectStore'
 import { PreviewFrame } from './PreviewFrame'

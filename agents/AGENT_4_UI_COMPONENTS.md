@@ -21,7 +21,7 @@ pnpm add -D typescript @types/react tailwindcss
 Create `packages/ui/package.json`:
 ```json
 {
-  "name": "@vibed/ui",
+  "name": "@hatch/ui",
   "version": "0.0.1",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -568,12 +568,12 @@ packages/ui/
 - [ ] Hover/focus states have glow effects
 - [ ] Animations working with Framer Motion
 - [ ] Components exported from packages/ui
-- [ ] Can import `@vibed/ui` in web app
+- [ ] Can import `@hatch/ui` in web app
 
 ## Usage in Web App
 ```typescript
 // apps/web/src/components/SomeComponent.tsx
-import { Button, Card, Input, Badge } from '@vibed/ui'
+import { Button, Card, Input, Badge } from '@hatch/ui'
 
 export function SomeComponent() {
   return (

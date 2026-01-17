@@ -1,5 +1,5 @@
 {
-  "name": "@vibed/config",
+  "name": "@hatch/config",
   "private": true,
   "version": "0.0.1",
   "main": "tailwind/preset.js",

@@ -4,7 +4,7 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { WelcomeScreen } from './WelcomeScreen'
-import { TextShimmer } from '@vibed/ui'
+import { TextShimmer } from '@hatch/ui'
 
 export function ChatArea() {
   const { messages, isLoading, sendMessage, stopGeneration } = useChat()

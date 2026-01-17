@@ -26,7 +26,7 @@ pnpm add @privy-io/react-auth @privy-io/wagmi wagmi viem @tanstack/react-query
 1. Go to https://dashboard.privy.io
 2. Create a new app
 3. Get your App ID
-4. Configure allowed origins (localhost:5173, vibed.fun)
+4. Configure allowed origins (localhost:5173, hatch.sh)
 5. Enable login methods: Google, Twitter, Email, Wallet
 
 ### 3. Create Auth Provider
@@ -182,7 +182,7 @@ export function useAuth() {
 Create `apps/web/src/components/auth/ConnectButton.tsx`:
 ```typescript
 import { useAuth } from '../../hooks/useAuth'
-import { Button, Badge, cn } from '@vibed/ui'
+import { Button, Badge, cn } from '@hatch/ui'
 import { useState } from 'react'
 import { WalletMenu } from './WalletMenu'
 
@@ -266,7 +266,7 @@ Create `apps/web/src/components/auth/WalletMenu.tsx`:
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
-import { Button, Badge, cn } from '@vibed/ui'
+import { Button, Badge, cn } from '@hatch/ui'
 
 interface WalletMenuProps {
   onClose: () => void
@@ -377,7 +377,7 @@ export function WalletMenu({ onClose, onLogout }: WalletMenuProps) {
 Create `apps/web/src/components/auth/AuthModal.tsx`:
 ```typescript
 import { usePrivy } from '@privy-io/react-auth'
-import { Modal, Button } from '@vibed/ui'
+import { Modal, Button } from '@hatch/ui'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -393,7 +393,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Connect to vibed.fun">
+    <Modal isOpen={isOpen} onClose={onClose} title="Connect to hatch.sh">
       <div className="space-y-4">
         <p className="text-gray-400 text-sm">
           Connect your wallet or sign in with social to start building.
@@ -452,7 +452,7 @@ export function Header() {
     <header className="h-14 border-b border-border flex items-center px-4 bg-bg-secondary">
       {/* Logo */}
       <Link to="/" className="text-xl font-bold text-gradient">
-        vibed.fun
+        hatch.sh
       </Link>
 
       {/* Navigation */}
@@ -517,8 +517,8 @@ VITE_PRIVY_APP_ID=your-privy-app-id
 
 ### Allowed Origins
 - http://localhost:5173
-- https://vibed.fun
-- https://*.vibed.fun
+- https://hatch.sh
+- https://*.hatch.sh
 
 ## Notes
 - Privy handles all wallet management complexity

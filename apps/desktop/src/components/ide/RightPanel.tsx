@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { Search, Plus, ChevronRight, ChevronDown, Terminal as TerminalIcon, RefreshCw, Eye, EyeOff, FolderOpen } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'

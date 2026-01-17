@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for the Vibed desktop app",
+  "description": "Default capabilities for the Hatch desktop app",
   "windows": ["main", "superdesign", "superdesign-embed"],
   "permissions": [
     "core:default",

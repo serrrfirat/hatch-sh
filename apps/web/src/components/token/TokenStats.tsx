@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Badge } from '@vibed/ui'
+import { Badge } from '@hatch/ui'
 import { TokenChart } from './TokenChart'
 
 interface TokenStatsProps {

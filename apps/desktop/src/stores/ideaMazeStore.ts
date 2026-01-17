@@ -3,8 +3,8 @@
  * =============================================================================
  *
  * CURRENT STATE: Data is stored using Tauri's file system API.
- * - Moodboards are saved as JSON files in: ~/.local/share/fun.vibed.desktop/idea-maze/moodboards/
- * - Images are stored separately in: ~/.local/share/fun.vibed.desktop/idea-maze/images/
+ * - Moodboards are saved as JSON files in: ~/.local/share/sh.hatch.desktop/idea-maze/moodboards/
+ * - Images are stored separately in: ~/.local/share/sh.hatch.desktop/idea-maze/images/
  * - Auto-save with 1 second debounce prevents excessive writes
  * - UI preferences (sidebar/minimap) are stored in localStorage (lightweight)
  *
@@ -64,6 +64,15 @@ const SAVE_DEBOUNCE_MS = 1000
 let pendingMoodboard: Moodboard | null = null
 let isSaving = false
 
+// Chat message type
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  isStreaming?: boolean
+  timestamp: Date
+}
+
 // Connection filter state
 export interface ConnectionFilters {
   related: boolean
@@ -105,6 +114,9 @@ interface IdeaMazeState {
   // AI state
   aiSuggestions: AISuggestion[]
   isAIProcessing: boolean
+
+  // Chat state (per moodboard)
+  chatMessagesByMoodboard: Record<string, ChatMessage[]>
 
   // UI state
   isSidebarOpen: boolean
@@ -157,6 +169,10 @@ interface IdeaMazeState {
   acceptAISuggestion: (suggestionId: string) => void
   clearAISuggestions: () => void
   setAIProcessing: (processing: boolean) => void
+
+  // Actions - Chat
+  addChatMessage: (moodboardId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
+  updateChatMessage: (moodboardId: string, messageId: string, content: string, isStreaming: boolean) => void
 
   // Actions - UI
   toggleSidebar: () => void
@@ -232,6 +248,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     focusMode: false,
     aiSuggestions: [],
     isAIProcessing: false,
+    chatMessagesByMoodboard: {},
     isSidebarOpen: true,
     isMinimapVisible: false,
 
@@ -765,6 +782,39 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
 
     setAIProcessing: (processing) => set({ isAIProcessing: processing }),
 
+    // Chat actions
+    addChatMessage: (moodboardId, message) => {
+      const id = crypto.randomUUID()
+      const fullMessage: ChatMessage = {
+        ...message,
+        id,
+        timestamp: new Date(),
+      }
+      set((state) => ({
+        chatMessagesByMoodboard: {
+          ...state.chatMessagesByMoodboard,
+          [moodboardId]: [...(state.chatMessagesByMoodboard[moodboardId] || []), fullMessage],
+        },
+      }))
+      return id
+    },
+
+    updateChatMessage: (moodboardId, messageId, content, isStreaming) => {
+      set((state) => {
+        const messages = state.chatMessagesByMoodboard[moodboardId] || []
+        return {
+          chatMessagesByMoodboard: {
+            ...state.chatMessagesByMoodboard,
+            [moodboardId]: messages.map((msg) =>
+              msg.id === messageId
+                ? { ...msg, content: msg.content + content, isStreaming }
+                : msg
+            ),
+          },
+        }
+      })
+    },
+
     // UI actions
     toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
@@ -793,7 +843,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
 // Initialize store subscription to auto-save UI preferences to localStorage
 // (lightweight settings that don't need file system storage)
 if (typeof window !== 'undefined') {
-  const UI_PREFS_KEY = 'vibed-idea-maze-ui-prefs'
+  const UI_PREFS_KEY = 'hatch-idea-maze-ui-prefs'
 
   // Load UI preferences from localStorage on init
   try {

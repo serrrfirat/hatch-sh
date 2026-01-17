@@ -1,5 +1,5 @@
 /**
- * Basic Usage Example for @vibed/contracts-sdk
+ * Basic Usage Example for @hatch/contracts-sdk
  *
  * This example shows how to:
  * 1. Create a bonding curve token
@@ -13,16 +13,16 @@
  * - The SDK connected to a wallet provider (e.g., via wagmi/rainbowkit)
  */
 
-import { createVibedClient, formatEther } from '@vibed/contracts-sdk'
+import { createHatchClient, formatEther } from '@hatch/contracts-sdk'
 
 // Create client for Base Sepolia testnet
-const client = createVibedClient('baseSepolia')
+const client = createHatchClient('baseSepolia')
 
 // For mainnet, use:
-// const client = createVibedClient('base')
+// const client = createHatchClient('base')
 
 async function main() {
-  console.log('=== Vibed.fun SDK Example ===\n')
+  console.log('=== Hatch.sh SDK Example ===\n')
 
   // Example 1: Check if a token exists
   console.log('1. Checking if token exists...')

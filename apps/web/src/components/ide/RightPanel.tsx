@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { Search, Plus, ChevronRight, Terminal as TerminalIcon } from 'lucide-react'
 import { PreviewPanel } from '../preview/PreviewPanel'
 
@@ -81,7 +81,7 @@ function TerminalPanel() {
       <div className="text-neutral-400">
         <span className="text-emerald-400">user</span>
         <span className="text-neutral-600">@</span>
-        <span className="text-cyan-400">vibed</span>
+        <span className="text-cyan-400">hatch</span>
         <span className="text-neutral-600">:</span>
         <span className="text-blue-400">~/project</span>
         <span className="text-neutral-400"> $ </span>

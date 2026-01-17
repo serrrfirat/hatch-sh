@@ -1,4 +1,4 @@
-import { Button, Badge, Panel, PanelHeader, PanelContent } from '@vibed/ui'
+import { Button, Badge, Panel, PanelHeader, PanelContent } from '@hatch/ui'
 import { usePreview } from '../../hooks/usePreview'
 import { useProjectStore } from '../../stores/projectStore'
 import { PreviewFrame } from './PreviewFrame'

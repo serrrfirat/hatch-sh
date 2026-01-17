@@ -1,5 +1,5 @@
 /**
- * Vibed.fun Contracts SDK
+ * Hatch.sh Contracts SDK
  *
  * A TypeScript SDK for creating and trading bonding curve tokens on Base.
  *
@@ -7,48 +7,48 @@
  *
  * This SDK provides two different client implementations:
  *
- * ### 1. `createVibedClient` (Recommended for Production)
+ * ### 1. `createHatchClient` (Recommended for Production)
  * Uses Mint Club V2 protocol (CertiK Audited) under the hood.
  * - Battle-tested smart contracts
  * - Professionally audited
  * - Shared liquidity ecosystem
  *
  * ### 2. `createBondingCurveReadClient` / `createBondingCurveWriteClient` (Custom Contracts)
- * Uses vibed.fun's custom BondingCurve.sol contract.
+ * Uses hatch.sh's custom BondingCurve.sol contract.
  * - Full control over contract behavior
  * - Custom graduation logic
  * - Requires deployment before use (see addresses.ts)
  *
  * ## Which Should I Use?
  *
- * - **For production**: Use `createVibedClient` - it's built on audited contracts
+ * - **For production**: Use `createHatchClient` - it's built on audited contracts
  * - **For custom deployments**: Use `createBondingCurveWriteClient` after deploying your own contracts
  *
  * @example
  * ```typescript
  * // Recommended: Using Mint Club V2 (audited)
- * import { createVibedClient } from '@vibed/contracts-sdk'
+ * import { createHatchClient } from '@hatch/contracts-sdk'
  *
- * const client = createVibedClient('base')
+ * const client = createHatchClient('base')
  *
  * // Create a new token
  * await client.createToken({
- *   name: 'My Vibe Token',
- *   symbol: 'MYVIBE',
+ *   name: 'My Hatch Token',
+ *   symbol: 'MYHATCH',
  *   maxSupply: 1_000_000_000,
  * })
  *
  * // Buy tokens
- * await client.buy({ symbol: 'MYVIBE', ethAmount: '0.1' })
+ * await client.buy({ symbol: 'MYHATCH', ethAmount: '0.1' })
  *
  * // Sell tokens
- * await client.sell({ symbol: 'MYVIBE', tokenAmount: '1000' })
+ * await client.sell({ symbol: 'MYHATCH', tokenAmount: '1000' })
  * ```
  *
  * @example
  * ```typescript
  * // Alternative: Using custom contracts (requires deployment)
- * import { createBondingCurveWriteClient } from '@vibed/contracts-sdk'
+ * import { createBondingCurveWriteClient } from '@hatch/contracts-sdk'
  *
  * const client = createBondingCurveWriteClient('baseSepolia', walletClient)
  * await client.createToken({ name: 'Test', symbol: 'TEST', imageUri: '' })
@@ -59,16 +59,16 @@
 // PRIMARY CLIENT - Mint Club V2 based (Recommended)
 // ============================================================================
 export {
-  createVibedClient,
+  createHatchClient,
   TokenNotFoundError,
   NetworkError,
-  type VibedClient,
-  type CreateVibeTokenParams,
-  type BuyVibeTokenParams,
-  type SellVibeTokenParams,
+  type HatchClient,
+  type CreateHatchTokenParams,
+  type BuyHatchTokenParams,
+  type SellHatchTokenParams,
   type TransactionCallbacks,
-  type VibeTokenInfo,
-} from './vibed-client'
+  type HatchTokenInfo,
+} from './hatch-client'
 
 // Constants for Mint Club integration
 export {
@@ -85,14 +85,14 @@ export { mintclub } from 'mint.club-v2-sdk'
 // CUSTOM CONTRACT CLIENT - For self-deployed BondingCurve.sol
 // ============================================================================
 // Use these if you've deployed your own BondingCurve contract and updated
-// the addresses in addresses.ts. Otherwise, use createVibedClient above.
+// the addresses in addresses.ts. Otherwise, use createHatchClient above.
 export {
   createBondingCurveReadClient,
   createBondingCurveWriteClient,
-  createVibeTokenClient,
+  createHatchTokenClient,
   type BondingCurveReadClient,
   type BondingCurveWriteClient,
-  type VibeTokenClient,
+  type HatchTokenClient,
   type TokenInfo,
   type CreateTokenParams,
   type BuyParams,
@@ -100,7 +100,7 @@ export {
   type TransactionResult,
 } from './client'
 
-export { bondingCurveAbi, vibeTokenAbi } from './abi'
+export { bondingCurveAbi, hatchTokenAbi } from './abi'
 
 export {
   addresses,

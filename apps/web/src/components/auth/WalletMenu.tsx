@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
-import { Button, Badge } from '@vibed/ui'
+import { Button, Badge } from '@hatch/ui'
 
 interface WalletMenuProps {
   onClose: () => void

@@ -10,7 +10,7 @@ Set up the complete monorepo structure with Turborepo, initialize the React web 
 
 ### 1. Initialize Monorepo Root
 ```bash
-# In /Users/firatsertgoz/conductor/workspaces/vibed-fun/valencia
+# In /Users/firatsertgoz/conductor/workspaces/hatch-sh/valencia
 pnpm init
 pnpm add -D turbo typescript @types/node
 ```
@@ -18,7 +18,7 @@ pnpm add -D turbo typescript @types/node
 Create `package.json`:
 ```json
 {
-  "name": "vibed-fun",
+  "name": "hatch-sh",
   "private": true,
   "packageManager": "pnpm@8.15.0",
   "scripts": {
@@ -236,7 +236,7 @@ export function Layout() {
     <div className="h-screen flex flex-col bg-bg-primary">
       {/* Header */}
       <header className="h-14 border-b flex items-center px-4 bg-bg-secondary">
-        <h1 className="text-xl font-bold text-gradient">vibed.fun</h1>
+        <h1 className="text-xl font-bold text-gradient">hatch.sh</h1>
         <div className="ml-auto">
           {/* Wallet button placeholder */}
           <button className="px-4 py-2 bg-accent-green/10 text-accent-green rounded-lg hover:bg-accent-green/20 transition">

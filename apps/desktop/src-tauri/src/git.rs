@@ -4,7 +4,7 @@ use tokio::process::Command as AsyncCommand;
 
 use crate::github::get_access_token;
 
-const WORKSPACES_DIR: &str = ".vibed/workspaces";
+const WORKSPACES_DIR: &str = ".hatch/workspaces";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repository {
@@ -165,7 +165,7 @@ pub async fn git_create_workspace_branch(repo_path: String, workspace_id: String
     let repo_path_buf = PathBuf::from(&repo_path);
 
     // Create worktrees directory inside the repo's parent workspace folder
-    // Structure: ~/.vibed/workspaces/{repo_name}/worktrees/{workspace_id}
+    // Structure: ~/.hatch/workspaces/{repo_name}/worktrees/{workspace_id}
     let worktrees_dir = repo_path_buf.join("worktrees");
     let worktree_path = worktrees_dir.join(&workspace_id);
 
@@ -363,7 +363,7 @@ pub async fn git_create_pr(
     let response = client
         .post(format!("https://api.github.com/repos/{}/pulls", repo_full_name))
         .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "vibed-desktop")
+        .header("User-Agent", "hatch-desktop")
         .header("Accept", "application/vnd.github.v3+json")
         .json(&CreatePRRequest {
             title,
@@ -416,7 +416,7 @@ pub async fn git_create_github_repo(name: String, is_private: bool) -> Result<Re
     let response = client
         .post("https://api.github.com/user/repos")
         .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "vibed-desktop")
+        .header("User-Agent", "hatch-desktop")
         .header("Accept", "application/vnd.github.v3+json")
         .json(&CreateRepoRequest {
             name: name.clone(),
@@ -1113,7 +1113,7 @@ pub async fn git_get_pr(
     let response = client
         .get(format!("https://api.github.com/repos/{}/pulls/{}", repo_full_name, pr_number))
         .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "vibed-desktop")
+        .header("User-Agent", "hatch-desktop")
         .header("Accept", "application/vnd.github.v3+json")
         .send()
         .await
@@ -1167,7 +1167,7 @@ pub async fn git_merge_pr(
     let response = client
         .put(format!("https://api.github.com/repos/{}/pulls/{}/merge", repo_full_name, pr_number))
         .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "vibed-desktop")
+        .header("User-Agent", "hatch-desktop")
         .header("Accept", "application/vnd.github.v3+json")
         .json(&MergeRequest {
             merge_method,

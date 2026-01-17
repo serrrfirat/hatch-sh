@@ -92,7 +92,7 @@ import { useCallback } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther } from 'viem'
 import { useTokenStore } from '../stores/tokenStore'
-import { bondingCurveAbi, addresses } from '@vibed/contracts-sdk'
+import { bondingCurveAbi, addresses } from '@hatch/contracts-sdk'
 
 export function useTokenLaunch() {
   const {
@@ -160,7 +160,7 @@ Create `apps/web/src/hooks/useTokenStats.ts`:
 ```typescript
 import { useReadContract, useWatchContractEvent } from 'wagmi'
 import { formatEther } from 'viem'
-import { bondingCurveAbi, addresses } from '@vibed/contracts-sdk'
+import { bondingCurveAbi, addresses } from '@hatch/contracts-sdk'
 
 export function useTokenStats(tokenAddress: `0x${string}` | null) {
   // Get token info from contract
@@ -264,7 +264,7 @@ Create `apps/web/src/components/token/TokenForm.tsx`:
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useTokenStore } from '../../stores/tokenStore'
-import { Input, Button, cn } from '@vibed/ui'
+import { Input, Button, cn } from '@hatch/ui'
 
 export function TokenForm() {
   const { formData, setFormData, launchError } = useTokenStore()
@@ -382,7 +382,7 @@ Create `apps/web/src/components/token/DeployButton.tsx`:
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useTokenLaunch } from '../../hooks/useTokenLaunch'
-import { Button, cn } from '@vibed/ui'
+import { Button, cn } from '@hatch/ui'
 import { TransactionModal } from './TransactionModal'
 
 interface DeployButtonProps {
@@ -468,8 +468,8 @@ Create `apps/web/src/components/token/TransactionModal.tsx`:
 ```typescript
 import { motion } from 'framer-motion'
 import { useTokenStore } from '../../stores/tokenStore'
-import { Modal, Button } from '@vibed/ui'
-import { Confetti } from '@vibed/ui/animations'
+import { Modal, Button } from '@hatch/ui'
+import { Confetti } from '@hatch/ui/animations'
 
 interface TransactionModalProps {
   isOpen: boolean
@@ -566,7 +566,7 @@ Create `apps/web/src/components/token/TokenStats.tsx`:
 ```typescript
 import { useTokenStats } from '../../hooks/useTokenStats'
 import { TokenChart } from './TokenChart'
-import { Badge, cn } from '@vibed/ui'
+import { Badge, cn } from '@hatch/ui'
 
 interface TokenStatsProps {
   tokenAddress: string

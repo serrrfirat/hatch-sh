@@ -1,5 +1,5 @@
 /**
- * Vibed.fun SDK - Wrapper around Mint Club V2 (CertiK Audited)
+ * Hatch.sh SDK - Wrapper around Mint Club V2 (CertiK Audited)
  *
  * This SDK provides a simplified interface for creating and trading
  * bonding curve tokens on Base using the audited Mint Club V2 protocol.
@@ -13,7 +13,7 @@ import {
   type SupportedChain,
 } from './constants'
 
-export interface CreateVibeTokenParams {
+export interface CreateHatchTokenParams {
   /** Token name (e.g., "My Vibe Token") */
   name: string
   /** Token symbol (e.g., "VIBE") */
@@ -34,14 +34,14 @@ export interface CreateVibeTokenParams {
   sellRoyalty?: number
 }
 
-export interface BuyVibeTokenParams {
+export interface BuyHatchTokenParams {
   /** Token symbol to buy */
   symbol: string
   /** Amount of ETH to spend */
   ethAmount: string
 }
 
-export interface SellVibeTokenParams {
+export interface SellHatchTokenParams {
   /** Token symbol to sell */
   symbol: string
   /** Amount of tokens to sell */
@@ -59,7 +59,7 @@ export interface TransactionCallbacks {
   onError?: (error: unknown) => void
 }
 
-export interface VibeTokenInfo {
+export interface HatchTokenInfo {
   symbol: string
   name: string
   address: Address
@@ -90,9 +90,9 @@ export class NetworkError extends Error {
 }
 
 /**
- * Create the Vibed.fun client for a specific chain
+ * Create the Hatch.sh client for a specific chain
  */
-export function createVibedClient(chain: SupportedChain) {
+export function createHatchClient(chain: SupportedChain) {
   const networkName = chain === 'base' ? 'base' : 'basesepolia'
   const reserveToken = RESERVE_TOKENS[chain]
 
@@ -103,7 +103,7 @@ export function createVibedClient(chain: SupportedChain) {
      * Create a new bonding curve token
      */
     async createToken(
-      params: CreateVibeTokenParams,
+      params: CreateHatchTokenParams,
       callbacks?: TransactionCallbacks
     ): Promise<{ txHash?: Hash } | undefined> {
       const {
@@ -156,7 +156,7 @@ export function createVibedClient(chain: SupportedChain) {
      * Buy tokens with ETH
      */
     async buy(
-      params: BuyVibeTokenParams,
+      params: BuyHatchTokenParams,
       callbacks?: TransactionCallbacks
     ): Promise<Hash | undefined> {
       const { symbol, ethAmount } = params
@@ -186,7 +186,7 @@ export function createVibedClient(chain: SupportedChain) {
      * Sell tokens for ETH
      */
     async sell(
-      params: SellVibeTokenParams,
+      params: SellHatchTokenParams,
       callbacks?: TransactionCallbacks
     ): Promise<Hash | undefined> {
       const { symbol, tokenAmount } = params
@@ -217,7 +217,7 @@ export function createVibedClient(chain: SupportedChain) {
      * @throws NetworkError if there's a network/RPC error (not a "token doesn't exist" error)
      * @returns Token info or null if token doesn't exist
      */
-    async getTokenInfo(symbol: string): Promise<VibeTokenInfo | null> {
+    async getTokenInfo(symbol: string): Promise<HatchTokenInfo | null> {
       try {
         const token = mintclub.network(networkName).token(symbol)
         const detail = await token.getDetail()
@@ -334,4 +334,4 @@ export function createVibedClient(chain: SupportedChain) {
   }
 }
 
-export type VibedClient = ReturnType<typeof createVibedClient>
+export type HatchClient = ReturnType<typeof createHatchClient>

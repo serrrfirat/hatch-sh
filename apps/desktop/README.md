@@ -1,6 +1,6 @@
-# Vibed Desktop
+# Hatch Desktop
 
-Tauri-based desktop application for Vibed with BYOA (Bring Your Own Agent) mode.
+Tauri-based desktop application for Hatch with BYOA (Bring Your Own Agent) mode.
 
 ## Setup
 
@@ -37,8 +37,8 @@ pnpm tauri build
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Click "New OAuth App" or "Register a new application"
 3. Fill in the application details:
-   - **Application name**: `Vibed Desktop` (or your preferred name)
-   - **Homepage URL**: `https://vibed.fun` (or your URL)
+   - **Application name**: `Hatch Desktop` (or your preferred name)
+   - **Homepage URL**: `https://hatch.sh` (or your URL)
    - **Authorization callback URL**: `http://localhost` (for device flow, this isn't used but required)
 4. Click "Register application"
 5. On the next page, note your **Client ID**

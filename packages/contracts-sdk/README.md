@@ -1,4 +1,4 @@
-# @vibed/contracts-sdk
+# @hatch/contracts-sdk
 
 A TypeScript SDK for creating and trading bonding curve tokens on Base, built on top of [Mint Club V2](https://mint.club) (CertiK Audited).
 
@@ -13,9 +13,9 @@ A TypeScript SDK for creating and trading bonding curve tokens on Base, built on
                                     │ imports
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         @vibed/contracts-sdk                                 │
+│                         @hatch/contracts-sdk                                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  createVibedClient('base' | 'baseSepolia')                          │   │
+│  │  createHatchClient('base' | 'baseSepolia')                          │   │
 │  │                                                                      │   │
 │  │  • createToken({ name, symbol, maxSupply, ... })                    │   │
 │  │  • buy({ symbol, ethAmount })                                       │   │
@@ -82,18 +82,18 @@ Tokens are priced along an exponential bonding curve:
 ## Installation
 
 ```bash
-npm install @vibed/contracts-sdk
+npm install @hatch/contracts-sdk
 # or
-pnpm add @vibed/contracts-sdk
+pnpm add @hatch/contracts-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { createVibedClient, formatEther } from '@vibed/contracts-sdk'
+import { createHatchClient, formatEther } from '@hatch/contracts-sdk'
 
 // Create client (use 'baseSepolia' for testnet)
-const client = createVibedClient('base')
+const client = createHatchClient('base')
 
 // Create a new token
 await client.createToken({
@@ -123,13 +123,13 @@ console.log(`Price: ${formatEther(info.priceForNextMint)} ETH`)
 
 ## API Reference
 
-### `createVibedClient(chain)`
+### `createHatchClient(chain)`
 
 Creates a client for interacting with bonding curve tokens.
 
 ```typescript
-const client = createVibedClient('base')      // Mainnet
-const client = createVibedClient('baseSepolia') // Testnet
+const client = createHatchClient('base')      // Mainnet
+const client = createHatchClient('baseSepolia') // Testnet
 ```
 
 ### `client.createToken(params, callbacks?)`

@@ -26,7 +26,7 @@ const containerAnim = {
 }
 
 function AnimatedTitle() {
-  const title = "vibed.fun"
+  const title = "hatch.sh"
 
   return (
     <h1 className="text-[12vw] leading-none font-bold tracking-tighter mb-4 select-none flex justify-center overflow-hidden py-[2vw]">

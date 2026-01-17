@@ -199,7 +199,35 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
         />
       )}
 
-      {/* Relationship tooltip on hover */}
+      {/* Always show relationship type label on the line */}
+      {!isHovered && (
+        <g>
+          {/* Label background pill */}
+          <rect
+            x={midX - 32}
+            y={midY - 10}
+            width={64}
+            height={18}
+            rx={9}
+            fill="rgba(17, 17, 17, 0.9)"
+            stroke={color}
+            strokeWidth={1}
+            strokeOpacity={0.4}
+          />
+          {/* Relationship type label */}
+          <text
+            x={midX}
+            y={midY + 3}
+            textAnchor="middle"
+            className="text-[9px] font-medium pointer-events-none"
+            fill={color}
+          >
+            {relationshipInfo.label}
+          </text>
+        </g>
+      )}
+
+      {/* Expanded tooltip on hover showing reasoning */}
       <AnimatePresence>
         {isHovered && (
           <motion.g
@@ -208,57 +236,87 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
             exit={{ opacity: 0, y: 5 }}
             transition={{ duration: 0.15 }}
           >
-            {/* Tooltip background */}
-            <rect
-              x={midX - 70}
-              y={midY - 42}
-              width={140}
-              height={36}
-              rx={6}
-              fill="rgba(17, 17, 17, 0.95)"
-              stroke={color}
-              strokeWidth={1}
-              strokeOpacity={0.5}
-            />
-            {/* Color indicator dot */}
-            <circle
-              cx={midX - 54}
-              cy={midY - 24}
-              r={4}
-              fill={color}
-            />
-            {/* Relationship label */}
-            <text
-              x={midX - 44}
-              y={midY - 20}
-              className="text-[11px] font-medium fill-white pointer-events-none"
-            >
-              {relationshipInfo.label}
-            </text>
-            {/* Description */}
-            <text
-              x={midX}
-              y={midY - 8}
-              textAnchor="middle"
-              className="text-[9px] fill-neutral-400 pointer-events-none"
-            >
-              {relationshipInfo.description}
-            </text>
+            {/* Dynamic tooltip based on whether reasoning exists */}
+            {connection.reasoning ? (
+              <foreignObject
+                x={midX - 150}
+                y={midY - 100}
+                width={300}
+                height={120}
+                className="pointer-events-none overflow-visible"
+              >
+                <div
+                  className="rounded-lg p-3 text-xs max-w-[280px]"
+                  style={{
+                    background: 'rgba(17, 17, 17, 0.95)',
+                    border: `1px solid ${color}`,
+                    borderOpacity: 0.5,
+                  }}
+                >
+                  {/* Header with relationship type */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ background: color }}
+                    />
+                    <span className="text-white font-medium text-[11px]">
+                      {relationshipInfo.label}
+                    </span>
+                    {connection.confidence !== undefined && (
+                      <span className="text-neutral-500 text-[9px] ml-auto">
+                        {Math.round(connection.confidence * 100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                  {/* Full reasoning text with wrapping */}
+                  <p className="text-neutral-300 text-[10px] leading-relaxed whitespace-pre-wrap break-words">
+                    {connection.reasoning}
+                  </p>
+                </div>
+              </foreignObject>
+            ) : (
+              <>
+                {/* Standard tooltip without reasoning */}
+                <rect
+                  x={midX - 70}
+                  y={midY - 42}
+                  width={140}
+                  height={36}
+                  rx={6}
+                  fill="rgba(17, 17, 17, 0.95)"
+                  stroke={color}
+                  strokeWidth={1}
+                  strokeOpacity={0.5}
+                />
+                {/* Color indicator dot */}
+                <circle
+                  cx={midX - 54}
+                  cy={midY - 24}
+                  r={4}
+                  fill={color}
+                />
+                {/* Relationship label */}
+                <text
+                  x={midX - 44}
+                  y={midY - 20}
+                  className="text-[11px] font-medium fill-white pointer-events-none"
+                >
+                  {relationshipInfo.label}
+                </text>
+                {/* Description */}
+                <text
+                  x={midX}
+                  y={midY - 8}
+                  textAnchor="middle"
+                  className="text-[9px] fill-neutral-400 pointer-events-none"
+                >
+                  {connection.label || relationshipInfo.description}
+                </text>
+              </>
+            )}
           </motion.g>
         )}
       </AnimatePresence>
-
-      {/* Manual label if set */}
-      {connection.label && !isHovered && (
-        <text
-          x={midX}
-          y={midY - 10}
-          textAnchor="middle"
-          className="text-[10px] fill-neutral-400 pointer-events-none"
-        >
-          {connection.label}
-        </text>
-      )}
     </g>
   )
 }

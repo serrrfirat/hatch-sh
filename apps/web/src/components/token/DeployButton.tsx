@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useTokenLaunch } from '../../hooks/useTokenLaunch'
 import { useTokenStore } from '../../stores/tokenStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { Button } from '@vibed/ui'
+import { Button } from '@hatch/ui'
 import { TransactionModal } from './TransactionModal'
 
 export function DeployButton() {

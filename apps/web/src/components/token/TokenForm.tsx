@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useTokenStore } from '../../stores/tokenStore'
-import { Input } from '@vibed/ui'
+import { Input } from '@hatch/ui'
 
 export function TokenForm() {
   const { formData, setFormData, launchError } = useTokenStore()

@@ -174,7 +174,7 @@ Create `apps/web/src/components/chat/CodeBlock.tsx`:
 ```typescript
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface CodeBlockProps {
   language?: string
@@ -252,7 +252,7 @@ Create `apps/web/src/components/chat/MessageBubble.tsx`:
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { motion } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { CodeBlock } from './CodeBlock'
 import type { Message } from '../../stores/chatStore'
 
@@ -356,7 +356,7 @@ Create `apps/web/src/components/chat/ChatInput.tsx`:
 ```typescript
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
-import { Button, cn } from '@vibed/ui'
+import { Button, cn } from '@hatch/ui'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -490,7 +490,7 @@ export function ChatArea() {
 Create `apps/web/src/components/chat/WelcomeScreen.tsx`:
 ```typescript
 import { motion } from 'framer-motion'
-import { Card, slideUp, staggerContainer } from '@vibed/ui'
+import { Card, slideUp, staggerContainer } from '@hatch/ui'
 
 interface WelcomeScreenProps {
   onSendMessage: (message: string) => void

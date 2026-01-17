@@ -1,4 +1,4 @@
-# vibed.fun Implementation Roadmap
+# hatch.sh Implementation Roadmap
 
 ## Overview
 

@@ -1,5 +1,5 @@
 {
-  "name": "vibed-api",
+  "name": "hatch-api",
   "private": true,
   "type": "module",
   "scripts": {

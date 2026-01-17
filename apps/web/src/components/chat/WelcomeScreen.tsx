@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { letterAnimation, letterContainer } from '@vibed/ui'
+import { letterAnimation, letterContainer } from '@hatch/ui'
 import { ArrowUpRight } from 'lucide-react'
 
 interface WelcomeScreenProps {
@@ -64,7 +64,7 @@ export function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
       <div className="text-center max-w-4xl">
         {/* Editorial Hero */}
         <div className="mb-16">
-          <AnimatedTitle text="vibed.fun" />
+          <AnimatedTitle text="hatch.sh" />
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
