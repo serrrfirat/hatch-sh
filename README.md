@@ -13,7 +13,7 @@ Hatch.sh is your hatching centre for turning ideas into shipped products. Start 
 - **Idea Maze**: Explore and refine your concept with AI-guided brainstorming
 - **Superdesign Integration**: Browse the community's largest AI design prompt library directly in the app
 - **Skills Marketplace**: Discover and install Claude Code skills to extend your AI capabilities
-- **One-Click Deploy**: Ship your product to production instantly
+- **One-Click Deploy**: Ship your product to production instantly (TBD)
 - **Workspaces**: Run multiple ideas in parallel without conflicts
 
 ## Core Features
