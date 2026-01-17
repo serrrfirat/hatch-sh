@@ -23,7 +23,7 @@ export const AGENT_CONFIGS: Record<AgentId, AgentConfig> = {
     provider: 'Anthropic',
     installUrl: 'https://docs.anthropic.com/en/docs/claude-code',
     authCommand: 'claude login',
-    color: '#8b5cf6', // Purple
+    color: '#f97316', // Orange
   },
   opencode: {
     id: 'opencode',

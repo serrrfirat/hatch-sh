@@ -15,7 +15,7 @@ interface ChatInputProps {
 // Brain icon for thinking mode
 function BrainIcon({ className }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
       <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
       <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
@@ -32,7 +32,7 @@ function BrainIcon({ className }: { className?: string }) {
 // Map icon for plan mode
 function MapIcon({ className }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" />
       <path d="M15 5.764v15" />
       <path d="M9 3.236v15" />
@@ -56,15 +56,15 @@ function ModeToggle({
     <motion.button
       onClick={onToggle}
       className={cn(
-        "flex items-center gap-2 py-1.5 px-3 rounded-full transition-colors duration-300",
+        "flex items-center gap-1.5 py-1 px-2.5 rounded-lg transition-colors duration-200",
         isActive
           ? "bg-white/10 text-white"
-          : "text-white/40 hover:text-white/60 hover:bg-white/5"
+          : "text-neutral-500 hover:text-white hover:bg-white/5"
       )}
       whileTap={{ scale: 0.95 }}
     >
       {icon}
-      <span className="text-xs font-mono uppercase tracking-wider">
+      <span className="text-[10px] font-medium uppercase tracking-wider">
         {label}
       </span>
     </motion.button>
@@ -105,33 +105,20 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   }
 
   return (
-    <div className="border-t border-white/10 px-6 py-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Agent Picker and Mode toggles */}
-        <div className="flex items-center justify-between mb-4">
-          <AgentPicker />
-          <div className="flex items-center gap-8">
-            <ModeToggle
-              label="Plan"
-              icon={<MapIcon />}
-              isActive={planModeEnabled}
-              onToggle={() => setPlanModeEnabled(!planModeEnabled)}
-            />
-            {/* Display-only toggle: hides/shows thinking blocks in the UI.
-                Claude Code always generates thinking - this just controls visibility. */}
-            <ModeToggle
-              label="Thinking"
-              icon={<BrainIcon />}
-              isActive={thinkingEnabled}
-              onToggle={() => setThinkingEnabled(!thinkingEnabled)}
-            />
-          </div>
-        </div>
+    <div className="flex justify-center p-4 bg-neutral-950">
+      <div className="w-full max-w-3xl">
+        <div
+          className={cn(
+            'relative rounded-2xl',
+            'bg-gradient-to-b from-neutral-900 to-neutral-950',
+            'shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)]'
+          )}
+        >
+          {/* Top accent line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-        {/* Input area */}
-        <div className="flex items-end gap-4">
-          {/* Textarea */}
-          <div className="flex-1 relative">
+          <div className="p-4">
+            {/* Input area */}
             <textarea
               ref={textareaRef}
               value={message}
@@ -141,48 +128,81 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
               disabled={isLoading || disabled}
               rows={1}
               className={cn(
-                'w-full bg-transparent border-b border-white/20 pb-3 pt-1',
-                'text-lg text-white placeholder:text-white/30',
-                'focus:outline-none focus:border-white/40',
-                'resize-none max-h-40 transition-colors duration-300',
+                'w-full bg-transparent text-white placeholder:text-neutral-600',
+                'focus:outline-none resize-none text-sm leading-relaxed max-h-40',
                 'disabled:opacity-50'
               )}
             />
-            <span className="absolute right-0 bottom-3 text-xs font-mono text-white/20">
-              ⌘ + Enter
-            </span>
-          </div>
 
-          {/* Action Button */}
-          {isLoading ? (
-            <motion.button
-              onClick={onStop}
-              className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors duration-300"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="3" y="3" width="10" height="10" rx="1" />
-              </svg>
-            </motion.button>
-          ) : (
-            <motion.button
-              onClick={handleSend}
-              disabled={!message.trim()}
-              className={cn(
-                'flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-300',
-                message.trim()
-                  ? 'bg-white text-black'
-                  : 'border border-white/10 text-white/20 cursor-not-allowed'
+            {/* Actions bar */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                {/* Attachment button - icon only */}
+                <button className="p-2 rounded-lg text-neutral-500 hover:text-white hover:bg-white/5 transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+
+                <div className="w-px h-4 bg-white/10" />
+
+                {/* Agent Picker */}
+                <AgentPicker />
+
+                <div className="w-px h-4 bg-white/10" />
+
+                {/* Mode toggles */}
+                <ModeToggle
+                  label="Plan"
+                  icon={<MapIcon />}
+                  isActive={planModeEnabled}
+                  onToggle={() => setPlanModeEnabled(!planModeEnabled)}
+                />
+                <ModeToggle
+                  label="Think"
+                  icon={<BrainIcon />}
+                  isActive={thinkingEnabled}
+                  onToggle={() => setThinkingEnabled(!thinkingEnabled)}
+                />
+
+                <div className="w-px h-4 bg-white/10" />
+
+                <span className="text-[10px] text-neutral-700 px-1">⌘+Enter</span>
+              </div>
+
+              {/* Action Button */}
+              {isLoading ? (
+                <motion.button
+                  onClick={onStop}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="3" y="3" width="10" height="10" rx="1" />
+                  </svg>
+                  Stop
+                </motion.button>
+              ) : (
+                <motion.button
+                  onClick={handleSend}
+                  disabled={!message.trim()}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-all',
+                    message.trim()
+                      ? 'bg-white text-black hover:bg-neutral-200'
+                      : 'bg-white/5 text-neutral-600 cursor-not-allowed'
+                  )}
+                  whileHover={message.trim() ? { scale: 1.02 } : {}}
+                  whileTap={message.trim() ? { scale: 0.98 } : {}}
+                >
+                  Send
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </motion.button>
               )}
-              whileHover={message.trim() ? { scale: 1.05 } : {}}
-              whileTap={message.trim() ? { scale: 0.95 } : {}}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 19V5M5 12l7-7 7 7" />
-              </svg>
-            </motion.button>
-          )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

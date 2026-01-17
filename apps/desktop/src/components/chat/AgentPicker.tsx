@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Check, Terminal, AlertCircle } from 'lucide-react'
+import { ChevronDown, Check, AlertCircle } from 'lucide-react'
 import { cn } from '@vibed/ui'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -14,25 +14,33 @@ import { getAgentIcon } from '../icons/AgentIcons'
 
 export function AgentPicker() {
   const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const { currentWorkspace, updateWorkspaceAgent } = useRepositoryStore()
   const { agentStatuses } = useSettingsStore()
 
   const selectedAgentId = currentWorkspace?.agentId || 'claude-code'
-  const selectedConfig = AGENT_CONFIGS[selectedAgentId]
+  const selectedConfig = AGENT_CONFIGS[selectedAgentId] || AGENT_CONFIGS['claude-code']
   // Only show local agents for now
   const agentsByProvider = getAgentsByProvider(true)
 
-  // Close dropdown when clicking outside
+  // Sort providers to ensure consistent order: Anthropic, Open Source, Cursor
+  const sortedProviders = Object.entries(agentsByProvider).sort(([a], [b]) => {
+    const order = ['Anthropic', 'Open Source', 'Cursor']
+    return order.indexOf(a) - order.indexOf(b)
+  })
+
+  // Close on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
 
   const handleSelectAgent = (agentId: AgentId) => {
     if (currentWorkspace) {
@@ -47,10 +55,8 @@ export function AgentPicker() {
     return agentStatuses[agentId]
   }
 
-  if (!currentWorkspace) return null
-
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={containerRef}>
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -79,90 +85,82 @@ export function AgentPicker() {
         />
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown - positioned above the button */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            transition={{ duration: 0.15 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.1 }}
             className={cn(
               'absolute left-0 bottom-full mb-2 z-50',
-              'w-72 max-h-[400px] overflow-y-auto',
+              'w-[280px] overflow-hidden',
               'bg-neutral-900 border border-white/10 rounded-xl shadow-xl'
             )}
           >
-            {Object.entries(agentsByProvider).map(([provider, agents]) => (
-              <div key={provider} className="border-b border-white/5 last:border-b-0">
-                {/* Provider Header */}
-                <div className="px-3 py-2 flex items-center gap-2 text-xs text-neutral-500 uppercase tracking-wider">
-                  <Terminal size={12} />
-                  {provider}
-                </div>
+            {/* Agent List */}
+            <div className="py-1">
+              {sortedProviders.map(([provider, agents]) => (
+                <div key={provider}>
+                  {/* Provider Header - minimal */}
+                  <div className="px-3 py-1.5 text-[10px] text-neutral-600 uppercase tracking-wider">
+                    {provider}
+                  </div>
 
-                {/* Agent Options */}
-                {agents.map((config) => {
-                  const isSelected = selectedAgentId === config.id
-                  const status = getLocalAgentStatus(config.id)
-                  const isLocal = isLocalAgent(config.id)
-                  const needsSetup = isLocal && (!status?.installed || !status?.authenticated)
+                  {/* Agent Options */}
+                  {agents.map((config) => {
+                    const isSelected = selectedAgentId === config.id
+                    const status = getLocalAgentStatus(config.id)
+                    const isLocal = isLocalAgent(config.id)
+                    const needsSetup = isLocal && (!status?.installed || !status?.authenticated)
 
-                  return (
-                    <button
-                      key={config.id}
-                      onClick={() => handleSelectAgent(config.id)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5',
-                        'hover:bg-white/5 transition-colors',
-                        isSelected && 'bg-white/10'
-                      )}
-                    >
-                      {/* Agent icon or color indicator */}
-                      {(() => {
-                        const IconComponent = getAgentIcon(config.id)
-                        return IconComponent ? (
-                          <IconComponent
-                            size={16}
-                            className="flex-shrink-0"
-                            style={{ color: config.color }}
-                          />
-                        ) : (
-                          <div
-                            className="w-3 h-3 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: config.color }}
-                          />
-                        )
-                      })()}
+                    return (
+                      <button
+                        key={config.id}
+                        onClick={() => handleSelectAgent(config.id)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-2',
+                          'hover:bg-white/5 transition-colors',
+                          isSelected && 'bg-white/8'
+                        )}
+                      >
+                        {/* Agent icon */}
+                        {(() => {
+                          const IconComponent = getAgentIcon(config.id)
+                          return IconComponent ? (
+                            <IconComponent
+                              size={16}
+                              className="flex-shrink-0"
+                              style={{ color: config.color }}
+                            />
+                          ) : (
+                            <div
+                              className="w-4 h-4 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: config.color }}
+                            />
+                          )
+                        })()}
 
-                      {/* Agent info */}
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex items-center gap-2">
+                        {/* Agent info */}
+                        <div className="flex-1 text-left min-w-0">
                           <span className="text-sm text-white">{config.name}</span>
-                          {isLocal && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">
-                              Local
-                            </span>
-                          )}
                         </div>
-                        <p className="text-xs text-neutral-500 truncate">
-                          {config.description}
-                        </p>
-                      </div>
 
-                      {/* Status / Selection indicator */}
-                      <div className="flex-shrink-0">
-                        {isSelected ? (
-                          <Check size={16} className="text-emerald-400" />
-                        ) : needsSetup ? (
-                          <AlertCircle size={16} className="text-amber-400" />
-                        ) : null}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
+                        {/* Status indicator */}
+                        <div className="flex-shrink-0">
+                          {isSelected ? (
+                            <Check size={14} className="text-emerald-400" />
+                          ) : needsSetup ? (
+                            <AlertCircle size={14} className="text-amber-400" />
+                          ) : null}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,0 +1,13 @@
+# Faster linking on macOS
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-dead_strip"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-dead_strip"]
+
+# Use all CPU cores for compilation
+[build]
+jobs = 8
+
+# Uncomment if you install sccache (brew install sccache):
+# rustc-wrapper = "sccache"
