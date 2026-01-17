@@ -77,7 +77,7 @@ async function fetchAitmplComponents(): Promise<typeof aitmplCache> {
     const response = await fetch(AITMPL_COMPONENTS_URL, {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'vibed.fun/1.0',
+        'User-Agent': 'hatch.sh/1.0',
       },
     })
 
@@ -266,7 +266,7 @@ async function fetchSkillsFromGitHubCodeSearch(page: number = 1, perPage: number
     // Build headers with optional GitHub token for higher rate limits
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'vibed.fun/1.0',
+      'User-Agent': 'hatch.sh/1.0',
     }
     if (githubToken) {
       headers['Authorization'] = `Bearer ${githubToken}`
@@ -355,7 +355,7 @@ async function fetchSkillsFromGitHubRepoSearch(query: string, page: number = 1, 
     // Build headers with optional GitHub token for higher rate limits
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'vibed.fun/1.0',
+      'User-Agent': 'hatch.sh/1.0',
     }
     if (githubToken) {
       headers['Authorization'] = `Bearer ${githubToken}`
@@ -786,7 +786,7 @@ skillsmpRouter.get('/skills/:owner/:repo/content', async (c) => {
     const response = await fetch(apiUrl, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'vibed.fun/1.0',
+        'User-Agent': 'hatch.sh/1.0',
       },
     })
 
@@ -797,7 +797,7 @@ skillsmpRouter.get('/skills/:owner/:repo/content', async (c) => {
         {
           headers: {
             'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'vibed.fun/1.0',
+            'User-Agent': 'hatch.sh/1.0',
           },
         }
       )

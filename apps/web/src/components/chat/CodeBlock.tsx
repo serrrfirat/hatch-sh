@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface CodeBlockProps {
   language?: string

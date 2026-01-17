@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { letterAnimation, letterContainer } from '@vibed/ui'
+import { letterAnimation, letterContainer } from '@hatch/ui'
 import { X, CheckCircle, AlertCircle } from 'lucide-react'
 import { MarketplaceSearchBar } from '../components/marketplace/MarketplaceSearchBar'
 import { CategoryPills } from '../components/marketplace/CategoryPills'
@@ -37,11 +37,11 @@ const DEMO_SKILLS: Skill[] = [
     name: 'smart-push',
     description:
       'Smart git add, commit with AI-generated message, and push. Analyzes staged changes to create meaningful commit messages.',
-    author: 'vibed',
+    author: 'hatch',
     categories: ['git', 'automation'],
-    githubUrl: 'https://github.com/vibed/smart-push',
+    githubUrl: 'https://github.com/hatch-sh/smart-push',
     stars: 156,
-    installCommand: 'claude skill install vibed/smart-push',
+    installCommand: 'claude skill install hatch-sh/smart-push',
   },
   {
     id: 'researcher',

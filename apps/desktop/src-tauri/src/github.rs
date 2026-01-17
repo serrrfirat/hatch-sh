@@ -190,7 +190,7 @@ async fn fetch_github_user(client: &reqwest::Client, token: &str) -> Result<GitH
     let response = client
         .get("https://api.github.com/user")
         .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "vibed-desktop")
+        .header("User-Agent", "hatch-desktop")
         .send()
         .await
         .map_err(|e| format!("Failed to fetch user: {}", e))?;
@@ -233,7 +233,7 @@ pub fn github_sign_out() -> Result<(), String> {
 
     // Remove saved auth
     if let Some(config_dir) = dirs::config_dir() {
-        let auth_file = config_dir.join("vibed").join("github_auth.json");
+        let auth_file = config_dir.join("hatch").join("github_auth.json");
         let _ = std::fs::remove_file(auth_file);
     }
 
@@ -241,7 +241,7 @@ pub fn github_sign_out() -> Result<(), String> {
 }
 
 fn get_auth_file_path() -> Option<std::path::PathBuf> {
-    dirs::config_dir().map(|d| d.join("vibed").join("github_auth.json"))
+    dirs::config_dir().map(|d| d.join("hatch").join("github_auth.json"))
 }
 
 fn save_auth_to_disk(state: &GitHubAuthState) -> Result<(), String> {

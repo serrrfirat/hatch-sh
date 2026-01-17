@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# E2E Test Script for vibed.fun
+# E2E Test Script for hatch.sh
 # This script tests the full flow: API -> Chat -> Preview -> Deploy
 
 set -e
@@ -9,7 +9,7 @@ API_URL="${API_URL:-http://localhost:8787}"
 WEB_URL="${WEB_URL:-http://localhost:5173}"
 
 echo "=========================================="
-echo "  vibed.fun E2E Test Suite"
+echo "  hatch.sh E2E Test Suite"
 echo "=========================================="
 echo ""
 
@@ -25,7 +25,7 @@ warn() { echo -e "${YELLOW}!${NC} $1"; }
 
 # Test 1: API Health Check
 echo "1. Testing API Health..."
-if curl -s "${API_URL}/" | grep -q "vibed.fun"; then
+if curl -s "${API_URL}/" | grep -q "hatch.sh"; then
     success "API is running"
 else
     error "API is not responding. Run: pnpm dev:api"
@@ -112,7 +112,7 @@ fi
 # Test 8: Web Frontend
 echo ""
 echo "8. Testing Web Frontend..."
-if curl -s "${WEB_URL}" | grep -q "vibed\|html"; then
+if curl -s "${WEB_URL}" | grep -q "hatch\|html"; then
     success "Web frontend is running"
 else
     warn "Web frontend not responding. Run: pnpm dev:web"

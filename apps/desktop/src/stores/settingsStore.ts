@@ -5,7 +5,7 @@ import type { AgentId, AgentStatus, LocalAgentId, ModelInfo, AvailableModels } f
 import { isLocalAgent } from "../lib/agents/types";
 import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/registry";
 
-/** Agent mode: 'cloud' for vibed.fun API, or any AgentId for local CLI agents */
+/** Agent mode: 'cloud' for hatch.sh API, or any AgentId for local CLI agents */
 export type AgentMode = "cloud" | AgentId;
 
 /** App page navigation */
@@ -33,7 +33,7 @@ export interface AvailableAgentModels {
 }
 
 interface SettingsState {
-  /** Current agent mode: 'cloud' uses vibed.fun credits, agent IDs use local CLI */
+  /** Current agent mode: 'cloud' uses hatch.sh credits, agent IDs use local CLI */
   agentMode: AgentMode;
 
   /** Status for each local CLI agent (cloud models don't need status tracking) */
@@ -301,7 +301,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ anthropicApiKey: null, apiKeyValidated: false }),
     }),
     {
-      name: "vibed-settings",
+      name: "hatch-settings",
       partialize: (state) => ({
         agentMode: state.agentMode,
         planModeEnabled: state.planModeEnabled,

@@ -1,4 +1,4 @@
-import { Panel, PanelHeader, PanelContent } from '@vibed/ui'
+import { Panel, PanelHeader, PanelContent } from '@hatch/ui'
 import { useTokenStore } from '../../stores/tokenStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { TokenForm } from './TokenForm'

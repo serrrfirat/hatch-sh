@@ -28,12 +28,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 // Middleware
 app.use('*', logger())
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://vibed.fun'],
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://hatch.sh'],
   credentials: true,
 }))
 
 // Health check (before database middleware)
-app.get('/', (c) => c.json({ status: 'ok', service: 'vibed.fun API' }))
+app.get('/', (c) => c.json({ status: 'ok', service: 'hatch.sh API' }))
 
 // Database middleware (only for /api routes)
 app.use('/api/*', async (c, next) => {

@@ -2,7 +2,7 @@
  * Idea Maze File System Storage Service
  *
  * Handles persistent storage of moodboards and images using Tauri's file system API.
- * Data is stored in the app's data directory: ~/.local/share/fun.vibed.desktop/idea-maze/
+ * Data is stored in the app's data directory: ~/.local/share/sh.hatch.desktop/idea-maze/
  */
 
 import {
@@ -364,7 +364,7 @@ export async function importMoodboard(jsonString: string): Promise<Moodboard> {
  */
 export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
   try {
-    const localStorageKey = 'vibed-idea-maze'
+    const localStorageKey = 'hatch-idea-maze'
     const stored = localStorage.getItem(localStorageKey)
 
     if (!stored) {

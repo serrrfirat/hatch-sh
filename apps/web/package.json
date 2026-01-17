@@ -13,7 +13,7 @@
     "@privy-io/react-auth": "^3.10.2",
     "@privy-io/wagmi": "^2.1.3",
     "@tanstack/react-query": "^5.20.0",
-    "@vibed/ui": "workspace:*",
+    "@hatch/ui": "workspace:*",
     "esbuild-wasm": "^0.27.2",
     "framer-motion": "^11.0.0",
     "gsap": "^3.14.2",

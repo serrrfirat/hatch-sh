@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 // Smooth easing for animations
 const smoothEase = [0.4, 0, 0.2, 1] as const

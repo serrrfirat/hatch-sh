@@ -38,7 +38,7 @@ export const RESERVE_TOKENS = {
   },
 } as const
 
-// Default bonding curve configuration for vibed.fun
+// Default bonding curve configuration for hatch.sh
 export const DEFAULT_CURVE_CONFIG = {
   // Graduation threshold in reserve tokens (ETH)
   // 23 ETH @ ~$3000/ETH = ~$69k market cap threshold

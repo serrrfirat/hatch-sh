@@ -1,7 +1,7 @@
 {
-  "name": "@vibed/contracts-sdk",
+  "name": "@hatch/contracts-sdk",
   "version": "0.1.0",
-  "description": "TypeScript SDK for interacting with vibed.fun bonding curve contracts",
+  "description": "TypeScript SDK for interacting with hatch.sh bonding curve contracts",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -35,7 +35,7 @@
     "src"
   ],
   "keywords": [
-    "vibed",
+    "hatch",
     "bonding-curve",
     "base",
     "ethereum",

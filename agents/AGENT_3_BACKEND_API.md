@@ -21,7 +21,7 @@ pnpm add -D wrangler drizzle-kit typescript @types/node
 ### 2. Create Wrangler Configuration
 Create `services/api/wrangler.toml`:
 ```toml
-name = "vibed-api"
+name = "hatch-api"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
@@ -137,7 +137,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Middleware
 app.use('*', logger())
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'https://vibed.fun'],
+  origin: ['http://localhost:5173', 'https://hatch.sh'],
   credentials: true,
 }))
 
@@ -149,7 +149,7 @@ app.use('*', async (c, next) => {
 })
 
 // Health check
-app.get('/', (c) => c.json({ status: 'ok', service: 'vibed-api' }))
+app.get('/', (c) => c.json({ status: 'ok', service: 'hatch-api' }))
 
 // Routes
 app.route('/api/projects', projectsRouter)
@@ -412,7 +412,7 @@ deployRouter.post(
 
     // For now, simulate deployment
     setTimeout(async () => {
-      const url = `https://${project.name.toLowerCase().replace(/\s+/g, '-')}.vibed.fun`
+      const url = `https://${project.name.toLowerCase().replace(/\s+/g, '-')}.hatch.sh`
       await db.update(deployments)
         .set({ status: 'live', url })
         .where(eq(deployments.id, deploymentId))
@@ -608,7 +608,7 @@ export { discoveryRouter }
 Update `services/api/package.json`:
 ```json
 {
-  "name": "vibed-api",
+  "name": "hatch-api",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",

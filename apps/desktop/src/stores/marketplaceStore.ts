@@ -25,7 +25,7 @@ export interface Category {
 }
 
 // Cache configuration
-const CACHE_KEY = 'vibed_skills_cache'
+const CACHE_KEY = 'hatch_skills_cache'
 const CACHE_TTL = 60 * 60 * 1000 // 1 hour in milliseconds
 
 interface CachedData {

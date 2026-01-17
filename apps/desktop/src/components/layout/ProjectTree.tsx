@@ -5,7 +5,7 @@ import { useRepositoryStore, type Workspace } from '../../stores/repositoryStore
 import type { Repository } from '../../lib/git/bridge'
 import { AddRepositoryMenu } from '../repository/AddRepositoryMenu'
 import { ArchiveWorkspaceModal } from '../repository/ArchiveWorkspaceModal'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 function formatTimeAgo(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date

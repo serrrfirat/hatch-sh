@@ -1,12 +1,12 @@
 [package]
-name = "vibed-desktop"
+name = "hatch-desktop"
 version = "0.1.0"
-description = "Vibed.fun Desktop App"
-authors = ["vibed.fun"]
+description = "Hatch.sh Desktop App"
+authors = ["hatch.sh"]
 edition = "2021"
 
 [lib]
-name = "vibed_desktop_lib"
+name = "hatch_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

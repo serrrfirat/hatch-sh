@@ -14,7 +14,7 @@ import {
   type Address,
 } from 'viem'
 import { baseSepolia, base } from 'viem/chains'
-import { bondingCurveAbi, vibeTokenAbi } from './abi'
+import { bondingCurveAbi, hatchTokenAbi } from './abi'
 import { addresses, type ChainId } from './addresses'
 
 export interface TokenInfo {
@@ -318,7 +318,7 @@ export function createBondingCurveWriteClient(
   }
 }
 
-export interface VibeTokenClient {
+export interface HatchTokenClient {
   client: PublicClient
   contract: unknown
   tokenAddress: Address
@@ -334,11 +334,11 @@ export interface VibeTokenClient {
 /**
  * Create a VibeToken client for a specific token
  */
-export function createVibeTokenClient(
+export function createHatchTokenClient(
   tokenAddress: Address,
   chainId: ChainId,
   rpcUrl?: string
-): VibeTokenClient {
+): HatchTokenClient {
   const chain = chains[chainId]
   const client = createPublicClient({
     chain,
@@ -347,7 +347,7 @@ export function createVibeTokenClient(
 
   const contract = getContract({
     address: tokenAddress,
-    abi: vibeTokenAbi,
+    abi: hatchTokenAbi,
     client,
   })
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GitBranch, Plus, MoreHorizontal, ChevronRight, Settings, FolderPlus } from 'lucide-react'
 import { useProjectStore, type Project, type Workspace } from '../../stores/projectStore'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 function formatTimeAgo(date: Date): string {
   const now = new Date()

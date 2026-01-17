@@ -399,7 +399,7 @@ export const bondingCurveAbi = [
   },
 ] as const
 
-export const vibeTokenAbi = [
+export const hatchTokenAbi = [
   {
     inputs: [
       { internalType: 'string', name: '_name', type: 'string' },

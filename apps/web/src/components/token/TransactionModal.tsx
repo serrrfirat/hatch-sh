@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useTokenStore } from '../../stores/tokenStore'
-import { Modal, Button, Confetti } from '@vibed/ui'
+import { Modal, Button, Confetti } from '@hatch/ui'
 
 interface TransactionModalProps {
   isOpen: boolean

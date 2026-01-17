@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface ChatInputProps {
   onSend: (message: string) => void

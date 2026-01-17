@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type ChangeEvent, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentPicker } from './AgentPicker'
 import { MentionPopover, type MentionItem } from './MentionPopover'

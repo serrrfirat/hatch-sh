@@ -215,7 +215,7 @@ export const useChatStore = create<ChatState>()(
       },
     }),
     {
-      name: 'vibed-chat',
+      name: 'hatch-chat',
       partialize: (state) => ({
         messagesByWorkspace: state.messagesByWorkspace,
       }),

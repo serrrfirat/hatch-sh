@@ -213,7 +213,7 @@ export function useChat() {
 
   /**
    * Send message via cloud API (for cloud models like Opus, Sonnet, Haiku, GPT)
-   * Uses the vibed.fun API with model selection
+   * Uses the hatch.sh API with model selection
    */
   const sendCloudModelMessage = useCallback(
     async (modelId: AgentId, content: string, assistantMessageId: string) => {

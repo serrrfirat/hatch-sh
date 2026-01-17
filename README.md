@@ -1,10 +1,10 @@
-# Vibed.fun
+# Hatch.sh
 
 One stop for launching your business and fundraising.
 
-## What is Vibed.fun?
+## What is Hatch.sh?
 
-Vibed.fun lets you build your product with AI and raise funds through token launches on bonding curves—all in one place. Describe what you want to build, watch it come to life, deploy it, and launch a token to fund your vision.
+Hatch.sh lets you build your product with AI and raise funds through token launches on bonding curves—all in one place. Describe what you want to build, watch it come to life, deploy it, and launch a token to fund your vision.
 
 ## Features
 

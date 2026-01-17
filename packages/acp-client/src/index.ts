@@ -1,5 +1,5 @@
 /**
- * @vibed/acp-client
+ * @hatch/acp-client
  *
  * Client for communicating with Claude Code via the Claude Agent SDK.
  * Provides a unified interface for the "Bring Your Own Agent" mode.

@@ -1,12 +1,12 @@
-# Vibed API Service
+# Hatch API Service
 
-Backend API for vibed.fun - an AI-powered app builder with token launch capabilities.
+Backend API for hatch.sh - an AI-powered app builder with token launch capabilities.
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              VIBED.FUN PLATFORM                             │
+│                              HATCH.SH PLATFORM                              │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -179,7 +179,7 @@ Backend API for vibed.fun - an AI-powered app builder with token launch capabili
 ### Health Check
 ```
 GET /
-Response: { "status": "ok", "service": "vibed-api" }
+Response: { "status": "ok", "service": "hatch-api" }
 ```
 
 ### Projects

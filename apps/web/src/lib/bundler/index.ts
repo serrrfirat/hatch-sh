@@ -27,7 +27,7 @@ function createPreviewHtml(bundledCode: string, styles: string = ''): string {
   <div id="root"></div>
   <script>
     (function() {
-      var PREVIEW_SOURCE = 'vibed-preview';
+      var PREVIEW_SOURCE = 'hatch-preview';
       var originalError = console.error;
       console.error = function() {
         var args = Array.prototype.slice.call(arguments);
@@ -59,7 +59,7 @@ function createPreviewHtml(bundledCode: string, styles: string = ''): string {
       errorDiv.appendChild(pre);
       document.getElementById('root').innerHTML = '';
       document.getElementById('root').appendChild(errorDiv);
-      window.parent.postMessage({ type: 'error', source: 'vibed-preview', message: error.message }, '*');
+      window.parent.postMessage({ type: 'error', source: 'hatch-preview', message: error.message }, '*');
     }
   </script>
 </body>

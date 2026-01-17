@@ -1,4 +1,4 @@
-# vibed.fun - Quick Start Guide
+# hatch.sh - Quick Start Guide
 
 ## Overview
 
@@ -6,7 +6,7 @@ This project is broken into **8 parallelizable modules** that can be built by mu
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           vibed.fun MVP                                  │
+│                           hatch.sh MVP                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │   DAY 1 (Start Immediately - In Parallel)                               │

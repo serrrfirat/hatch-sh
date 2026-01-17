@@ -165,7 +165,7 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
           mouseInteractive={true}
         />
 
-        {/* Vibed Text Overlay */}
+        {/* Hatch Text Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -176,7 +176,7 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
               textShadow: '0 4px 30px rgba(0,0,0,0.5)'
             }}
           >
-            Vibed
+            Hatch
           </motion.h1>
         </div>
       </motion.div>

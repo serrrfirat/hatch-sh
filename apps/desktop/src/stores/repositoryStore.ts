@@ -461,7 +461,7 @@ export const useRepositoryStore = create<RepositoryState>()(
       },
     }),
     {
-      name: 'vibed-repositories',
+      name: 'hatch-repositories',
       partialize: (state) => ({
         repositories: state.repositories,
         workspaces: state.workspaces.map((w) => ({

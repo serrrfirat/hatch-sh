@@ -1,4 +1,4 @@
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 
 interface PreviewErrorProps {
   error: string

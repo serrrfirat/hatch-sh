@@ -7,7 +7,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { FileViewer } from '../components/editor/FileViewer'
 import { DiffViewer } from '../components/editor/DiffViewer'
 import { FileIcon } from '../components/icons/FileIcon'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { X, MessageSquare, GitCompare } from 'lucide-react'
 
 export function IDEPage() {

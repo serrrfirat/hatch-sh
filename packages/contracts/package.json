@@ -1,7 +1,7 @@
 {
-  "name": "@vibed/contracts",
+  "name": "@hatch/contracts",
   "version": "0.1.0",
-  "description": "Bonding curve smart contracts for vibed.fun",
+  "description": "Bonding curve smart contracts for hatch.sh",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",

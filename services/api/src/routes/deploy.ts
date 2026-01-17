@@ -44,7 +44,7 @@ deployRouter.post(
 
     // For now, simulate deployment
     setTimeout(async () => {
-      const url = `https://${project.name.toLowerCase().replace(/\s+/g, '-')}.vibed.fun`
+      const url = `https://${project.name.toLowerCase().replace(/\s+/g, '-')}.hatch.sh`
       await db.update(deployments)
         .set({ status: 'live', url })
         .where(eq(deployments.id, deploymentId))

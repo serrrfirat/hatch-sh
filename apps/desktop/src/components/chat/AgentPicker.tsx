@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Check, AlertCircle } from 'lucide-react'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import {

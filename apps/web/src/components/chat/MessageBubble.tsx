@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { motion } from 'framer-motion'
-import { cn } from '@vibed/ui'
+import { cn } from '@hatch/ui'
 import { CodeBlock } from './CodeBlock'
 import type { Message } from '../../stores/chatStore'
 import type { Components } from 'react-markdown'

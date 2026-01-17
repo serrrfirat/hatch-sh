@@ -9,7 +9,7 @@ interface PreviewState {
 
 interface PreviewMessage {
   type: 'error'
-  source: 'vibed-preview'
+  source: 'hatch-preview'
   message: string
   file?: string
   line?: number
@@ -30,7 +30,7 @@ export function usePreview(code: string | undefined) {
   useEffect(() => {
     const handleMessage = (event: MessageEvent<PreviewMessage>) => {
       // Only process messages from our preview iframe
-      if (event.data?.type === 'error' && event.data?.source === 'vibed-preview') {
+      if (event.data?.type === 'error' && event.data?.source === 'hatch-preview') {
         setState((prev) => ({
           ...prev,
           error: event.data.message,
