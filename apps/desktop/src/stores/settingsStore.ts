@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AgentId, AgentStatus, LocalAgentId } from "../lib/agents/types";
+import { invoke } from "@tauri-apps/api/core";
+import type { AgentId, AgentStatus, LocalAgentId, ModelInfo, AvailableModels } from "../lib/agents/types";
 import { isLocalAgent } from "../lib/agents/types";
 import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/registry";
 
@@ -8,10 +9,28 @@ import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/r
 export type AgentMode = "cloud" | AgentId;
 
 /** App page navigation */
-export type AppPage = "byoa" | "design" | "discover" | "idea-maze" | "marketplace";
+export type AppPage = "byoa" | "design" | "idea-maze" | "marketplace" | "settings";
 
 /** Legacy type alias for backwards compatibility */
 export type ClaudeCodeStatus = AgentStatus;
+
+/** Branch name prefix options */
+export type BranchNamePrefix = "github-username" | "custom" | "none";
+
+/** Model options for agents - can be "default" or any model ID string */
+export type AgentModel = string;
+
+/** Agent model configuration */
+export interface AgentModelConfig {
+  opencode: string;
+  cursor: string;
+}
+
+/** Available models for each agent */
+export interface AvailableAgentModels {
+  opencode: ModelInfo[];
+  cursor: ModelInfo[];
+}
 
 interface SettingsState {
   /** Current agent mode: 'cloud' uses vibed.fun credits, agent IDs use local CLI */
@@ -26,7 +45,7 @@ interface SettingsState {
   /** Whether the app has completed startup initialization */
   isAppReady: boolean;
 
-  /** Current page: 'byoa' for build mode, 'discover' for browsing apps */
+  /** Current page: 'byoa' for build mode, 'idea-maze' for brainstorming */
   currentPage: AppPage;
 
   /** Plan mode: Claude will create plans before executing */
@@ -36,6 +55,38 @@ interface SettingsState {
    *  This is display-only - Claude Code always generates thinking blocks,
    *  but they can be hidden based on this preference. */
   thinkingEnabled: boolean;
+
+  // Chat settings
+  /** Desktop notifications when AI finishes */
+  desktopNotifications: boolean;
+  /** Sound effects when AI finishes */
+  soundEffects: boolean;
+  /** Auto-convert pasted text over 5000 chars to attachments */
+  autoConvertLongText: boolean;
+  /** Strip "You're absolutely right!" from AI messages */
+  stripAbsolutelyRight: boolean;
+  /** Show chat cost in the top bar */
+  showChatCost: boolean;
+
+  // Git settings
+  /** Branch name prefix option */
+  branchNamePrefix: BranchNamePrefix;
+  /** Custom branch prefix (when branchNamePrefix is 'custom') */
+  customBranchPrefix: string;
+  /** Delete local branch when archiving workspace */
+  deleteBranchOnArchive: boolean;
+  /** Auto-archive workspace after merging PR */
+  archiveOnMerge: boolean;
+
+  // Agent model configuration
+  /** Model preferences for opencode and cursor agents */
+  agentModels: AgentModelConfig;
+
+  /** Available models fetched from agents */
+  availableModels: AvailableAgentModels;
+
+  /** Whether we're loading models for an agent */
+  isLoadingModels: boolean;
 
   /** Legacy: User's Anthropic API key (deprecated, use Claude Code instead) */
   anthropicApiKey: string | null;
@@ -49,6 +100,25 @@ interface SettingsState {
   setCurrentPage: (page: AppPage) => void;
   setPlanModeEnabled: (enabled: boolean) => void;
   setThinkingEnabled: (enabled: boolean) => void;
+
+  // Chat settings actions
+  setDesktopNotifications: (enabled: boolean) => void;
+  setSoundEffects: (enabled: boolean) => void;
+  setAutoConvertLongText: (enabled: boolean) => void;
+  setStripAbsolutelyRight: (enabled: boolean) => void;
+  setShowChatCost: (enabled: boolean) => void;
+
+  // Git settings actions
+  setBranchNamePrefix: (prefix: BranchNamePrefix) => void;
+  setCustomBranchPrefix: (prefix: string) => void;
+  setDeleteBranchOnArchive: (enabled: boolean) => void;
+  setArchiveOnMerge: (enabled: boolean) => void;
+
+  // Agent model actions
+  setAgentModel: (agent: "opencode" | "cursor", model: string) => void;
+
+  /** Fetch available models from an agent */
+  fetchAgentModels: (agent: "opencode" | "cursor") => Promise<ModelInfo[]>;
 
   /** Check status for a local CLI agent */
   checkAgentStatus: (agentId: LocalAgentId) => Promise<AgentStatus>;
@@ -83,6 +153,34 @@ export const useSettingsStore = create<SettingsState>()(
       currentPage: "byoa",
       planModeEnabled: false,
       thinkingEnabled: true,
+
+      // Chat settings defaults
+      desktopNotifications: true,
+      soundEffects: true,
+      autoConvertLongText: true,
+      stripAbsolutelyRight: true,
+      showChatCost: true,
+
+      // Git settings defaults
+      branchNamePrefix: "github-username",
+      customBranchPrefix: "",
+      deleteBranchOnArchive: false,
+      archiveOnMerge: false,
+
+      // Agent model defaults
+      agentModels: {
+        opencode: "default",
+        cursor: "default",
+      },
+
+      // Available models (fetched dynamically)
+      availableModels: {
+        opencode: [],
+        cursor: [],
+      },
+
+      isLoadingModels: false,
+
       anthropicApiKey: null,
       apiKeyValidated: false,
 
@@ -102,6 +200,57 @@ export const useSettingsStore = create<SettingsState>()(
       setCurrentPage: (page) => set({ currentPage: page }),
       setPlanModeEnabled: (enabled) => set({ planModeEnabled: enabled }),
       setThinkingEnabled: (enabled) => set({ thinkingEnabled: enabled }),
+
+      // Chat settings setters
+      setDesktopNotifications: (enabled) => set({ desktopNotifications: enabled }),
+      setSoundEffects: (enabled) => set({ soundEffects: enabled }),
+      setAutoConvertLongText: (enabled) => set({ autoConvertLongText: enabled }),
+      setStripAbsolutelyRight: (enabled) => set({ stripAbsolutelyRight: enabled }),
+      setShowChatCost: (enabled) => set({ showChatCost: enabled }),
+
+      // Git settings setters
+      setBranchNamePrefix: (prefix) => set({ branchNamePrefix: prefix }),
+      setCustomBranchPrefix: (prefix) => set({ customBranchPrefix: prefix }),
+      setDeleteBranchOnArchive: (enabled) => set({ deleteBranchOnArchive: enabled }),
+      setArchiveOnMerge: (enabled) => set({ archiveOnMerge: enabled }),
+
+      // Agent model setter
+      setAgentModel: (agent, model) =>
+        set((state) => ({
+          agentModels: {
+            ...state.agentModels,
+            [agent]: model,
+          },
+        })),
+
+      // Fetch available models from agent
+      fetchAgentModels: async (agent) => {
+        set({ isLoadingModels: true });
+        try {
+          const result = await invoke<AvailableModels>("get_agent_models", {
+            agentId: agent,
+          });
+
+          if (result.success && result.models.length > 0) {
+            set((state) => ({
+              availableModels: {
+                ...state.availableModels,
+                [agent]: result.models,
+              },
+              isLoadingModels: false,
+            }));
+            return result.models;
+          } else {
+            // Return empty array if fetch failed
+            set({ isLoadingModels: false });
+            return [];
+          }
+        } catch (error) {
+          console.error(`Failed to fetch models for ${agent}:`, error);
+          set({ isLoadingModels: false });
+          return [];
+        }
+      },
 
       checkAgentStatus: async (agentId) => {
         set({ isCheckingAgent: true });
@@ -157,6 +306,19 @@ export const useSettingsStore = create<SettingsState>()(
         agentMode: state.agentMode,
         planModeEnabled: state.planModeEnabled,
         thinkingEnabled: state.thinkingEnabled,
+        // Chat settings
+        desktopNotifications: state.desktopNotifications,
+        soundEffects: state.soundEffects,
+        autoConvertLongText: state.autoConvertLongText,
+        stripAbsolutelyRight: state.stripAbsolutelyRight,
+        showChatCost: state.showChatCost,
+        // Git settings
+        branchNamePrefix: state.branchNamePrefix,
+        customBranchPrefix: state.customBranchPrefix,
+        deleteBranchOnArchive: state.deleteBranchOnArchive,
+        archiveOnMerge: state.archiveOnMerge,
+        // Agent models
+        agentModels: state.agentModels,
         // Don't persist agentStatuses - always check fresh on app start
       }),
     }

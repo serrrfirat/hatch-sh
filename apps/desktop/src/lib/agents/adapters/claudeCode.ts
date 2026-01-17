@@ -13,6 +13,7 @@ import type {
   AgentStatus,
   CommandResult,
   StreamEvent,
+  SendMessageOptions,
 } from '../types'
 
 const config: AgentConfig = {
@@ -156,15 +157,17 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   async sendMessage(
     messages: AgentMessage[],
-    systemPrompt?: string,
-    onStream?: (event: StreamEvent) => void
+    options?: SendMessageOptions
   ): Promise<string> {
+    const { systemPrompt, onStream } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
 
     try {
+      // Note: Claude Code doesn't support model selection - it uses its own model
       const result = await invoke<CommandResult>('run_agent', {
         agentId: 'claude-code',
         prompt,
+        model: null,
       })
 
       if (!result.success) {

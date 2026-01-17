@@ -81,7 +81,7 @@ export function useChat() {
   } = useChatStore();
 
   const settingsState = useSettingsStore();
-  const { agentStatuses } = settingsState;
+  const { agentStatuses, agentModels } = settingsState;
 
   // Get current workspace and its selected agent
   const { currentWorkspace } = useRepositoryStore();
@@ -180,11 +180,17 @@ export function useChat() {
       try {
         // Get the adapter and send message
         const adapter = getLocalAdapter(agentId);
-        fullContent = await adapter.sendMessage(
-          formattedMessages,
-          SYSTEM_PROMPT,
-          onStream
-        );
+
+        // Get model configuration for opencode and cursor agents
+        const model = agentId === 'opencode' ? agentModels.opencode :
+                      agentId === 'cursor' ? agentModels.cursor :
+                      undefined;
+
+        fullContent = await adapter.sendMessage(formattedMessages, {
+          systemPrompt: SYSTEM_PROMPT,
+          onStream,
+          model,
+        });
       } catch (error) {
         if (shouldStopRef.current) {
           // User stopped generation
@@ -197,6 +203,7 @@ export function useChat() {
     },
     [
       agentStatuses,
+      agentModels,
       updateMessage,
       updateMessageThinking,
       addToolUse,

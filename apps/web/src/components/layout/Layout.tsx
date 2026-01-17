@@ -96,16 +96,6 @@ export function Layout() {
               Build
             </Link>
             <Link
-              to="/discover"
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                location.pathname === '/discover'
-                  ? 'bg-white/10 text-white'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Discover
-            </Link>
-            <Link
               to="/marketplace"
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                 location.pathname === '/marketplace'

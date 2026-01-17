@@ -16,6 +16,7 @@ import type {
   AgentStatus,
   CommandResult,
   StreamEvent,
+  SendMessageOptions,
 } from '../types'
 
 const config: AgentConfig = {
@@ -161,15 +162,16 @@ export const opencodeAdapter: AgentAdapter = {
 
   async sendMessage(
     messages: AgentMessage[],
-    systemPrompt?: string,
-    onStream?: (event: StreamEvent) => void
+    options?: SendMessageOptions
   ): Promise<string> {
+    const { systemPrompt, onStream, model } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
 
     try {
       const result = await invoke<CommandResult>('run_agent', {
         agentId: 'opencode',
         prompt,
+        model: model || null,
       })
 
       if (!result.success) {

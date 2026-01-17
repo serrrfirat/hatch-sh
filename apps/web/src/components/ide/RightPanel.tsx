@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { cn } from '@vibed/ui'
-import { Search, Plus, ChevronRight, Terminal as TerminalIcon, Coins } from 'lucide-react'
+import { Search, Plus, ChevronRight, Terminal as TerminalIcon } from 'lucide-react'
 import { PreviewPanel } from '../preview/PreviewPanel'
-import { TokenPanel } from '../token/TokenPanel'
 
 type TopTab = 'changes' | 'files' | 'checks' | 'preview'
-type BottomTab = 'terminal' | 'token'
+type BottomTab = 'terminal'
 
 // Mock changed files data - in real app this would come from git
 const MOCK_CHANGES = [
@@ -105,7 +104,6 @@ export function RightPanel() {
 
   const bottomTabs: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'terminal', label: 'Terminal', icon: <TerminalIcon size={14} /> },
-    { id: 'token', label: 'Token', icon: <Coins size={14} /> },
   ]
 
   return (
@@ -179,7 +177,6 @@ export function RightPanel() {
         {/* Bottom Content */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {bottomTab === 'terminal' && <TerminalPanel />}
-          {bottomTab === 'token' && <TokenPanel />}
         </div>
       </div>
     </div>
