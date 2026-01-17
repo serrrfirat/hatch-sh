@@ -6,8 +6,9 @@ import type { Repository, GitStatus } from '../lib/git/bridge'
 import type { GitHubAuthState } from '../lib/github/bridge'
 import { useChatStore } from './chatStore'
 import type { AgentId } from '../lib/agents/types'
-import { DEFAULT_AGENT_ID } from '../lib/agents/registry'
+import { DEFAULT_AGENT_ID, isValidAgentId } from '../lib/agents/registry'
 import { generateWorkspaceName } from '../lib/pokemon'
+import { useSettingsStore } from './settingsStore'
 
 export interface Workspace {
   id: string
@@ -221,6 +222,13 @@ export const useRepositoryStore = create<RepositoryState>()(
           // Create workspace with isolated worktree
           const result = await gitBridge.createWorkspaceBranch(repo.local_path, workspaceId)
 
+          // Get the current global agent mode to use as default for new workspaces
+          const globalAgentMode = useSettingsStore.getState().agentMode
+          // Use global agent mode if it's a valid agent ID, otherwise fall back to default
+          const defaultAgentId: AgentId = globalAgentMode !== 'cloud' && isValidAgentId(globalAgentMode)
+            ? globalAgentMode
+            : DEFAULT_AGENT_ID
+
           const workspace: Workspace = {
             id: workspaceId,
             repositoryId,
@@ -229,7 +237,7 @@ export const useRepositoryStore = create<RepositoryState>()(
             repoPath: repo.local_path,         // Keep reference to main repo
             status: 'idle',
             lastActive: new Date(),
-            agentId: DEFAULT_AGENT_ID,
+            agentId: defaultAgentId,
           }
 
           set((state) => ({

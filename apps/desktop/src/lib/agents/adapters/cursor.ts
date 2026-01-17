@@ -58,14 +58,16 @@ function buildPromptFromMessages(
 }
 
 /**
- * Parse a single line of Cursor Agent NDJSON output
+ * Parse a single JSON object from Cursor Agent output
  *
  * Cursor Agent emits events like:
- * - {"type": "system_init", "session_id": "..."}
- * - {"type": "assistant_message", "delta": "..."}
- * - {"type": "tool_call", "tool": "...", "args": {...}}
- * - {"type": "tool_result", "content": "..."}
- * - {"type": "completion", "status": "success"}
+ * - {"type":"system","subtype":"init",...} - system init
+ * - {"type":"user","message":{...}} - user message echo
+ * - {"type":"thinking","subtype":"delta","text":"..."} - thinking
+ * - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}} - assistant text
+ * - {"type":"tool_call","subtype":"started","call_id":"...","tool_call":{...}} - tool call start
+ * - {"type":"tool_call","subtype":"completed","call_id":"...","tool_call":{...}} - tool call result
+ * - {"type":"result","subtype":"success",...} - completion
  */
 function parseCursorOutput(line: string): StreamEvent | null {
   if (!line.trim()) return null
@@ -73,53 +75,93 @@ function parseCursorOutput(line: string): StreamEvent | null {
   try {
     const data = JSON.parse(line)
 
-    // Handle assistant message (streaming text)
-    if (data.type === 'assistant_message') {
-      if (data.delta) {
-        return { type: 'text', content: data.delta }
-      }
-      if (data.content) {
-        return { type: 'text', content: data.content }
-      }
-    }
-
-    // Handle assistant start (may include thinking)
-    if (data.type === 'assistant_start') {
-      // Just acknowledge, no content yet
+    // Handle system init (ignore)
+    if (data.type === 'system') {
       return null
     }
 
-    // Handle thinking/reasoning
-    if (data.type === 'thinking' || data.type === 'reasoning') {
-      return { type: 'thinking', content: data.content || data.delta }
+    // Handle user message echo (ignore)
+    if (data.type === 'user') {
+      return null
     }
 
-    // Handle tool call
+    // Handle thinking events
+    if (data.type === 'thinking') {
+      if (data.subtype === 'delta' && data.text) {
+        return { type: 'thinking', content: data.text }
+      }
+      // thinking completed - ignore
+      return null
+    }
+
+    // Handle assistant message
+    if (data.type === 'assistant' && data.message) {
+      const content = data.message.content
+      if (Array.isArray(content)) {
+        // Extract text from content array
+        const textParts = content
+          .filter((part: { type: string }) => part.type === 'text')
+          .map((part: { text: string }) => part.text)
+          .join('')
+        if (textParts) {
+          return { type: 'text', content: textParts }
+        }
+      }
+      return null
+    }
+
+    // Handle tool call events
     if (data.type === 'tool_call') {
-      return {
-        type: 'tool_use',
-        toolName: data.tool,
-        toolId: data.id || String(Date.now()),
-        toolInput: data.args || data.input || {},
+      const callId = data.call_id || String(Date.now())
+      const toolCall = data.tool_call || {}
+
+      if (data.subtype === 'started') {
+        // Extract tool name and input from the tool_call object
+        // Format: { readToolCall: { args: {...} } } or { bashToolCall: { args: {...} } }
+        const toolType = Object.keys(toolCall)[0] || 'unknown'
+        const toolName = toolType.replace('ToolCall', '').replace(/([A-Z])/g, ' $1').trim()
+        const toolData = toolCall[toolType] || {}
+        const toolInput = toolData.args || {}
+
+        return {
+          type: 'tool_use',
+          toolName,
+          toolId: callId,
+          toolInput,
+        }
+      }
+
+      if (data.subtype === 'completed') {
+        // Extract result from the tool_call object
+        const toolType = Object.keys(toolCall)[0] || 'unknown'
+        const toolData = toolCall[toolType] || {}
+        const result = toolData.result
+
+        if (result) {
+          // Handle success/error results
+          const resultContent = result.success || result.error
+          const resultStr = typeof resultContent === 'string'
+            ? resultContent
+            : resultContent?.content || JSON.stringify(resultContent)
+
+          return {
+            type: 'tool_result',
+            toolId: callId,
+            toolResult: resultStr,
+          }
+        }
+        return null
       }
     }
 
-    // Handle tool result
-    if (data.type === 'tool_result') {
-      return {
-        type: 'tool_result',
-        toolId: data.tool_call_id || data.id,
-        toolResult:
-          typeof data.content === 'string'
-            ? data.content
-            : JSON.stringify(data.content),
+    // Handle result/completion
+    if (data.type === 'result') {
+      if (data.subtype === 'error' || data.is_error) {
+        return { type: 'error', content: data.result || 'Cursor agent error' }
       }
-    }
-
-    // Handle completion
-    if (data.type === 'completion') {
-      if (data.status === 'error') {
-        return { type: 'error', content: data.error || 'Cursor agent error' }
+      // Success result may contain the full response
+      if (data.result && typeof data.result === 'string') {
+        return { type: 'text', content: data.result }
       }
       return { type: 'done' }
     }
@@ -127,16 +169,6 @@ function parseCursorOutput(line: string): StreamEvent | null {
     // Handle error events
     if (data.type === 'error') {
       return { type: 'error', content: data.message || data.error || 'Error' }
-    }
-
-    // Handle user message echo (ignore)
-    if (data.type === 'user_message') {
-      return null
-    }
-
-    // Handle system init (ignore)
-    if (data.type === 'system_init') {
-      return null
     }
 
     return null
@@ -175,7 +207,7 @@ export const cursorAdapter: AgentAdapter = {
     messages: AgentMessage[],
     options?: SendMessageOptions
   ): Promise<string> {
-    const { systemPrompt, onStream, model } = options || {}
+    const { systemPrompt, onStream, model, workingDirectory } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
 
     try {
@@ -183,6 +215,7 @@ export const cursorAdapter: AgentAdapter = {
         agentId: 'cursor',
         prompt,
         model: model || null,
+        workingDirectory: workingDirectory || null,
       })
 
       if (!result.success) {
@@ -194,21 +227,105 @@ export const cursorAdapter: AgentAdapter = {
       }
 
       // Parse NDJSON output and emit stream events
+      // Cursor outputs multiple JSON objects, possibly on same line or separate lines
       let fullResponse = ''
-      const lines = result.stdout.split('\n')
+      const stdout = result.stdout
 
-      for (const line of lines) {
-        const event = this.parseOutput(line)
-        if (event) {
-          onStream?.(event)
-          if (event.type === 'text' && event.content) {
-            fullResponse += event.content
+      // Extract JSON objects using brace matching (handles nested objects)
+      const jsonObjects: string[] = []
+      let braceCount = 0
+      let currentObj = ''
+      let inString = false
+      let escapeNext = false
+
+      for (const char of stdout) {
+        if (escapeNext) {
+          currentObj += char
+          escapeNext = false
+          continue
+        }
+
+        if (char === '\\' && inString) {
+          currentObj += char
+          escapeNext = true
+          continue
+        }
+
+        if (char === '"' && !escapeNext) {
+          inString = !inString
+        }
+
+        if (!inString) {
+          if (char === '{') {
+            if (braceCount === 0) currentObj = ''
+            braceCount++
           }
+          if (char === '}') {
+            braceCount--
+            if (braceCount === 0) {
+              currentObj += char
+              jsonObjects.push(currentObj)
+              currentObj = ''
+              continue
+            }
+          }
+        }
+
+        if (braceCount > 0) {
+          currentObj += char
+        }
+      }
+
+      for (const jsonStr of jsonObjects) {
+        try {
+          const event = parseCursorOutput(jsonStr)
+          if (event) {
+            onStream?.(event)
+            if (event.type === 'text' && event.content) {
+              fullResponse += event.content
+            }
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+
+      // Fallback: if no text was extracted, try to find the result field directly
+      if (!fullResponse.trim()) {
+        // Look for the final result in the output
+        const resultMatch = stdout.match(/"type"\s*:\s*"result"[^}]*"result"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s)
+        if (resultMatch && resultMatch[1]) {
+          // Unescape the JSON string
+          fullResponse = resultMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+        }
+      }
+
+      // Last resort: try to find any assistant message content
+      if (!fullResponse.trim()) {
+        const assistantMatch = stdout.match(/"type"\s*:\s*"assistant"[^}]*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s)
+        if (assistantMatch && assistantMatch[1]) {
+          fullResponse = assistantMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
         }
       }
 
       onStream?.({ type: 'done' })
-      return fullResponse.trim() || result.stdout
+
+      // Return parsed response, or error message if nothing was parsed
+      if (fullResponse.trim()) {
+        return fullResponse.trim()
+      }
+
+      // If we still have nothing, return a friendly error instead of raw JSON
+      console.error('[cursor] Failed to parse response, raw output:', stdout.substring(0, 500))
+      return 'Sorry, I encountered an issue processing the response. Please try again.'
     } catch (error) {
       onStream?.({
         type: 'error',

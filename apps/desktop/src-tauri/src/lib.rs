@@ -548,6 +548,143 @@ async fn run_opencode_impl(prompt: String, model: Option<String>) -> CommandResu
     }
 }
 
+/// Run Opencode with streaming output via events
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn run_opencode_streaming(
+    app: tauri::AppHandle,
+    prompt: String,
+    sessionId: String,
+    model: Option<String>,
+    workingDirectory: Option<String>,
+) -> CommandResult {
+    let session_id = sessionId;
+    let working_dir = workingDirectory;
+
+    let opencode_path = match find_opencode_path().await {
+        Some(path) => path,
+        None => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: "Opencode not found".to_string(),
+                code: None,
+            };
+        }
+    };
+
+    // Build arguments - use run command with streaming output
+    let mut args = vec!["run".to_string()];
+
+    // Add model flag if specified and not "default"
+    if let Some(ref m) = model {
+        if m != "default" {
+            args.push("--model".to_string());
+            args.push(m.clone());
+        }
+    }
+
+    // Add streaming format flag for JSON output
+    args.push("--format".to_string());
+    args.push("json".to_string());
+
+    args.push(prompt);
+
+    let mut cmd = AsyncCommand::new(&opencode_path);
+    cmd.args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Set working directory if provided
+    if let Some(ref dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            let err_msg = format!("Failed to spawn Opencode: {}", e);
+            let _ = app.emit("opencode-stream", StreamEvent {
+                event_type: "error".to_string(),
+                data: err_msg.clone(),
+                session_id: session_id.clone(),
+            });
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: err_msg,
+                code: None,
+            };
+        }
+    };
+
+    let stdout = child.stdout.take().expect("Failed to get stdout");
+    let stderr = child.stderr.take().expect("Failed to get stderr");
+
+    // Spawn task to read stderr and collect it
+    let stderr_app = app.clone();
+    let stderr_session_id = session_id.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut full_stderr = String::new();
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            if !line.is_empty() {
+                full_stderr.push_str(&line);
+                full_stderr.push('\n');
+                // Emit stderr as events
+                let _ = stderr_app.emit("opencode-stream", StreamEvent {
+                    event_type: "stderr".to_string(),
+                    data: line,
+                    session_id: stderr_session_id.clone(),
+                });
+            }
+        }
+        full_stderr
+    });
+
+    // Read stdout in main task
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut full_output = String::new();
+
+    while let Ok(Some(line)) = stdout_reader.next_line().await {
+        if !line.is_empty() {
+            full_output.push_str(&line);
+            full_output.push('\n');
+
+            // Emit each line as an event to the frontend
+            let _ = app.emit("opencode-stream", StreamEvent {
+                event_type: "line".to_string(),
+                data: line,
+                session_id: session_id.clone(),
+            });
+        }
+    }
+
+    // Wait for stderr task to complete
+    let full_stderr = stderr_handle.await.unwrap_or_default();
+
+    // Wait for process to complete
+    let status = child.wait().await;
+    let (success, exit_code) = match &status {
+        Ok(s) => (s.success(), s.code()),
+        Err(_) => (false, None),
+    };
+
+    // Emit completion event
+    let _ = app.emit("opencode-stream", StreamEvent {
+        event_type: "done".to_string(),
+        data: if !full_stderr.is_empty() { full_stderr.clone() } else { String::new() },
+        session_id: session_id.clone(),
+    });
+
+    CommandResult {
+        success,
+        stdout: full_output,
+        stderr: full_stderr,
+        code: exit_code,
+    }
+}
+
 // =============================================================================
 // Cursor Agent Implementation
 // =============================================================================
@@ -696,7 +833,7 @@ async fn check_cursor_impl() -> AgentStatus {
     }
 }
 
-async fn run_cursor_impl(prompt: String, model: Option<String>) -> CommandResult {
+async fn run_cursor_impl(prompt: String, model: Option<String>, working_dir: Option<String>) -> CommandResult {
     let cursor_path = match find_cursor_path().await {
         Some(path) => path,
         None => {
@@ -726,10 +863,15 @@ async fn run_cursor_impl(prompt: String, model: Option<String>) -> CommandResult
     args.push("stream-json".to_string());
 
     // Run cursor agent in headless mode with streaming JSON output
-    let result = AsyncCommand::new(&cursor_path)
-        .args(&args)
-        .output()
-        .await;
+    let mut cmd = AsyncCommand::new(&cursor_path);
+    cmd.args(&args);
+
+    // Set working directory if provided
+    if let Some(ref dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+
+    let result = cmd.output().await;
 
     match result {
         Ok(output) => {
@@ -1093,11 +1235,12 @@ async fn check_agent(agent_id: String) -> AgentStatus {
 
 /// Run a prompt with any supported agent
 #[tauri::command]
-async fn run_agent(agent_id: String, prompt: String, model: Option<String>) -> CommandResult {
+#[allow(non_snake_case)]
+async fn run_agent(agent_id: String, prompt: String, model: Option<String>, workingDirectory: Option<String>) -> CommandResult {
     match agent_id.as_str() {
         "claude-code" => run_claude_code_impl(prompt).await,
         "opencode" => run_opencode_impl(prompt, model).await,
-        "cursor" => run_cursor_impl(prompt, model).await,
+        "cursor" => run_cursor_impl(prompt, model, workingDirectory).await,
         _ => CommandResult {
             success: false,
             stdout: String::new(),
@@ -1164,6 +1307,8 @@ pub fn run() {
             check_claude_code,
             run_claude_code,
             run_claude_code_streaming,
+            // Opencode streaming
+            run_opencode_streaming,
             // GitHub auth commands
             github_start_device_flow,
             github_poll_for_token,

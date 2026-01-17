@@ -186,10 +186,15 @@ export function useChat() {
                       agentId === 'cursor' ? agentModels.cursor :
                       undefined;
 
+        // Get workspace path for agent working directory
+        const workspaceState = useRepositoryStore.getState();
+        const workingDirectory = workspaceState.currentWorkspace?.localPath;
+
         fullContent = await adapter.sendMessage(formattedMessages, {
           systemPrompt: SYSTEM_PROMPT,
           onStream,
           model,
+          workingDirectory,
         });
       } catch (error) {
         if (shouldStopRef.current) {

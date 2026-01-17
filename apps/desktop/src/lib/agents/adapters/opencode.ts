@@ -4,11 +4,11 @@
  * Integrates the open-source Opencode AI agent into the multi-agent system.
  * Opencode supports the Agent Client Protocol (ACP) with JSON-RPC communication.
  *
- * For initial implementation, we use a simpler CLI-based approach.
- * Future enhancement: Full ACP JSON-RPC protocol support.
+ * Uses streaming via Tauri events for real-time tool feedback.
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   AgentAdapter,
   AgentConfig,
@@ -18,6 +18,12 @@ import type {
   StreamEvent,
   SendMessageOptions,
 } from '../types'
+
+interface TauriStreamEvent {
+  type: string
+  data: string
+  session_id: string
+}
 
 const config: AgentConfig = {
   id: 'opencode',
@@ -60,10 +66,10 @@ function buildPromptFromMessages(
 /**
  * Parse a single line of Opencode output
  *
- * Opencode ACP uses JSON-RPC format. This parser handles:
- * - Text responses
- * - Tool calls (file edits, commands)
- * - Reasoning/thinking blocks
+ * Opencode uses streaming JSON events with these types:
+ * - text: Text responses with content in part.text
+ * - tool_use: Tool calls with info in part.tool, part.state
+ * - step_start/step_finish: Step boundaries
  */
 function parseOpencodeOutput(line: string): StreamEvent | null {
   if (!line.trim()) return null
@@ -71,11 +77,51 @@ function parseOpencodeOutput(line: string): StreamEvent | null {
   try {
     const data = JSON.parse(line)
 
-    // Handle JSON-RPC response format
+    // Handle opencode streaming event format
+    // Events have { type, timestamp, sessionID, part }
+    if (data.type && data.part) {
+      const part = data.part
+
+      // Text event: { type: "text", part: { type: "text", text: "..." } }
+      if (data.type === 'text' && part.text) {
+        return { type: 'text', content: part.text }
+      }
+
+      // Tool use event: { type: "tool_use", part: { type: "tool", tool: "bash", callID: "...", state: {...} } }
+      if (data.type === 'tool_use' && part.type === 'tool') {
+        const toolName = part.tool || 'unknown'
+        const toolId = part.callID || String(Date.now())
+        const toolInput = part.state?.input || {}
+        const toolOutput = part.state?.output
+        const status = part.state?.status
+
+        // If tool is completed, return as tool_result
+        if (status === 'completed' && toolOutput !== undefined) {
+          return {
+            type: 'tool_result',
+            toolId,
+            toolResult: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+          }
+        }
+
+        // Otherwise return as tool_use (starting)
+        return {
+          type: 'tool_use',
+          toolName,
+          toolId,
+          toolInput,
+        }
+      }
+
+      // Thinking/reasoning event (if opencode supports it)
+      if (part.type === 'reasoning' || part.type === 'thinking') {
+        return { type: 'thinking', content: part.text || '' }
+      }
+    }
+
+    // Legacy JSON-RPC format (fallback)
     if (data.result) {
       const result = data.result
-
-      // Handle message parts from ACP prompt response
       if (result.message?.parts) {
         for (const part of result.message.parts) {
           if (part.type === 'text') {
@@ -92,31 +138,10 @@ function parseOpencodeOutput(line: string): StreamEvent | null {
               toolInput: part.input,
             }
           }
-          if (part.type === 'file') {
-            return {
-              type: 'tool_use',
-              toolName: 'file_edit',
-              toolId: part.path,
-              toolInput: { path: part.path, content: part.content },
-            }
-          }
         }
       }
-
-      // Handle simple text result
       if (typeof result === 'string') {
         return { type: 'text', content: result }
-      }
-    }
-
-    // Handle notification events (session updates, etc.)
-    if (data.method === 'session/update') {
-      const params = data.params
-      if (params?.delta?.text) {
-        return { type: 'text', content: params.delta.text }
-      }
-      if (params?.delta?.thinking) {
-        return { type: 'thinking', content: params.delta.thinking }
       }
     }
 
@@ -126,6 +151,12 @@ function parseOpencodeOutput(line: string): StreamEvent | null {
         type: 'error',
         content: data.error.message || 'Opencode error',
       }
+    }
+
+    // Debug event (from our Rust code)
+    if (data.type === 'debug') {
+      console.log('[opencode] Debug:', data.command || data)
+      return null // Don't show debug events to user
     }
 
     return null
@@ -164,15 +195,73 @@ export const opencodeAdapter: AgentAdapter = {
     messages: AgentMessage[],
     options?: SendMessageOptions
   ): Promise<string> {
-    const { systemPrompt, onStream, model } = options || {}
+    const { systemPrompt, onStream, model, workingDirectory } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
+    const sessionId = crypto.randomUUID()
+
+    let fullResponse = ''
+    let unlisten: UnlistenFn | null = null
 
     try {
-      const result = await invoke<CommandResult>('run_agent', {
-        agentId: 'opencode',
-        prompt,
-        model: model || null,
+      // Set up listener for stream events BEFORE invoking
+      unlisten = await listen<TauriStreamEvent>('opencode-stream', (event) => {
+        const payload = event.payload
+
+        // Only process events for our session
+        if (payload.session_id !== sessionId) return
+
+        if (payload.type === 'line' && payload.data) {
+          // Opencode may output multiple JSON objects on the same line
+          // Split by '} {' to handle this case
+          const jsonObjects = payload.data.split(/\}\s*\{/).map((part: string, index: number, arr: string[]) => {
+            if (arr.length === 1) return part
+            if (index === 0) return part + '}'
+            if (index === arr.length - 1) return '{' + part
+            return '{' + part + '}'
+          })
+
+          for (const jsonStr of jsonObjects) {
+            // Use parseOpencodeOutput directly to avoid `this` binding issues
+            const streamEvent = parseOpencodeOutput(jsonStr)
+            if (streamEvent) {
+              onStream?.(streamEvent)
+              if (streamEvent.type === 'text' && streamEvent.content) {
+                fullResponse += streamEvent.content
+              }
+            }
+          }
+        } else if (payload.type === 'stderr' && payload.data) {
+          // Handle stderr output - could be debug info or errors
+          // Try to parse as JSON first, otherwise treat as text
+          const streamEvent = parseOpencodeOutput(payload.data)
+          if (streamEvent) {
+            onStream?.(streamEvent)
+          } else {
+            // Emit raw stderr as text so user can see what's happening
+            onStream?.({ type: 'text', content: payload.data + '\n' })
+            fullResponse += payload.data + '\n'
+          }
+        } else if (payload.type === 'error' && payload.data) {
+          console.error('[opencode-stream] error:', payload.data)
+          onStream?.({ type: 'error', content: payload.data })
+        } else if (payload.type === 'done') {
+          onStream?.({ type: 'done' })
+        }
       })
+
+      // Invoke the streaming command
+      const result = await invoke<CommandResult>('run_opencode_streaming', {
+        prompt,
+        sessionId,
+        model: model || null,
+        workingDirectory: workingDirectory || null,
+      })
+
+      // Clean up listener
+      if (unlisten) {
+        unlisten()
+        unlisten = null
+      }
 
       if (!result.success) {
         onStream?.({
@@ -182,23 +271,27 @@ export const opencodeAdapter: AgentAdapter = {
         throw new Error(result.stderr || 'Opencode command failed')
       }
 
-      // Parse output and emit stream events
-      let fullResponse = ''
-      const lines = result.stdout.split('\n')
-
-      for (const line of lines) {
-        const event = this.parseOutput(line)
-        if (event) {
-          onStream?.(event)
-          if (event.type === 'text' && event.content) {
-            fullResponse += event.content
+      // If we didn't get streaming events, fall back to parsing the full output
+      if (!fullResponse && result.stdout) {
+        const lines = result.stdout.split('\n')
+        for (const line of lines) {
+          const event = parseOpencodeOutput(line)
+          if (event) {
+            onStream?.(event)
+            if (event.type === 'text' && event.content) {
+              fullResponse += event.content
+            }
           }
         }
+        onStream?.({ type: 'done' })
       }
 
-      onStream?.({ type: 'done' })
       return fullResponse.trim() || result.stdout
     } catch (error) {
+      // Clean up listener on error
+      if (unlisten) {
+        unlisten()
+      }
       onStream?.({
         type: 'error',
         content: error instanceof Error ? error.message : 'Unknown error',

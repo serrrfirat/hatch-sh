@@ -108,6 +108,8 @@ export interface SendMessageOptions {
   onStream?: (event: StreamEvent) => void
   /** Model to use (for agents that support model selection) */
   model?: string
+  /** Working directory for the agent to run in */
+  workingDirectory?: string
 }
 
 /**
