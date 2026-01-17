@@ -4,7 +4,7 @@ Your ideas, hatched and shipped.
 
 ## What is Hatch.sh?
 
-Hatch.sh is your hatching centre for turning ideas into shipped products. Describe what you want to build, watch AI bring it to life in real-time, iterate until it's perfect, and deploy with one click.
+Hatch.sh is your hatching centre for turning ideas into shipped products. Start with an idea in the maze, turn it into beautiful designs, build it with your own agents and see it come to life. 
 
 ## Features
 
