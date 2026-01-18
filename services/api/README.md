@@ -1,6 +1,6 @@
 # Hatch API Service
 
-Backend API for hatch.sh - an AI-powered app builder with token launch capabilities.
+Backend API for hatch.sh - an AI-powered app builder.
 
 ## Architecture Overview
 
@@ -15,12 +15,12 @@ Backend API for hatch.sh - an AI-powered app builder with token launch capabilit
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                           HONO API SERVER                             │  │
 │  │                                                                       │  │
-│  │   ┌─────────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌─────────┐ ┌────────┐ │  │
-│  │   │Projects │ │ Chat │ │Deploy│ │Tokens│ │Discovery│ │ Skills │ │  │
-│  │   │ Router  │ │Router│ │Router│ │Router│ │  Router │ │  MP    │ │  │
-│  │   └────┬────┘ └──┬───┘ └──┬───┘ └──┬───┘ └────┬────┘ └───┬────┘ │  │
-│  │        │         │        │        │          │          │      │  │
-│  │        └─────────┴────────┴────┬───┴──────────┴──────────┘      │  │
+│  │   ┌─────────┐ ┌──────┐ ┌──────┐ ┌─────────┐ ┌────────┐           │  │
+│  │   │Projects │ │ Chat │ │Deploy│ │Discovery│ │ Skills │           │  │
+│  │   │ Router  │ │Router│ │Router│ │  Router │ │  MP    │           │  │
+│  │   └────┬────┘ └──┬───┘ └──┬───┘ └────┬────┘ └───┬────┘           │  │
+│  │        │         │        │          │          │                │  │
+│  │        └─────────┴────────┴──────────┴──────────┘                │  │
 │  │                             │                                        │  │
 │  │                    ┌────────┴────────┐                               │  │
 │  │                    │  Database Layer │                               │  │
@@ -99,39 +99,6 @@ Backend API for hatch.sh - an AI-powered app builder with token launch capabilit
     ▼                ▼                   ▼                  ▼
 ```
 
-### Token Launch Flow
-
-```
-┌────────┐     ┌─────────────┐     ┌──────────┐     ┌──────────────┐
-│ Client │────▶│  API Server │────▶│ Database │     │   Solana     │
-│ Wallet │     └─────────────┘     └──────────┘     │  Blockchain  │
-└────────┘           │                  │           └──────────────┘
-    │                │                  │                  │
-    │   1. POST /api/tokens/launch      │                  │
-    │   {projectId, name, symbol}       │                  │
-    │                │                  │                  │
-    │                │  2. Validate     │                  │
-    │                │     project      │                  │
-    │                │◀─────────────────│                  │
-    │                │                  │                  │
-    │  3. Return     │  4. Create       │                  │
-    │◀───────────────│     launch record│                  │
-    │  launchId      │─────────────────▶│                  │
-    │                │                  │                  │
-    │   5. User signs transaction       │                  │
-    │───────────────────────────────────┼─────────────────▶│
-    │                │                  │   (pump.fun)     │
-    │                │                  │                  │
-    │   6. PATCH /api/tokens/:id        │◀─────────────────│
-    │   {tokenAddress, txHash}          │   7. Tx confirmed│
-    │──────────────▶│                   │                  │
-    │                │  8. Update       │                  │
-    │                │     records      │                  │
-    │                │─────────────────▶│                  │
-    │                │                  │                  │
-    ▼                ▼                  ▼                  ▼
-```
-
 ## Database Schema
 
 ```
@@ -149,27 +116,14 @@ Backend API for hatch.sh - an AI-powered app builder with token launch capabilit
 └──────────────┘       │ code             │       │ created_at       │
                        │ status           │       └──────────────────┘
                        │ deployment_url   │
-                       │ token_address    │       ┌──────────────────┐
-                       │ created_at       │       │   deployments    │
-                       │ updated_at       │       ├──────────────────┤
-                       └────────┬─────────┘       │ id            PK │
-                                │                 │ project_id    FK │◀┐
-                                │                 │ status           │ │
-                                │                 │ url              │ │
-                                │                 │ logs             │ │
-                                │                 │ created_at       │ │
-                                │                 └──────────────────┘ │
-                                │                                      │
-                                │                 ┌──────────────────┐ │
-                                │                 │  token_launches  │ │
-                                │                 ├──────────────────┤ │
-                                └────────────────▶│ id            PK │ │
-                                                  │ project_id    FK │─┘
-                                                  │ token_address    │
-                                                  │ name             │
-                                                  │ symbol           │
-                                                  │ image_uri        │
-                                                  │ tx_hash          │
+                       │ created_at       │       ┌──────────────────┐
+                       │ updated_at       │       │   deployments    │
+                       └──────────────────┘       ├──────────────────┤
+                                                  │ id            PK │
+                                                  │ project_id    FK │
+                                                  │ status           │
+                                                  │ url              │
+                                                  │ logs             │
                                                   │ created_at       │
                                                   └──────────────────┘
 ```
@@ -205,13 +159,6 @@ Response: { "status": "ok", "service": "hatch-api" }
 | POST | `/api/deploy` | Start deployment |
 | GET | `/api/deploy/:id` | Get deployment status |
 
-### Tokens
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/tokens/launch` | Initiate token launch |
-| PATCH | `/api/tokens/:id` | Update with on-chain data |
-
 ### Discovery
 
 | Method | Endpoint | Description |
@@ -239,12 +186,6 @@ Response: { "status": "ok", "service": "hatch-api" }
           ▼
     ┌───────────┐
     │ deployed  │  Code is live on Cloudflare Workers
-    └─────┬─────┘
-          │
-          │ POST /api/tokens/launch + PATCH /api/tokens/:id
-          ▼
-    ┌───────────┐
-    │ launched  │  Token is created on-chain
     └───────────┘
 ```
 
@@ -315,7 +256,6 @@ services/api/
         ├── projects.ts   # Project CRUD operations
         ├── chat.ts       # AI chat with streaming
         ├── deploy.ts     # Deployment management
-        ├── tokens.ts     # Token launch management
         ├── discovery.ts  # Browse launched apps
         └── skillsmp.ts   # Skills marketplace proxy (skillsmp.com, aitmpl.com)
 ```

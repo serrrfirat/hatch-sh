@@ -107,8 +107,7 @@ apps/desktop/
 │   │   ├── layout/         # Layout components (Layout, ProjectTree)
 │   │   ├── icons/          # Custom icons (AgentIcons, FileIcon)
 │   │   ├── discovery/      # App discovery gallery
-│   │   ├── repository/     # Repository management
-│   │   └── token/          # Token launch components
+│   │   └── repository/     # Repository management
 │   ├── hooks/
 │   │   ├── useChat.ts      # Chat state and AI interaction
 │   │   ├── useIdeaMazeChat.ts  # Idea Maze AI integration
