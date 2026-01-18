@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { GripVertical, Sparkles, Type, Image, Link } from 'lucide-react'
-import type { IdeaNode, Position, NodeContent } from '../../../lib/ideaMaze/types'
+import { GripVertical, Sparkles, Type, Image, Link, ClipboardList, CheckCircle2, Rocket } from 'lucide-react'
+import type { IdeaNode, Position, NodeContent, PlanContent } from '../../../lib/ideaMaze/types'
 import {
   MIN_NODE_WIDTH,
   MAX_NODE_WIDTH,
@@ -26,6 +26,7 @@ interface IdeaCardProps {
   onConnectionEnd: (nodeId: string) => void
   isConnectMode: boolean
   isConnecting: boolean
+  onBuildPlan?: (planContent: PlanContent) => void
 }
 
 export function IdeaCard({
@@ -37,6 +38,7 @@ export function IdeaCard({
   onConnectionEnd,
   isConnectMode,
   isConnecting,
+  onBuildPlan,
 }: IdeaCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -49,6 +51,9 @@ export function IdeaCard({
   const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number; nodeX: number; nodeY: number } | null>(null)
 
   const { updateNode, addContentToNode, resizeNode, moveNode: moveNodeStore } = useIdeaMazeStore()
+
+  // Check if this is a Plan node
+  const isPlanNode = node.content.some(c => c.type === 'plan')
 
   // Handle mouse move for parallax effect
   const handleMouseMove = useCallback(
@@ -343,7 +348,11 @@ export function IdeaCard({
         style={{
           ...GLASS_STYLE,
           ...(isHovered && !isDragging ? GLASS_HOVER_STYLE : {}),
-          ...(isSelected ? { boxShadow: `0 0 0 2px ${COLORS.primary}80` } : {}),
+          ...(isPlanNode ? {
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 5, 5, 0.95) 50%)',
+            borderColor: 'rgba(16, 185, 129, 0.3)',
+          } : {}),
+          ...(isSelected ? { boxShadow: isPlanNode ? '0 0 0 2px rgba(16, 185, 129, 0.6)' : `0 0 0 2px ${COLORS.primary}80` } : {}),
           ...(isConnecting ? { boxShadow: `0 0 0 2px ${COLORS.aiSuggestion}80` } : {}),
           transform: `
             perspective(1000px)
@@ -359,7 +368,7 @@ export function IdeaCard({
         onDragStart={(e) => e.preventDefault()}
       >
         {/* AI indicator */}
-        {node.aiGenerated && (
+        {node.aiGenerated && !isPlanNode && (
           <div
             className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center"
             style={{
@@ -368,6 +377,19 @@ export function IdeaCard({
             }}
           >
             <Sparkles size={12} style={{ color: COLORS.aiSuggestion }} />
+          </div>
+        )}
+
+        {/* Plan indicator */}
+        {isPlanNode && (
+          <div
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.5)',
+            }}
+          >
+            <ClipboardList size={12} className="text-emerald-400" />
           </div>
         )}
 
@@ -450,13 +472,53 @@ export function IdeaCard({
                     </span>
                   </a>
                 )}
+                {content.type === 'plan' && (
+                  <div className="space-y-3">
+                    {/* Plan summary */}
+                    <div>
+                      <p className="text-xs text-emerald-400 uppercase tracking-wider mb-1">Summary</p>
+                      <p className="text-sm text-neutral-200">{content.summary}</p>
+                    </div>
+
+                    {/* Requirements */}
+                    {content.requirements.length > 0 && (
+                      <div>
+                        <p className="text-xs text-emerald-400 uppercase tracking-wider mb-1">Requirements</p>
+                        <ul className="space-y-1">
+                          {content.requirements.map((req, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs text-neutral-300">
+                              <CheckCircle2 size={12} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              <span>{req}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Design notes */}
+                    {content.designNotes && (
+                      <div>
+                        <p className="text-xs text-emerald-400 uppercase tracking-wider mb-1">Design</p>
+                        <p className="text-xs text-neutral-400">{content.designNotes}</p>
+                      </div>
+                    )}
+
+                    {/* Technical approach */}
+                    {content.technicalApproach && (
+                      <div>
+                        <p className="text-xs text-emerald-400 uppercase tracking-wider mb-1">Technical</p>
+                        <p className="text-xs text-neutral-400">{content.technicalApproach}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}
         </div>
 
-        {/* Add content buttons */}
-        {(isHovered || isSelected) && (
+        {/* Add content buttons (not shown for Plan nodes) */}
+        {(isHovered || isSelected) && !isPlanNode && (
           <div className="flex items-center gap-1 mt-3 pt-3 border-t border-white/5">
             <button
               onClick={(e) => {
@@ -517,7 +579,7 @@ export function IdeaCard({
         )}
 
         {/* Tags */}
-        {node.tags.length > 0 && (
+        {node.tags.length > 0 && !isPlanNode && (
           <div className="flex flex-wrap gap-1 mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.border}30` }}>
             {node.tags.map((tag) => (
               <span
@@ -531,6 +593,30 @@ export function IdeaCard({
                 {tag}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Build This button for Plan nodes */}
+        {isPlanNode && (isHovered || isSelected) && (
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                const planContent = node.content.find(c => c.type === 'plan') as PlanContent | undefined
+                if (planContent && onBuildPlan) {
+                  onBuildPlan(planContent)
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: '#10b981',
+              }}
+            >
+              <Rocket size={14} />
+              <span>Build This</span>
+            </button>
           </div>
         )}
       </motion.div>

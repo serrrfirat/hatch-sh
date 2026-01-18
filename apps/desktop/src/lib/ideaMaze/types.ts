@@ -27,7 +27,18 @@ export interface UrlContent {
   favicon?: string
 }
 
-export type NodeContent = TextContent | ImageContent | UrlContent
+/** Plan content - structured PRD generated from interview */
+export interface PlanContent {
+  type: 'plan'
+  id: string
+  summary: string
+  requirements: string[]
+  designNotes?: string
+  technicalApproach?: string
+  sourceIdeaIds: string[]  // IDs of the ideas this plan was created from
+}
+
+export type NodeContent = TextContent | ImageContent | UrlContent | PlanContent
 
 /** Position and dimensions for nodes */
 export interface Position {
@@ -255,6 +266,48 @@ export function createMoodboard(name: string, workspaceId?: string): Moodboard {
     connections: [],
     viewport: { ...DEFAULT_VIEWPORT },
     workspaceId,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+/** Helper to create a Plan node from interview results */
+export function createPlanNode(
+  position: Position,
+  plan: {
+    summary: string
+    requirements: string[]
+    designNotes?: string
+    technicalApproach?: string
+    sourceIdeaIds: string[]
+  },
+  title?: string
+): IdeaNode {
+  const now = new Date()
+  const planContent: PlanContent = {
+    type: 'plan',
+    id: crypto.randomUUID(),
+    summary: plan.summary,
+    requirements: plan.requirements,
+    designNotes: plan.designNotes,
+    technicalApproach: plan.technicalApproach,
+    sourceIdeaIds: plan.sourceIdeaIds,
+  }
+
+  // Plan nodes are slightly larger to accommodate structured content
+  const dimensions: Dimensions = {
+    width: 320,
+    height: 240,
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    position,
+    dimensions,
+    content: [planContent],
+    title: title || 'Plan',
+    tags: ['plan'],
+    zIndex: 1,
     createdAt: now,
     updatedAt: now,
   }

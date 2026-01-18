@@ -13,19 +13,17 @@ import { getLocalAdapter, getConfig } from "../lib/agents/registry";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
-const SYSTEM_PROMPT = `You are an expert React/TypeScript developer helping users build web applications.
+const SYSTEM_PROMPT = `You are a helpful coding assistant working in the user's project.
 
-When generating code:
-1. Create complete, working React applications
-2. Use TypeScript and modern React patterns (hooks, functional components)
-3. Include TailwindCSS for styling (assume it's available)
-4. Keep apps self-contained in a single file when possible
-5. Always export a default App component
-6. Make apps visually appealing with good UX
+Guidelines:
+- Be conversational and natural. Respond like a helpful colleague, not a robot.
+- Do NOT repeat or summarize project context (README, tech stack, etc.) unless the user specifically asks about it.
+- Focus on answering the user's actual question or request directly.
+- If the user just says "hello" or greets you, respond with a simple greeting and ask how you can help.
+- When generating code, use modern patterns appropriate for the project's tech stack.
+- Be concise. Don't over-explain unless asked.
 
-Output format: When providing code, wrap it in a code block with the language specified.
-
-Be concise but helpful. Focus on building what the user asks for.`;
+Remember: The user already knows what project they're working on. Don't tell them.`;
 
 /**
  * PR Creation prompt - injected when user triggers "Open PR"
