@@ -4,7 +4,6 @@ import {
   Hand,
   Plus,
   Link2,
-  Sparkles,
   Map,
   PanelRightOpen,
   PanelRightClose,
@@ -130,37 +129,6 @@ export function VerticalToolbar() {
         label="Add Node"
         shortcut="N"
         onClick={handleAddNode}
-      />
-
-      {/* TODO: AI Analyze button - Implementation needed
-       * Expected behavior:
-       * 1. Analyze currently selected nodes (or all nodes if none selected)
-       * 2. Generate AI suggestions including:
-       *    - Connection suggestions: Find related ideas that should be linked
-       *    - Node suggestions: Generate new ideas based on existing content
-       *    - Critique suggestions: Identify gaps, contradictions, or areas to explore
-       * 3. Add suggestions to aiSuggestions store array
-       * 4. Show suggestions in the sidebar Suggestions tab
-       *
-       * Implementation approach:
-       * - Set isAIProcessing to true while analyzing
-       * - Call an AI service (e.g., Claude API) with node contents as context
-       * - Parse AI response into ConnectionSuggestion, NodeSuggestion, or CritiqueSuggestion
-       * - Use addAISuggestion() to populate the suggestions list
-       *
-       * Considerations:
-       * - Add loading state to button (spinner icon)
-       * - Handle API errors gracefully
-       * - Consider rate limiting to prevent excessive API calls
-       * - May need to batch analyze for performance with many nodes
-       */}
-      <ToolButton
-        icon={Sparkles}
-        label="AI Analyze (coming soon)"
-        shortcut="⌘⇧A"
-        onClick={() => {
-          // TODO: Trigger AI analysis - see comment above for implementation details
-        }}
       />
 
       <Divider />

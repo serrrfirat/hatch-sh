@@ -5,9 +5,13 @@ import { IdeaCard } from './nodes/IdeaCard'
 import { ConnectionsLayer } from './connections/ConnectionsLayer'
 import { ConnectionLegend } from './connections/ConnectionLegend'
 import { IdeaMazeMinimap } from './IdeaMazeMinimap'
-import type { Position, ImageContent } from '../../lib/ideaMaze/types'
+import type { Position, ImageContent, PlanContent } from '../../lib/ideaMaze/types'
 
-export function IdeaMazeCanvas() {
+interface IdeaMazeCanvasProps {
+  onBuildPlan?: (planContent: PlanContent) => void
+}
+
+export function IdeaMazeCanvas({ onBuildPlan }: IdeaMazeCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -293,6 +297,7 @@ export function IdeaMazeCanvas() {
               onConnectionEnd={handleConnectionEnd}
               isConnectMode={toolMode === 'connect'}
               isConnecting={isConnecting && connectingFrom !== node.id}
+              onBuildPlan={onBuildPlan}
             />
           ))}
       </motion.div>
