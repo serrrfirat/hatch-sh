@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitBranch, Plus, MoreHorizontal, ChevronRight, Settings, FolderPlus, Github, Trash2, Archive } from 'lucide-react'
+import { GitBranch, Plus, MoreHorizontal, ChevronRight, Settings, FolderPlus, Github, Trash2, Archive, Loader2 } from 'lucide-react'
 import { useRepositoryStore, type Workspace } from '../../stores/repositoryStore'
 import type { Repository } from '../../lib/git/bridge'
 import { AddRepositoryMenu } from '../repository/AddRepositoryMenu'
@@ -53,7 +53,11 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
       >
         {/* Branch icon or status indicator */}
         <div className="flex-shrink-0 mt-0.5">
-          {workspace.status === 'working' ? (
+          {workspace.isInitializing ? (
+            <div className="w-4 h-4 flex items-center justify-center">
+              <Loader2 size={14} className="animate-spin text-emerald-400" />
+            </div>
+          ) : workspace.status === 'working' ? (
             <div className="w-4 h-4 flex items-center justify-center">
               <motion.div
                 className="w-2 h-2 rounded-full bg-emerald-400"
@@ -88,7 +92,10 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-neutral-500">
-            {workspace.prNumber ? (
+            {workspace.isInitializing ? (
+              // Show initializing status
+              <span className="text-emerald-400">Initializing...</span>
+            ) : workspace.prNumber ? (
               // Show PR status
               <span className="flex items-center gap-1">
                 <span className="text-emerald-400">PR #{workspace.prNumber}</span>
