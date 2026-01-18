@@ -21,6 +21,8 @@ export interface Workspace {
   additions?: number
   deletions?: number
   agentId: AgentId
+  // Initialization state
+  isInitializing?: boolean
   // PR tracking
   prNumber?: number
   prUrl?: string
@@ -218,16 +220,38 @@ export const useRepositoryStore = create<RepositoryState>()(
         const existingNames = get().workspaces.map(w => w.id)
         const workspaceId = generateWorkspaceName(existingNames)
 
+        // Get the current global agent mode to use as default for new workspaces
+        const globalAgentMode = useSettingsStore.getState().agentMode
+        // Use global agent mode if it's a valid agent ID, otherwise fall back to default
+        const defaultAgentId: AgentId = globalAgentMode !== 'cloud' && isValidAgentId(globalAgentMode)
+          ? globalAgentMode
+          : DEFAULT_AGENT_ID
+
+        // Create workspace immediately with isInitializing=true for visual feedback
+        const initializingWorkspace: Workspace = {
+          id: workspaceId,
+          repositoryId,
+          branchName: workspaceId, // Temporary, will be updated
+          localPath: '',           // Will be set after worktree creation
+          repoPath: repo.local_path,
+          status: 'idle',
+          lastActive: new Date(),
+          agentId: defaultAgentId,
+          isInitializing: true,
+        }
+
+        // Add to store immediately so it shows in the sidebar
+        set((state) => ({
+          workspaces: [...state.workspaces, initializingWorkspace],
+          currentWorkspace: initializingWorkspace,
+        }))
+
+        // Sync workspace ID with chat store for per-workspace messages
+        useChatStore.getState().setWorkspaceId(workspaceId)
+
         try {
           // Create workspace with isolated worktree
           const result = await gitBridge.createWorkspaceBranch(repo.local_path, workspaceId)
-
-          // Get the current global agent mode to use as default for new workspaces
-          const globalAgentMode = useSettingsStore.getState().agentMode
-          // Use global agent mode if it's a valid agent ID, otherwise fall back to default
-          const defaultAgentId: AgentId = globalAgentMode !== 'cloud' && isValidAgentId(globalAgentMode)
-            ? globalAgentMode
-            : DEFAULT_AGENT_ID
 
           const workspace: Workspace = {
             id: workspaceId,
@@ -238,18 +262,25 @@ export const useRepositoryStore = create<RepositoryState>()(
             status: 'idle',
             lastActive: new Date(),
             agentId: defaultAgentId,
+            isInitializing: false,
           }
 
+          // Update the workspace with the real data
           set((state) => ({
-            workspaces: [...state.workspaces, workspace],
+            workspaces: state.workspaces.map((w) =>
+              w.id === workspaceId ? workspace : w
+            ),
             currentWorkspace: workspace,
           }))
 
-          // Sync workspace ID with chat store for per-workspace messages
-          useChatStore.getState().setWorkspaceId(workspace.id)
-
           return workspace
         } catch (error) {
+          // Remove the initializing workspace on error
+          set((state) => ({
+            workspaces: state.workspaces.filter((w) => w.id !== workspaceId),
+            currentWorkspace: state.currentWorkspace?.id === workspaceId ? null : state.currentWorkspace,
+          }))
+          useChatStore.getState().setWorkspaceId(null)
           throw error
         }
       },
@@ -472,12 +503,16 @@ export const useRepositoryStore = create<RepositoryState>()(
       name: 'hatch-repositories',
       partialize: (state) => ({
         repositories: state.repositories,
-        workspaces: state.workspaces.map((w) => ({
-          ...w,
-          status: 'idle' as const, // Reset status on reload
-          lastActive: w.lastActive,
-          agentId: w.agentId || DEFAULT_AGENT_ID, // Ensure agentId is always set
-        })),
+        // Filter out initializing workspaces (incomplete) and reset transient state
+        workspaces: state.workspaces
+          .filter((w) => !w.isInitializing) // Don't persist incomplete workspaces
+          .map((w) => ({
+            ...w,
+            status: 'idle' as const, // Reset status on reload
+            lastActive: w.lastActive,
+            agentId: w.agentId || DEFAULT_AGENT_ID, // Ensure agentId is always set
+            isInitializing: false, // Ensure isInitializing is always false on reload
+          })),
         // Don't persist auth - load from disk on startup
       }),
     }
