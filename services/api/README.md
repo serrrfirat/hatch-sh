@@ -15,12 +15,12 @@ Backend API for hatch.sh - an AI-powered app builder with token launch capabilit
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                           HONO API SERVER                             │  │
 │  │                                                                       │  │
-│  │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │  │
-│  │   │ Projects │  │   Chat   │  │  Deploy  │  │  Tokens  │  │Discovery│ │  │
-│  │   │  Router  │  │  Router  │  │  Router  │  │  Router  │  │ Router │ │  │
-│  │   └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └───┬────┘ │  │
-│  │        │             │             │             │            │      │  │
-│  │        └─────────────┴──────┬──────┴─────────────┴────────────┘      │  │
+│  │   ┌─────────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌─────────┐ ┌────────┐ │  │
+│  │   │Projects │ │ Chat │ │Deploy│ │Tokens│ │Discovery│ │ Skills │ │  │
+│  │   │ Router  │ │Router│ │Router│ │Router│ │  Router │ │  MP    │ │  │
+│  │   └────┬────┘ └──┬───┘ └──┬───┘ └──┬───┘ └────┬────┘ └───┬────┘ │  │
+│  │        │         │        │        │          │          │      │  │
+│  │        └─────────┴────────┴────┬───┴──────────┴──────────┘      │  │
 │  │                             │                                        │  │
 │  │                    ┌────────┴────────┐                               │  │
 │  │                    │  Database Layer │                               │  │
@@ -219,6 +219,15 @@ Response: { "status": "ok", "service": "hatch-api" }
 | GET | `/api/discovery` | List all launched apps |
 | GET | `/api/discovery/:id` | Get app details |
 
+### Skills Marketplace
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/skillsmp` | List all skills (agents, commands, skills) |
+| GET | `/api/skillsmp/:id` | Get skill by ID |
+| GET | `/api/skillsmp/category/:category` | List skills by category |
+| POST | `/api/skillsmp/:id/install` | Get skill installation instructions |
+
 ## Project Status Flow
 
 ```
@@ -248,6 +257,8 @@ Response: { "status": "ok", "service": "hatch-api" }
 | `CLAUDE_API_KEY` | Anthropic API key for Claude |
 | `CF_API_TOKEN` | Cloudflare API token |
 | `CF_ACCOUNT_ID` | Cloudflare account ID |
+| `ENVIRONMENT` | Environment mode (`development` or `production`) |
+| `SKILLSMP_API_KEY` | (Optional) Skills marketplace API key |
 
 ## Local Development
 
@@ -305,5 +316,6 @@ services/api/
         ├── chat.ts       # AI chat with streaming
         ├── deploy.ts     # Deployment management
         ├── tokens.ts     # Token launch management
-        └── discovery.ts  # Browse launched apps
+        ├── discovery.ts  # Browse launched apps
+        └── skillsmp.ts   # Skills marketplace proxy (skillsmp.com, aitmpl.com)
 ```
