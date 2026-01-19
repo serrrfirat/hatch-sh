@@ -6,7 +6,6 @@ import { AGENT_CONFIGS } from "../lib/agents/registry";
 import {
   CheckCircle2,
   XCircle,
-  Loader2,
   Terminal,
   ExternalLink,
   RefreshCw,
@@ -16,6 +15,7 @@ import {
   ChevronDown,
   ArrowLeft,
 } from "lucide-react";
+import { DotGridLoader } from "./DotGridLoader";
 
 type SettingsTab = "chat" | "git" | "agents";
 
@@ -323,7 +323,7 @@ function LocalAgentCard({
       <div className="mt-3 ml-5">
         {isChecking ? (
           <span className="text-xs text-neutral-500 flex items-center gap-1.5">
-            <Loader2 className="w-3 h-3 animate-spin" />
+            <DotGridLoader className="w-3 h-3" />
             Checking...
           </span>
         ) : isConnected ? (
@@ -401,7 +401,7 @@ function AgentModelSelector({
       </div>
       {isLoading ? (
         <span className="text-xs text-neutral-500 flex items-center gap-1.5">
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <DotGridLoader className="w-3 h-3" />
           Loading models...
         </span>
       ) : (
