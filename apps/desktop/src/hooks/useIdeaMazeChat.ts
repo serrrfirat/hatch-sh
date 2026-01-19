@@ -9,12 +9,15 @@ import { useCallback, useRef, useState } from 'react'
 import { useIdeaMazeStore } from '../stores/ideaMazeStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { sendToClaudeCodeStreaming, type StreamEvent } from '../lib/claudeCode/bridge'
+import { saveImageForAIContext } from '../lib/ideaMaze/storage'
 import type { AISuggestion, ConnectionSuggestion, NodeSuggestion, CritiqueSuggestion, IdeaNode, IdeaConnection, SelectionState, Position } from '../lib/ideaMaze/types'
 import { createPlanNode } from '../lib/ideaMaze/types'
 
 // System prompt for AI Assistant
 const SYSTEM_PROMPT = `You are an AI assistant helping brainstorm and analyze ideas on a visual canvas called Idea Maze.
 You can see the user's idea nodes and their connections.
+
+**Important - You CAN view images**: When nodes contain images, they are saved to files and their paths are provided in the context. Use your Read tool to view these image files when you need to analyze them. Image paths will be shown as [Image file: /path/to/image.png].
 
 When the user asks for analysis or suggestions, be specific and actionable.
 When generating structured suggestions (connections, ideas, critiques), output them as JSON in a code block.
@@ -163,25 +166,36 @@ Respond now with your next question in JSON format.`
 
 /**
  * Build context string from moodboard state
+ * Includes both text and image content from nodes
+ * Images are saved to files so Claude Code can read them
  */
-function buildMoodboardContext(
+async function buildMoodboardContext(
   nodes: IdeaNode[],
   connections: IdeaConnection[],
   selection: SelectionState
-): string {
+): Promise<string> {
   const selectedNodes = nodes.filter(n => selection.nodeIds.includes(n.id))
   const selectedNodeIds = new Set(selection.nodeIds)
 
   let context = '\n\nCurrent moodboard context:\n'
 
-  // List all nodes
+  // List all nodes with their content
   context += '\n**All Nodes:**\n'
   for (const node of nodes) {
     const isSelected = selectedNodeIds.has(node.id)
     const title = node.title || 'Untitled'
     const textContent = node.content.find(c => c.type === 'text')
     const text = textContent?.type === 'text' ? textContent.text : ''
-    context += `- [${node.id}] "${title}"${isSelected ? ' (SELECTED)' : ''}: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\n`
+    const imageCount = node.content.filter(c => c.type === 'image').length
+
+    let nodeInfo = `- [${node.id}] "${title}"${isSelected ? ' (SELECTED)' : ''}`
+    if (text) {
+      nodeInfo += `: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`
+    }
+    if (imageCount > 0) {
+      nodeInfo += ` [${imageCount} image${imageCount > 1 ? 's' : ''} attached]`
+    }
+    context += nodeInfo + '\n'
   }
 
   // List connections
@@ -194,13 +208,35 @@ function buildMoodboardContext(
     }
   }
 
-  // Highlight selection
+  // Highlight selection with full content including images
   if (selectedNodes.length > 0) {
     context += '\n**Currently Selected (focus your analysis on these):**\n'
     for (const node of selectedNodes) {
-      const textContent = node.content.find(c => c.type === 'text')
-      const text = textContent?.type === 'text' ? textContent.text : ''
-      context += `- "${node.title || 'Untitled'}": ${text}\n`
+      context += `\n### "${node.title || 'Untitled'}"\n`
+
+      // Include all content from selected nodes
+      for (const content of node.content) {
+        if (content.type === 'text') {
+          context += `${content.text}\n`
+        } else if (content.type === 'image') {
+          const alt = content.alt || 'Pasted image'
+          // Save image to file so Claude Code can read it
+          const filePath = await saveImageForAIContext(content.url, content.id)
+          if (filePath) {
+            context += `\n[Image file: ${filePath}]\n`
+            context += `Description: ${alt}\n`
+            context += `(Use your Read tool to view this image file)\n`
+          } else {
+            context += `\n[Image: ${alt}] (could not save to file)\n`
+          }
+        } else if (content.type === 'url') {
+          context += `\nLink: ${content.title || content.url}\n`
+          if (content.description) {
+            context += `Description: ${content.description}\n`
+          }
+          context += `URL: ${content.url}\n`
+        }
+      }
     }
   }
 
@@ -408,7 +444,7 @@ export function useIdeaMazeChat() {
     // Build context - use focused context for interview, full context otherwise
     const context = isInInterviewMode
       ? buildInterviewContext(currentMoodboard.nodes, interviewSourceIdsRef.current)
-      : buildMoodboardContext(currentMoodboard.nodes, currentMoodboard.connections, selection)
+      : await buildMoodboardContext(currentMoodboard.nodes, currentMoodboard.connections, selection)
 
     setAIProcessing(true)
     shouldStopRef.current = false
@@ -498,7 +534,7 @@ export function useIdeaMazeChat() {
 
     checkClaudeCodeReady()
 
-    const context = buildMoodboardContext(
+    const context = await buildMoodboardContext(
       currentMoodboard.nodes,
       currentMoodboard.connections,
       selection
@@ -559,7 +595,7 @@ export function useIdeaMazeChat() {
 
     checkClaudeCodeReady()
 
-    const context = buildMoodboardContext(
+    const context = await buildMoodboardContext(
       currentMoodboard.nodes,
       currentMoodboard.connections,
       selection
@@ -621,7 +657,7 @@ export function useIdeaMazeChat() {
 
     checkClaudeCodeReady()
 
-    const context = buildMoodboardContext(
+    const context = await buildMoodboardContext(
       currentMoodboard.nodes,
       currentMoodboard.connections,
       selection

@@ -3,13 +3,12 @@
   "private": true,
   "packageManager": "pnpm@8.15.0",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "cd apps/desktop && pnpm tauri dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "dev:web": "turbo dev --filter=web",
     "dev:api": "turbo dev --filter=hatch-api",
-    "dev:desktop": "pnpm --filter desktop tauri:dev",
-    "build:desktop": "pnpm --filter desktop tauri:build"
+    "dev:desktop": "cd apps/desktop && pnpm tauri dev",
+    "build:desktop": "cd apps/desktop && pnpm tauri build"
   },
   "devDependencies": {
     "playwright": "^1.57.0",

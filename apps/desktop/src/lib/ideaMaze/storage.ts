@@ -409,6 +409,51 @@ export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
 }
 
 /**
+ * Save image to a temp file for AI context and return the file path
+ * This is used when we need Claude Code to read an image
+ * @param dataUrl The data URL of the image
+ * @param imageId A unique ID for the image
+ * @returns The file path where the image was saved
+ */
+export async function saveImageForAIContext(dataUrl: string, imageId: string): Promise<string | null> {
+  try {
+    if (!dataUrl.startsWith('data:')) {
+      // Already a file path
+      return dataUrl
+    }
+
+    const imagesPath = await getImagesPath()
+
+    // Extract the base64 data and mime type
+    const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/)
+    if (!matches) {
+      console.warn('[IdeaMaze Storage] Invalid data URL format for AI context')
+      return null
+    }
+
+    const extension = matches[1] === 'jpeg' ? 'jpg' : matches[1]
+    const base64Data = matches[2]
+    const fileName = `ai-context-${imageId}.${extension}`
+    const filePath = await join(imagesPath, fileName)
+
+    // Convert base64 to Uint8Array
+    const binaryString = atob(base64Data)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    await writeFile(filePath, bytes)
+    console.log('[IdeaMaze Storage] Saved image for AI context:', fileName)
+
+    return filePath
+  } catch (error) {
+    console.error('[IdeaMaze Storage] Failed to save image for AI context:', error)
+    return null
+  }
+}
+
+/**
  * Get storage statistics
  */
 export async function getStorageStats(): Promise<{

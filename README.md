@@ -152,12 +152,11 @@ CF_ACCOUNT_ID=your-account-id
 ### Development
 
 ```bash
-# Start everything
+# Start the desktop app
 pnpm dev
 
-# Or run individually
+# Optional: Run the API server (in a separate terminal)
 pnpm dev:api          # Backend at http://localhost:8787
-pnpm dev:desktop      # Desktop app
 ```
 
 ### Building
@@ -188,18 +187,10 @@ The desktop app is built with Tauri and provides a full IDE experience for build
 - Rust (for Tauri native backend)
 - pnpm
 
-### Running the Desktop App
-
-```bash
-cd apps/desktop
-pnpm tauri dev
-```
-
 ### Building for Distribution
 
 ```bash
-cd apps/desktop
-pnpm tauri build
+pnpm build:desktop
 ```
 
 ### GitHub OAuth Setup
