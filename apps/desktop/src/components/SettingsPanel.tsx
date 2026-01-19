@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore, LOCAL_AGENT_IDS } from "../stores/settingsStore";
 import type { AgentStatus, LocalAgentId, ModelInfo } from "../lib/agents/types";
-import type { BranchNamePrefix } from "../stores/settingsStore";
+import type { BranchNamePrefix as _BranchNamePrefix } from "../stores/settingsStore";
 import { AGENT_CONFIGS } from "../lib/agents/registry";
 import {
   CheckCircle2,

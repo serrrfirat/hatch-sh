@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ClipboardList,
   ChevronLeft,
-  MessageCircle,
 } from 'lucide-react'
 import { useIdeaMazeStore } from '../../stores/ideaMazeStore'
 import { useSettingsStore } from '../../stores/settingsStore'

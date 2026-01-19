@@ -5,7 +5,7 @@
  * Provides a unified interface for the "Bring Your Own Agent" mode.
  */
 
-import { query, type ClaudeAgentOptions } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options as ClaudeAgentOptions } from "@anthropic-ai/claude-code";
 
 export interface ACPClientConfig {
   /** Anthropic API key (required for BYOA mode) */
@@ -99,7 +99,8 @@ export class ACPClient {
     const queryOptions: ClaudeAgentOptions = {
       allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
       permissionMode: "acceptEdits",
-      systemPrompt: this.config.systemPrompt,
+      customSystemPrompt: this.config.systemPrompt,
+      abortController: this.abortController,
       ...(this.config.cwd && { cwd: this.config.cwd }),
       ...(options.resume && this.sessionId && { resume: this.sessionId }),
     };
@@ -108,43 +109,34 @@ export class ACPClient {
       for await (const message of query({
         prompt: content,
         options: queryOptions,
-        signal: this.abortController.signal,
       })) {
-        // Handle different message types
-        if (message.type === "system" && message.subtype === "init") {
+        // Handle different message types from SDK
+        // Using 'any' cast as SDK types are complex and evolving
+        const msg = message as Record<string, unknown>;
+
+        if (msg.type === "system" && msg.subtype === "init") {
           // Capture session ID for resuming
-          this.sessionId = message.session_id;
-        } else if (message.type === "assistant" && message.message?.content) {
+          this.sessionId = msg.session_id as string;
+        } else if (msg.type === "assistant" && msg.message) {
           // Text content from assistant
-          for (const block of message.message.content) {
-            if (block.type === "text") {
+          const assistantMessage = msg.message as { content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }> };
+          for (const block of assistantMessage.content || []) {
+            if (block.type === "text" && block.text) {
               yield { type: "text", content: block.text };
             } else if (block.type === "tool_use") {
               yield {
                 type: "tool_call",
                 toolCall: {
-                  id: block.id,
-                  name: block.name,
+                  id: block.id || "",
+                  name: block.name || "",
                   input: block.input as Record<string, unknown>,
                 },
               };
             }
           }
-        } else if (message.type === "tool_result") {
-          yield {
-            type: "tool_result",
-            toolCall: {
-              id: message.tool_use_id,
-              name: "",
-              input: {},
-              result: typeof message.content === "string"
-                ? message.content
-                : JSON.stringify(message.content),
-            },
-          };
-        } else if ("result" in message) {
+        } else if ("result" in msg && typeof msg.result === "string") {
           // Final result
-          yield { type: "text", content: message.result };
+          yield { type: "text", content: msg.result };
         }
       }
 

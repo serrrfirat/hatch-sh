@@ -16,6 +16,35 @@ interface AitmplComponent {
   description?: string
 }
 
+// API response type for aitmpl components
+interface AitmplApiResponse {
+  skills?: AitmplComponent[]
+  agents?: AitmplComponent[]
+  commands?: AitmplComponent[]
+}
+
+// Generic API response for skillsmp endpoints
+interface SkillsApiResponse {
+  skills?: SkillsmpSkill[]
+  data?: SkillsmpSkill[]
+  total?: number
+  total_count?: number
+  has_more?: boolean
+  next_page?: string
+  categories?: { id: string; label: string; count: number }[]
+}
+
+// GitHub API response types
+interface GitHubSearchResponse {
+  total_count?: number
+  items?: GitHubRepo[]
+}
+
+interface GitHubCodeSearchResponse {
+  total_count?: number
+  items?: GitHubCodeSearchResult[]
+}
+
 // Cached aitmpl data
 let aitmplCache: {
   skills: Skill[]
@@ -86,16 +115,16 @@ async function fetchAitmplComponents(): Promise<typeof aitmplCache> {
       return aitmplCache
     }
 
-    const data = await response.json()
+    const data = await response.json() as AitmplApiResponse
 
     // Transform all component types
-    const skills = (data.skills || []).map((c: AitmplComponent, i: number) =>
+    const skills = (data.skills || []).map((c, i) =>
       normalizeAitmplComponent({ ...c, type: 'skill' }, i)
     )
-    const agents = (data.agents || []).map((c: AitmplComponent, i: number) =>
+    const agents = (data.agents || []).map((c, i) =>
       normalizeAitmplComponent({ ...c, type: 'agent' }, i)
     )
-    const commands = (data.commands || []).map((c: AitmplComponent, i: number) =>
+    const commands = (data.commands || []).map((c, i) =>
       normalizeAitmplComponent({ ...c, type: 'command' }, i)
     )
 
@@ -284,13 +313,13 @@ async function fetchSkillsFromGitHubCodeSearch(page: number = 1, perPage: number
       return fetchSkillsFromGitHubRepoSearch('claude skill SKILL.md', page, perPage)
     }
 
-    const data = await response.json()
+    const data = await response.json() as GitHubCodeSearchResponse
 
     // Deduplicate by repo (a repo might have multiple SKILL.md files)
     const seenRepos = new Set<number>()
     const skills: Skill[] = []
 
-    for (const item of (data.items || []) as GitHubCodeSearchResult[]) {
+    for (const item of (data.items || [])) {
       if (seenRepos.has(item.repository.id)) continue
       seenRepos.add(item.repository.id)
 
@@ -371,13 +400,13 @@ async function fetchSkillsFromGitHubRepoSearch(query: string, page: number = 1, 
       return { skills: [], total: 0, hasMore: false }
     }
 
-    const data = await response.json()
-    const skills = (data.items || []).map((repo: GitHubRepo, index: number) => normalizeGitHubRepo(repo, index))
+    const data = await response.json() as GitHubSearchResponse
+    const skills = (data.items || []).map((repo, index) => normalizeGitHubRepo(repo, index))
 
     return {
       skills,
       total: data.total_count || skills.length,
-      hasMore: data.items?.length === perPage && page * perPage < (data.total_count || 0),
+      hasMore: (data.items?.length || 0) === perPage && page * perPage < (data.total_count || 0),
     }
   } catch (error) {
     console.error('Failed to fetch from GitHub:', error)
@@ -483,14 +512,14 @@ skillsmpRouter.get('/skills', async (c) => {
           break
         }
 
-        const data = await response.json()
+        const data = await response.json() as SkillsApiResponse | SkillsmpSkill[]
         const skills = Array.isArray(data)
-          ? data.map(normalizeSkill)
-          : (data.skills || data.data || []).map(normalizeSkill)
+          ? data.map((s, i) => normalizeSkill(s, i))
+          : ((data as SkillsApiResponse).skills || (data as SkillsApiResponse).data || []).map((s, i) => normalizeSkill(s, i))
 
         allSkills.push(...skills)
-        hasMore = data.has_more === true
-        currentPageToken = data.next_page
+        hasMore = !Array.isArray(data) && (data as SkillsApiResponse).has_more === true
+        currentPageToken = !Array.isArray(data) ? (data as SkillsApiResponse).next_page : undefined
         pageCount++
 
         // Break if no more data
@@ -551,31 +580,31 @@ skillsmpRouter.get('/skills', async (c) => {
         })
       }
 
-      const data = await fallbackResponse.json()
+      const data = await fallbackResponse.json() as SkillsApiResponse | SkillsmpSkill[]
       const skills = Array.isArray(data)
-        ? data.map(normalizeSkill)
-        : (data.skills || data.data || []).map(normalizeSkill)
+        ? data.map((s, i) => normalizeSkill(s, i))
+        : ((data as SkillsApiResponse).skills || (data as SkillsApiResponse).data || []).map((s, i) => normalizeSkill(s, i))
 
       return c.json({
         skills,
-        total: data.total || skills.length,
-        has_more: data.has_more || false,
-        next_page: data.next_page,
+        total: !Array.isArray(data) ? ((data as SkillsApiResponse).total || skills.length) : skills.length,
+        has_more: !Array.isArray(data) && (data as SkillsApiResponse).has_more || false,
+        next_page: !Array.isArray(data) ? (data as SkillsApiResponse).next_page : undefined,
       })
     }
 
-    const data = await response.json()
+    const data = await response.json() as SkillsApiResponse | SkillsmpSkill[]
     const skills = Array.isArray(data)
-      ? data.map(normalizeSkill)
-      : (data.skills || data.data || []).map(normalizeSkill)
+      ? data.map((s, i) => normalizeSkill(s, i))
+      : ((data as SkillsApiResponse).skills || (data as SkillsApiResponse).data || []).map((s, i) => normalizeSkill(s, i))
 
     return c.json({
       skills,
-      total: data.total || skills.length,
+      total: !Array.isArray(data) ? ((data as SkillsApiResponse).total || skills.length) : skills.length,
       page: parseInt(page),
       limit: parseInt(limit),
-      has_more: data.has_more || false,
-      next_page: data.next_page,
+      has_more: !Array.isArray(data) && (data as SkillsApiResponse).has_more || false,
+      next_page: !Array.isArray(data) ? (data as SkillsApiResponse).next_page : undefined,
     })
   } catch (error) {
     console.error('Failed to fetch skills from SkillsMP:', error)
@@ -712,8 +741,8 @@ skillsmpRouter.get('/categories', async (c) => {
       })
     }
 
-    const data = await response.json()
-    return c.json({ categories: data.categories || data })
+    const data = await response.json() as SkillsApiResponse
+    return c.json({ categories: data.categories || [] })
   } catch (error) {
     console.error('Failed to fetch categories:', error)
     return c.json({
@@ -759,7 +788,7 @@ skillsmpRouter.get('/skills/:id', async (c) => {
       return c.json({ error: 'Skill not found' }, 404)
     }
 
-    const data = await response.json()
+    const data = await response.json() as SkillsmpSkill
     const skill = normalizeSkill(data, 0)
 
     return c.json({ skill })

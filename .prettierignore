@@ -1,0 +1,8 @@
+dist
+node_modules
+.turbo
+pnpm-lock.yaml
+*.min.js
+*.min.css
+src-tauri/target
+coverage
