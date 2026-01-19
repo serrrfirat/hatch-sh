@@ -41,6 +41,7 @@ import {
   type AISuggestion,
   type ConnectionRelationship,
   type Position,
+  type NodeCritique,
   createNode,
   createConnection,
   createMoodboard,
@@ -141,6 +142,12 @@ interface IdeaMazeState {
   addContentToNode: (nodeId: string, content: NodeContent) => void
   removeContentFromNode: (nodeId: string, contentId: string) => void
   bringNodeToFront: (nodeId: string) => void
+
+  // Actions - Node Critiques
+  addCritiqueToNode: (nodeId: string, critique: Omit<NodeCritique, 'id' | 'createdAt'>) => void
+  dismissCritique: (nodeId: string, critiqueId: string) => void
+  undismissCritique: (nodeId: string, critiqueId: string) => void
+  clearNodeCritiques: (nodeId: string) => void
 
   // Actions - Connections
   addConnection: (sourceId: string, targetId: string, relationship?: ConnectionRelationship) => IdeaConnection | null
@@ -471,6 +478,114 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       })
     },
 
+    // Node critique actions
+    addCritiqueToNode: (nodeId, critique) => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        const node = state.currentMoodboard.nodes.find((n) => n.id === nodeId)
+        if (!node) return state
+
+        const newCritique: NodeCritique = {
+          ...critique,
+          id: crypto.randomUUID(),
+          createdAt: new Date(),
+        }
+
+        const updatedMoodboard = {
+          ...state.currentMoodboard,
+          nodes: state.currentMoodboard.nodes.map((n) =>
+            n.id === nodeId
+              ? { ...n, critiques: [...(n.critiques || []), newCritique], updatedAt: new Date() }
+              : n
+          ),
+          updatedAt: new Date(),
+        }
+        debouncedSave(updatedMoodboard)
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+        }
+      })
+    },
+
+    dismissCritique: (nodeId, critiqueId) => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        const updatedMoodboard = {
+          ...state.currentMoodboard,
+          nodes: state.currentMoodboard.nodes.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  critiques: (n.critiques || []).map((c) =>
+                    c.id === critiqueId ? { ...c, dismissed: true } : c
+                  ),
+                  updatedAt: new Date(),
+                }
+              : n
+          ),
+          updatedAt: new Date(),
+        }
+        debouncedSave(updatedMoodboard)
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+        }
+      })
+    },
+
+    undismissCritique: (nodeId, critiqueId) => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        const updatedMoodboard = {
+          ...state.currentMoodboard,
+          nodes: state.currentMoodboard.nodes.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  critiques: (n.critiques || []).map((c) =>
+                    c.id === critiqueId ? { ...c, dismissed: false } : c
+                  ),
+                  updatedAt: new Date(),
+                }
+              : n
+          ),
+          updatedAt: new Date(),
+        }
+        debouncedSave(updatedMoodboard)
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+        }
+      })
+    },
+
+    clearNodeCritiques: (nodeId) => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        const updatedMoodboard = {
+          ...state.currentMoodboard,
+          nodes: state.currentMoodboard.nodes.map((n) =>
+            n.id === nodeId ? { ...n, critiques: [], updatedAt: new Date() } : n
+          ),
+          updatedAt: new Date(),
+        }
+        debouncedSave(updatedMoodboard)
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+        }
+      })
+    },
+
     // Connection actions
     addConnection: (sourceId, targetId, relationship = 'related') => {
       const state = get()
@@ -743,6 +858,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         const suggestion = get().aiSuggestions.find((s) => {
           if (s.type === 'connection') return s.data.id === suggestionId
           if (s.type === 'node') return s.data.id === suggestionId
+          if (s.type === 'critique') return s.data.id === suggestionId
           return false
         })
 
@@ -773,6 +889,13 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           if (suggestion.data.relatedToNodeId) {
             get().addConnection(suggestion.data.relatedToNodeId, node.id, 'extends')
           }
+        } else if (suggestion.type === 'critique') {
+          // Add critique to the target node
+          get().addCritiqueToNode(suggestion.data.nodeId, {
+            critique: suggestion.data.critique,
+            suggestions: suggestion.data.suggestions,
+            severity: suggestion.data.severity,
+          })
         }
 
         get().removeAISuggestion(suggestionId)
