@@ -193,9 +193,7 @@ export const MAX_NODE_HEIGHT = 800
 export function calculateNodeDimensions(text: string): Dimensions {
   // Estimate based on character count and line breaks
   const lines = text.split('\n')
-  const lineCount = lines.length
   const maxLineLength = Math.max(...lines.map(l => l.length))
-  const avgCharsPerLine = text.length / lineCount
 
   // Calculate width based on longest line (roughly 7px per character at 14px font)
   const estimatedWidth = Math.min(

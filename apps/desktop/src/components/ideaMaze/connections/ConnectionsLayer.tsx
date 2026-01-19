@@ -249,8 +249,7 @@ function Connection({ connection, sourceNode, targetNode, isSelected, onClick }:
                   className="rounded-lg p-3 text-xs max-w-[280px]"
                   style={{
                     background: 'rgba(17, 17, 17, 0.95)',
-                    border: `1px solid ${color}`,
-                    borderOpacity: 0.5,
+                    border: `1px solid ${color}80`, // 80 = 50% opacity in hex
                   }}
                 >
                   {/* Header with relationship type */}

@@ -31,7 +31,7 @@ export function DesignPage() {
 
       try {
         const { Webview } = await import('@tauri-apps/api/webview')
-        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const { getCurrentWindow, LogicalPosition, LogicalSize } = await import('@tauri-apps/api/window')
 
         const rect = containerRef.current.getBoundingClientRect()
         const currentWindow = getCurrentWindow()
@@ -44,12 +44,8 @@ export function DesignPage() {
         const existing = await Webview.getByLabel('superdesign-embed')
         if (existing) {
           // Reuse existing webview - just update position/size and show it
-          await existing.setPosition({ type: 'Logical', x: rect.left, y: y })
-          await existing.setSize({
-            type: 'Logical',
-            width: rect.width,
-            height: height,
-          })
+          await existing.setPosition(new LogicalPosition(rect.left, y))
+          await existing.setSize(new LogicalSize(rect.width, height))
           await existing.show()
           webviewRef.current = existing
           if (mounted) setIsLoading(false)
