@@ -6,7 +6,6 @@ import {
   getAgentStatus,
 } from "../stores/settingsStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
-import { sendWithHistoryStreaming } from "../lib/claudeCode/bridge";
 import type { AgentId, StreamEvent, AgentMessage, LocalAgentId } from "../lib/agents/types";
 import { isLocalAgent } from "../lib/agents/types";
 import { getLocalAdapter, getConfig } from "../lib/agents/registry";

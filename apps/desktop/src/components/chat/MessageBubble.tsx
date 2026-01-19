@@ -121,12 +121,20 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   )
 
   const { thinkingEnabled } = useSettingsStore()
-  const [isToolsExpanded, setIsToolsExpanded] = useState(false) // Collapsed by default
+  const isStreaming = message.isStreaming ?? false
+  // Auto-expand tools during streaming so user can see them in real-time
+  const [isToolsExpanded, setIsToolsExpanded] = useState(isStreaming)
 
   const hasToolUses = !isUser && message.toolUses && message.toolUses.length > 0
   const hasThinking = !isUser && message.thinking && thinkingEnabled
-  const isStreaming = message.isStreaming ?? false
   const toolCount = message.toolUses?.length || 0
+
+  // Keep tools expanded while streaming
+  useEffect(() => {
+    if (isStreaming && hasToolUses) {
+      setIsToolsExpanded(true)
+    }
+  }, [isStreaming, hasToolUses])
 
   const components: Components = {
     code({ className, children, ...props }) {
