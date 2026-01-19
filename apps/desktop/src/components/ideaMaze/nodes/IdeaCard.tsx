@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GripVertical, Sparkles, Type, Image, Link, ClipboardList, CheckCircle2, Rocket } from 'lucide-react'
 import type { IdeaNode, Position, NodeContent, PlanContent } from '../../../lib/ideaMaze/types'
+import { CritiqueIndicator } from './CritiqueIndicator'
 import {
   MIN_NODE_WIDTH,
   MAX_NODE_WIDTH,
@@ -391,6 +392,15 @@ export function IdeaCard({
           >
             <ClipboardList size={12} className="text-emerald-400" />
           </div>
+        )}
+
+        {/* Critique indicator */}
+        {node.critiques && node.critiques.length > 0 && (
+          <CritiqueIndicator
+            nodeId={node.id}
+            critiques={node.critiques}
+            nodeTitle={node.title}
+          />
         )}
 
         {/* Header */}
