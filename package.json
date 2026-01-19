@@ -2,7 +2,7 @@
   "name": "hatch-sh",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@8.15.0",
+  "packageManager": "pnpm@9.10.0",
   "scripts": {
     "dev": "cd apps/desktop && pnpm tauri dev",
     "build": "turbo build",
