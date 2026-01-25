@@ -17,13 +17,17 @@ export function ChatArea() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
 
-  // Auto-scroll to bottom only when new messages are added (not on content updates)
+  // Auto-scroll to bottom when new messages are added or when last message is streaming
   useEffect(() => {
-    if (messages.length > prevMessagesLengthRef.current) {
+    const lastMessage = messages[messages.length - 1]
+    const isLastMessageStreaming = lastMessage?.isStreaming ?? false
+
+    // Scroll on new messages or while the last message is streaming
+    if (messages.length > prevMessagesLengthRef.current || isLastMessageStreaming) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
     prevMessagesLengthRef.current = messages.length
-  }, [messages.length])
+  }, [messages])
 
   // Watch for pending "Open PR" request from header button
   useEffect(() => {
