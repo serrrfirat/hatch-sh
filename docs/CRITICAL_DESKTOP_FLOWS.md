@@ -1,33 +1,47 @@
-# Critical Desktop Flows (Stage 3)
+# Critical Desktop Flows (Hatch)
 
-These are the first hard, must-not-break user journeys.
+These are the hard, must-not-break journeys for Hatch desktop.
 
-## Flow 1: App Boot
-- Launch desktop app
-- Reach ready/interactive state without crash
+## Suite A: Idea Maze → Plan → Build
+- Create/select moodboard
+- Add nodes (keyboard + paste)
+- Create node relationships
+- Run AI actions (find connections / generate ideas / critique)
+- Run interview loop and parse structured question/plan output
+- Create Plan node
+- Use "Build from Plan" to create workspace and route to BYOA chat
 
-## Flow 2: Open or Create Project
-- Open existing project OR create one
-- Project tree renders and is navigable
+## Suite B: Design Mode Webview Lifecycle
+- Open Design tab and create embedded Superdesign webview
+- Switch away/back and verify cached webview reuse
+- Resize window and verify position/size updates under app header
+- Validate failure fallback (error UI + external browser button)
 
-## Flow 3: Edit + Save File
-- Open file in editor
-- Modify content
-- Save and verify persisted content
+## Suite C: Agent Harness Reliability
+- Workspace-level agent selection and switching
+- Authentication/install guardrails for local agents
+- Streaming rendering of assistant/tool events
+- Stop generation behavior correctness
+- Open PR helper prompt includes correct target branch/workspace context
 
-## Flow 4: Git Status + Stage/Commit
-- Refresh git status
-- Stage at least one file
-- Create commit successfully
+## Suite D: Repository/Workspace Shipping
+- Clone/open repository
+- Create isolated workspace/worktree
+- Edit + save + status refresh
+- Commit + push changes
+- Create pull request and store PR metadata
+- Merge pull request and update workspace state
 
-## Flow 5: Settings Persistence
-- Change a setting
-- Restart app
-- Confirm setting persists
+## Suite E: Fault Paths
+- Agent stream interruptions
+- Malformed JSON from Idea Maze AI responses
+- Git push/create-PR failures
+- Expired GitHub auth during shipping actions
+- Webview creation/load failure
 
-## Test Mapping (initial)
-- `testing/e2e/boot.spec.ts`
-- `testing/e2e/project-open-create.spec.ts`
-- `testing/e2e/edit-save.spec.ts`
-- `testing/e2e/git-stage-commit.spec.ts`
-- `testing/e2e/settings-persist.spec.ts`
+## Initial Test File Targets
+- `testing/e2e/idea-maze-plan-to-build.spec.ts`
+- `testing/e2e/design-webview-lifecycle.spec.ts`
+- `testing/e2e/agent-harness-streaming.spec.ts`
+- `testing/e2e/shipping-workspace-pr-flow.spec.ts`
+- `testing/e2e/failure-paths.spec.ts`
