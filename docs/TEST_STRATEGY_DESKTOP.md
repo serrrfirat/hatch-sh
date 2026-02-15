@@ -7,6 +7,15 @@ Desktop app quality gates for Hatch across:
 - BYOA agent harnesses (local + cloud)
 - Workspace/git/PR shipping flows
 
+## TDD Policy (Non-Negotiable)
+For this project, all agent and human implementation follows TDD:
+1. Write a failing test for the intended behavior.
+2. Implement the smallest change to pass.
+3. Refactor while keeping tests green.
+4. Commit with tests.
+
+Any task without a test delta is incomplete unless explicitly marked docs/chore-only.
+
 ## Test Architecture
 
 ### 1) PR Gate (required)

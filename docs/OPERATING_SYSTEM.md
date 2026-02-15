@@ -43,9 +43,11 @@ Move hatch-sh from sporadic development to a daily, agent-driven shipping loop w
 
 ## Rules of Engagement
 - Small PRs only.
+- **TDD is mandatory**: write or update failing tests first, then implement until green.
 - No merge without required CI.
 - Any regression requires: postmortem note + failing test + CI guardrail.
 - Critical desktop journeys are hard gates.
+- No feature is considered done without tests proving behavior.
 
 ## Success Metrics
 - PR lead time
