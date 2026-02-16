@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useRepositoryStore } from '../../stores/repositoryStore'
@@ -8,25 +8,13 @@ import { ProjectTree } from './ProjectTree'
 import { SettingsPage } from '../SettingsPanel'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
-import {
-  GitBranch,
-  GitPullRequest,
-  ChevronDown,
-  ChevronRight,
-  Settings,
-  Terminal,
-  Lightbulb,
-  ShoppingBag,
-  Loader2,
-  ExternalLink,
-  Archive,
-  AlertCircle,
-  X,
-} from 'lucide-react'
+import { DesignPage } from '../../pages/DesignPage'
+import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
+  { id: 'design', label: 'Design', icon: Palette },
   { id: 'idea-maze', label: 'Idea Maze', icon: Lightbulb },
   { id: 'marketplace', label: 'Skills', icon: ShoppingBag },
 ]
@@ -39,7 +27,9 @@ export function Layout() {
   const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
   const { triggerOpenPR } = useChatStore()
 
+  // Handler for "Create PR" button - triggers agent-based PR creation
   const handleCreatePR = () => {
+    // Calculate uncommitted changes count from workspace stats
     const uncommittedChanges = currentWorkspace?.additions
     triggerOpenPR(uncommittedChanges)
   }
@@ -62,11 +52,64 @@ export function Layout() {
     await removeWorkspace(currentWorkspace.id)
   }
 
+  // Navigate the Design webview back/forward using Tauri command
+  const handleWebviewBack = useCallback(async () => {
+    if (currentPage !== 'design') return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('webview_navigate', {
+        webviewLabel: 'superdesign-embed',
+        direction: 'back'
+      })
+    } catch (err) {
+      console.error('Failed to navigate back:', err)
+    }
+  }, [currentPage])
+
+  const handleWebviewForward = useCallback(async () => {
+    if (currentPage !== 'design') return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('webview_navigate', {
+        webviewLabel: 'superdesign-embed',
+        direction: 'forward'
+      })
+    } catch (err) {
+      console.error('Failed to navigate forward:', err)
+    }
+  }, [currentPage])
+
   return (
     <div className="h-screen flex flex-col bg-neutral-950 text-white selection:bg-white selection:text-black">
+      {/* Top Bar - Compact Header */}
       <header className="h-10 flex items-center justify-between px-3 bg-neutral-900 border-b border-white/10">
-        <div className="w-12" />
+        {/* Left: Navigation arrows (active on Design page for webview navigation) */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleWebviewBack}
+            className={`p-1.5 rounded transition-colors ${
+              currentPage === 'design'
+                ? 'text-neutral-400 hover:text-white hover:bg-white/10'
+                : 'text-neutral-600 cursor-default'
+            }`}
+            title={currentPage === 'design' ? 'Go back' : ''}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={handleWebviewForward}
+            className={`p-1.5 rounded transition-colors ${
+              currentPage === 'design'
+                ? 'text-neutral-400 hover:text-white hover:bg-white/10'
+                : 'text-neutral-600 cursor-default'
+            }`}
+            title={currentPage === 'design' ? 'Go forward' : ''}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
 
+        {/* Center: Branch info */}
         <div className="flex items-center gap-2 text-sm">
           {currentWorkspace ? (
             <>
@@ -83,14 +126,18 @@ export function Layout() {
           )}
         </div>
 
+        {/* Right: Page tabs + Settings */}
         <div className="flex items-center gap-3">
+          {/* Page tabs (BYOA / Discover) */}
           <div className="flex items-center bg-neutral-800/50 rounded-lg p-0.5">
             {pageTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setCurrentPage(tab.id)}
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  currentPage === tab.id ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                  currentPage === tab.id
+                    ? 'text-white'
+                    : 'text-neutral-500 hover:text-neutral-300'
                 }`}
               >
                 {currentPage === tab.id && (
@@ -112,6 +159,7 @@ export function Layout() {
             ))}
           </div>
 
+          {/* Repository name */}
           {currentRepository && (
             <button className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-800 border border-white/10 text-xs text-neutral-300 hover:text-white hover:border-white/20 transition-colors">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -120,22 +168,29 @@ export function Layout() {
             </button>
           )}
 
+          {/* PR Controls */}
           {currentWorkspace && (
             <div className="flex items-center gap-2">
               {currentWorkspace.prNumber ? (
+                // Has PR - show PR status and actions
                 <>
+                  {/* PR Badge */}
                   <span className="px-2 py-0.5 rounded bg-emerald-600 text-white text-xs font-medium">
                     PR #{currentWorkspace.prNumber}
                   </span>
 
+                  {/* Status Badge */}
                   {currentWorkspace.prState === 'merged' ? (
-                    <span className="px-2 py-0.5 rounded bg-purple-600 text-white text-xs">Merged</span>
+                    <span className="px-2 py-0.5 rounded bg-purple-600 text-white text-xs">
+                      Merged
+                    </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-xs">
                       Ready to merge
                     </span>
                   )}
 
+                  {/* Review Button */}
                   <button
                     onClick={() => currentWorkspace.prUrl && window.open(currentWorkspace.prUrl, '_blank')}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/20 text-white text-xs hover:bg-white/10 transition-colors"
@@ -144,6 +199,7 @@ export function Layout() {
                     Review
                   </button>
 
+                  {/* Action Button */}
                   {currentWorkspace.prState === 'merged' ? (
                     <button
                       onClick={handleArchiveWorkspace}
@@ -172,20 +228,24 @@ export function Layout() {
                     </button>
                   )}
                 </>
-              ) : currentWorkspace.additions || currentWorkspace.deletions ? (
-                <button
-                  onClick={handleCreatePR}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
-                >
-                  <GitPullRequest size={14} />
-                  <span>Create PR</span>
-                </button>
-              ) : null}
+              ) : (
+                // No PR - show Create PR button only if there are changes
+                (currentWorkspace.additions || currentWorkspace.deletions) ? (
+                  <button
+                    onClick={handleCreatePR}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
+                  >
+                    <GitPullRequest size={14} />
+                    <span>Create PR</span>
+                  </button>
+                ) : null
+              )}
             </div>
           )}
 
           <div className="h-4 w-px bg-white/10" />
 
+          {/* Settings button */}
           <button
             onClick={() => setCurrentPage('settings')}
             className={`p-1.5 rounded hover:bg-white/10 transition-colors ${
@@ -197,34 +257,47 @@ export function Layout() {
         </div>
       </header>
 
+      {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
         {currentPage === 'byoa' ? (
           <>
+            {/* Sidebar */}
             <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
               <ProjectTree />
             </aside>
 
+            {/* Main area */}
             <div className="flex-1 bg-neutral-950 overflow-hidden">
               <Outlet />
             </div>
           </>
+        ) : currentPage === 'design' ? (
+          /* Full-page Design */
+          <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <DesignPage />
+          </div>
         ) : currentPage === 'marketplace' ? (
+          /* Full-page Marketplace/Skills */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <MarketplacePage />
           </div>
         ) : currentPage === 'settings' ? (
+          /* Full-page Settings */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <SettingsPage />
           </div>
         ) : (
+          /* Full-page Idea Maze */
           <div className="flex-1 bg-neutral-950 overflow-hidden">
             <IdeaMazePage />
           </div>
         )}
       </main>
 
+      {/* Create PR Modal */}
       <CreatePRModal isOpen={prModalOpen} onClose={() => setPrModalOpen(false)} />
 
+      {/* Merge Error Modal */}
       {mergeError && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <motion.div
