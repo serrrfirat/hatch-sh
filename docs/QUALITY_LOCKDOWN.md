@@ -8,7 +8,6 @@ No new features until:
 ## Scope
 Desktop app only (Hatch):
 - Idea Maze flows
-- Design webview lifecycle
 - BYOA/agent harness flows
 - Repository/workspace shipping flows
 - Failure-path reliability scenarios

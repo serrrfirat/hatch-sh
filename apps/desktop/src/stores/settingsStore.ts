@@ -9,7 +9,7 @@ import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/r
 export type AgentMode = "cloud" | AgentId;
 
 /** App page navigation */
-export type AppPage = "byoa" | "design" | "idea-maze" | "marketplace" | "settings";
+export type AppPage = "byoa" | "idea-maze" | "marketplace" | "settings";
 
 /** Legacy type alias for backwards compatibility */
 export type ClaudeCodeStatus = AgentStatus;
