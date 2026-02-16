@@ -104,6 +104,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Critical desktop flow gates
+        run: pnpm test:critical-flows
+
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         if: always()

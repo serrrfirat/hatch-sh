@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { ExternalLink, Loader2, AlertCircle } from 'lucide-react'
+import {
+  calculateEmbeddedWebviewBounds,
+  toLogicalPosition,
+  toLogicalSize,
+} from '../lib/design/webviewLifecycle'
 
 const SUPERDESIGN_URL = 'https://app.superdesign.dev/library'
 
@@ -36,16 +41,20 @@ export function DesignPage() {
         const rect = containerRef.current.getBoundingClientRect()
         const currentWindow = getCurrentWindow()
 
-        // Ensure webview is positioned below the app header
-        const y = Math.max(rect.top, HEADER_HEIGHT)
-        const height = rect.height - Math.max(0, HEADER_HEIGHT - rect.top)
+        const bounds = calculateEmbeddedWebviewBounds({
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          headerHeight: HEADER_HEIGHT,
+        })
 
         // Check if webview already exists (cached from previous visit)
         const existing = await Webview.getByLabel('superdesign-embed')
         if (existing) {
           // Reuse existing webview - just update position/size and show it
-          await existing.setPosition(new LogicalPosition(rect.left, y))
-          await existing.setSize(new LogicalSize(rect.width, height))
+          await existing.setPosition(new LogicalPosition(bounds.x, bounds.y))
+          await existing.setSize(new LogicalSize(bounds.width, bounds.height))
           await existing.show()
           webviewRef.current = existing
           if (mounted) setIsLoading(false)
@@ -55,10 +64,10 @@ export function DesignPage() {
         // Create new webview
         const newWebview = new Webview(currentWindow, 'superdesign-embed', {
           url: SUPERDESIGN_URL,
-          x: rect.left,
-          y: y,
-          width: rect.width,
-          height: height,
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
           transparent: false,
         })
 
@@ -96,8 +105,13 @@ export function DesignPage() {
     const resizeObserver = new ResizeObserver(() => {
       if (containerRef.current && webviewRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        const adjustedY = Math.max(rect.top, HEADER_HEIGHT)
-        const adjustedHeight = rect.height - Math.max(0, HEADER_HEIGHT - rect.top)
+        const bounds = calculateEmbeddedWebviewBounds({
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          headerHeight: HEADER_HEIGHT,
+        })
         const wv = webviewRef.current as {
           setPosition: (pos: {
             type: string
@@ -110,8 +124,8 @@ export function DesignPage() {
             height: number
           }) => Promise<void>
         }
-        wv.setPosition({ type: 'Logical', x: rect.left, y: adjustedY })
-        wv.setSize({ type: 'Logical', width: rect.width, height: adjustedHeight })
+        wv.setPosition(toLogicalPosition(bounds))
+        wv.setSize(toLogicalSize(bounds))
       }
     })
 
@@ -146,7 +160,13 @@ export function DesignPage() {
     const updatePosition = () => {
       if (containerRef.current && webviewRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        const adjustedY = Math.max(rect.top, HEADER_HEIGHT)
+        const bounds = calculateEmbeddedWebviewBounds({
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          headerHeight: HEADER_HEIGHT,
+        })
         const wv = webviewRef.current as {
           setPosition: (pos: {
             type: string
@@ -154,7 +174,7 @@ export function DesignPage() {
             y: number
           }) => Promise<void>
         }
-        wv.setPosition({ type: 'Logical', x: rect.left, y: adjustedY })
+        wv.setPosition(toLogicalPosition(bounds))
       }
     }
 

@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:critical-flows": "vitest run apps/desktop/testing/e2e/*.spec.ts",
     "dev:api": "turbo dev --filter=hatch-api",
     "dev:desktop": "cd apps/desktop && pnpm tauri dev",
     "build:desktop": "cd apps/desktop && pnpm tauri build",

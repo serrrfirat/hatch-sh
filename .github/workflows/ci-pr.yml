@@ -33,6 +33,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Critical desktop flow gates
+        run: pnpm test:critical-flows
+
       - name: Build monorepo
         run: pnpm build
 
