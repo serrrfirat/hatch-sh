@@ -8,7 +8,7 @@ import {
   loadPolicy,
 } from '../../scripts/risk-policy-gate.mjs'
 
-const policyPath = new URL('../../.github/risk-policy.json', import.meta.url).pathname
+const policyPath = '.github/risk-policy.json'
 
 test('classifies high risk files', async () => {
   const policy = await loadPolicy(policyPath)
