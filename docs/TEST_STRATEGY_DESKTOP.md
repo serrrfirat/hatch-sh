@@ -95,3 +95,15 @@ Every major subsystem must have failure-path tests:
 - 14 days with no P0 desktop regression
 - <2% flaky tests in critical suite
 - ≥95% pass rate on critical journey suite
+
+## Risk Policy Control Plane (Code Factory)
+Hatch uses a machine-readable policy contract at `.github/risk-policy.json`.
+
+- `risk-policy-gate` runs first in PR CI and classifies change risk tier from changed paths.
+- High-risk paths (desktop runtime, agent harness, CI control plane) require stricter checks.
+- UI-surface changes automatically require the **Browser Evidence** check.
+- Control-plane changes (`.github/workflows/**`, risk policy script/contract) must update one of:
+  - `docs/TEST_STRATEGY_DESKTOP.md`
+  - `docs/CRITICAL_DESKTOP_FLOWS.md`
+
+This keeps CI policy, checks, and docs from drifting.

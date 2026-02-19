@@ -1,0 +1,44 @@
+{
+  "version": "1",
+  "riskTierRules": {
+    "high": [
+      "apps/desktop/src-tauri/**",
+      "apps/desktop/src/lib/agent-harness/**",
+      ".github/workflows/**",
+      "scripts/risk-policy-gate.mjs"
+    ],
+    "low": ["**"]
+  },
+  "mergePolicy": {
+    "high": {
+      "requiredChecks": [
+        "risk-policy-gate",
+        "CI Pipeline",
+        "PR Quality Gate",
+        "Browser Evidence"
+      ]
+    },
+    "low": {
+      "requiredChecks": ["risk-policy-gate", "CI Pipeline"]
+    }
+  },
+  "docsDriftRules": {
+    "controlPlanePaths": [
+      ".github/workflows/**",
+      ".github/risk-policy.json",
+      "scripts/risk-policy-gate.mjs"
+    ],
+    "requiredDocs": [
+      "docs/TEST_STRATEGY_DESKTOP.md",
+      "docs/CRITICAL_DESKTOP_FLOWS.md"
+    ]
+  },
+  "browserEvidence": {
+    "uiPaths": [
+      "apps/desktop/src/**",
+      "apps/ui/**",
+      "testing/e2e/**"
+    ],
+    "requiredCheck": "Browser Evidence"
+  }
+}

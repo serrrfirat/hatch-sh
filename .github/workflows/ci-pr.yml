@@ -5,9 +5,40 @@ on:
     branches: [master, main]
 
 jobs:
+  preflight-risk-policy:
+    name: risk-policy-gate
+    runs-on: ubuntu-latest
+    outputs:
+      risk_tier: ${{ steps.gate.outputs.risk_tier }}
+      required_checks: ${{ steps.gate.outputs.required_checks }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        id: changed
+        run: |
+          base_ref="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          {
+            git diff --name-only "$base_ref...${{ github.sha }}"
+          } > /tmp/changed_files.txt
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/changed_files.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate risk policy
+        id: gate
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.changed_files }}
+        run: node scripts/risk-policy-gate.mjs
+
   quality:
     name: Lint, Typecheck, Test, Build
     runs-on: ubuntu-latest
+    needs: preflight-risk-policy
 
     steps:
       - uses: actions/checkout@v4
@@ -33,11 +64,41 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium chromium-headless-shell
+
       - name: Critical desktop flow gates
         run: pnpm test:critical-flows
 
       - name: Build monorepo
         run: pnpm build
+
+  browser-evidence:
+    name: Browser Evidence
+    runs-on: ubuntu-latest
+    needs: preflight-risk-policy
+    if: contains(needs.preflight-risk-policy.outputs.required_checks, 'Browser Evidence')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.10.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium chromium-headless-shell
+
+      - name: Capture browser evidence
+        run: pnpm test:critical-flows
 
   desktop-smoke-linux:
     name: Desktop Build Smoke (Linux)
