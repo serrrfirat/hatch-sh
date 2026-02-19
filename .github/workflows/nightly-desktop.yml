@@ -40,7 +40,7 @@ jobs:
         run: pnpm build:desktop
 
       - name: Placeholder budget check
-        run: echo "TODO: add startup/memory budget scripts"
+        run: "echo 'TODO: add startup/memory budget scripts'"
 
   flaky-probe:
     name: Flaky Probe (rerun tests)
