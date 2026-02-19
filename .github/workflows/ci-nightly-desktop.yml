@@ -1,6 +1,10 @@
 name: Nightly Desktop Reliability
 
-'on':
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/ci-nightly-desktop.yml'
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
