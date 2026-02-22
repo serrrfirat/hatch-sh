@@ -1,218 +1,135 @@
-# Hatch.sh
+<p align="center">
+  <img src=".github/assets/hero.jpg" alt="Hatch" width="100%" />
+</p>
 
-Your ideas, hatched and shipped.
+<p align="center">
+  <strong>Your ideas, hatched and shipped.</strong><br/>
+  From brainstorm to production in one desktop app.
+</p>
 
-## What is Hatch.sh?
+<p align="center">
+  <a href="https://github.com/serrrfirat/hatch-sh/releases"><img src="https://img.shields.io/github/v/release/serrrfirat/hatch-sh?style=flat-square&color=blue" alt="Release" /></a>
+  <a href="https://github.com/serrrfirat/hatch-sh/blob/master/LICENSE"><img src="https://img.shields.io/github/license/serrrfirat/hatch-sh?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/serrrfirat/hatch-sh/stargazers"><img src="https://img.shields.io/github/stars/serrrfirat/hatch-sh?style=flat-square" alt="Stars" /></a>
+  <a href="https://github.com/serrrfirat/hatch-sh/releases"><img src="https://img.shields.io/github/downloads/serrrfirat/hatch-sh/total?style=flat-square&color=green" alt="Downloads" /></a>
+</p>
 
-Hatch.sh is your hatching centre for turning ideas into shipped products. Start with an idea in the maze, turn it into beautiful designs, build it with your own agents and see it come to life. 
+<p align="center">
+  <a href="#install">Install</a> &middot;
+  <a href="#features">Features</a> &middot;
+  <a href="#how-it-works">How It Works</a> &middot;
+  <a href="#development">Development</a> &middot;
+  <a href="RELEASING.md">Releasing</a>
+</p>
+
+---
+
+## Install
+
+### macOS (Homebrew)
+
+```bash
+brew tap serrrfirat/tap
+brew install --cask hatch
+```
+
+### macOS (manual)
+
+Download the `.dmg` from [Releases](https://github.com/serrrfirat/hatch-sh/releases), open it, and drag Hatch to Applications.
+The app is not code-signed yet — right-click > **Open** on first launch.
+
+### Linux
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i Hatch_*.deb
+
+# AppImage
+chmod +x Hatch_*.AppImage && ./Hatch_*.AppImage
+```
 
 ## Features
 
-- **AI-Powered Building**: Describe your idea in plain language and watch AI build it for you (supports Claude Code, Cursor, and OpenCode)
-- **Live Preview**: See your product take shape in real-time as you iterate
-- **Idea Maze**: Explore and refine your concept with AI-guided brainstorming
-- **Superdesign Integration**: Browse the community's largest AI design prompt library directly in the app
-- **Skills Marketplace**: Discover and install Claude Code skills to extend your AI capabilities
-- **One-Click Deploy**: Ship your product to production instantly (TBD)
-- **Workspaces**: Run multiple ideas in parallel without conflicts
+| | Feature | Description |
+|---|---|---|
+| **Build** | Bring Your Own Agent | Connect Claude Code, Cursor, or OpenCode — your agent, your rules |
+| **Ideate** | Idea Maze | Visual canvas for brainstorming with AI-powered connections and critiques |
+| **Design** | Superdesign | Browse 60,000+ community design prompts without leaving the app |
+| **Extend** | Skills Marketplace | Discover and install Claude Code skills from 60,000+ options |
+| **Ship** | One-Click Deploy | Push to Cloudflare, Railway, or HereNow in one click |
+| **Collaborate** | Git Built-In | Clone, branch, commit, push, and open PRs — all from the UI |
 
-## Core Features
+## How It Works
 
-### Superdesign Integration
+Hatch combines four stages of product development into a single desktop app:
 
-Hatch.sh embeds [Superdesign](https://app.superdesign.dev) directly into the desktop app, giving you access to the community's largest design prompt library without leaving your workflow.
+### 1. Ideate — Idea Maze
 
-**What is Superdesign?**
+A spatial canvas where you brainstorm visually. Create idea nodes, connect them with semantic relationships (depends-on, contradicts, extends, alternative), and let AI find patterns you missed. Ask for critiques from five perspectives: Skeptic, Pessimist, Competitor, User, and Maintainer. When you're ready, export your moodboard as a structured plan.
 
-[Superdesign](https://www.superdesign.dev/) is an open-source AI design agent that generates UI mockups, components, and wireframes from natural language prompts. The [Superdesign Prompt Library](https://app.superdesign.dev/library) is the biggest community-driven collection of design prompts covering:
+### 2. Design — Superdesign Integration
 
-- **Styles**: Visual design patterns and aesthetics
-- **Animations**: Motion design prompts and transitions
-- **UI Components**: Reusable interface elements
-- **Wireframes**: Low-fidelity layouts for rapid iteration
-- **Product Mockups**: Complete screen designs
+Browse the community's largest AI design prompt library directly inside Hatch. Find UI patterns, animations, wireframes, and mockups to guide your build. Cached webview means instant tab switching — no reloads.
 
-**Why it's integrated:**
+### 3. Build — BYOA Mode
 
-By embedding Superdesign's prompt library in Hatch.sh, you can:
+Hatch doesn't lock you into one AI agent. Plug in Claude Code, Cursor, or OpenCode and work through a chat-based interface with live preview, a full file explorer, tabbed editor, and diff viewer. Workspaces use Git worktrees so you can run multiple ideas in parallel without merge conflicts.
 
-- Browse and discover design prompts while building your product
-- Find inspiration for UI patterns and visual styles
-- Copy prompts directly into your AI coding workflow
-- Build and share design prompts with your team
-- Access community contributions without context-switching
+### 4. Ship — Multi-Target Deploy
 
-**How it works:**
+Deploy your finished product to Cloudflare Workers/Pages, Railway, or HereNow. Track deployment status and browse what others have shipped in the community discovery gallery.
 
-The Design tab in Hatch.sh opens an embedded view of Superdesign's prompt library. The webview is cached for instant switching between tabs—no reload required when navigating back and forth. Built-in navigation controls let you browse the library seamlessly.
+## Architecture
 
-Superdesign works with any coding agent (Claude Code, Cursor, Windsurf, VS Code) and stores designs locally in a `.superdesign/` folder—your designs stay on your machine.
+```
+hatch-sh/
+├── apps/desktop/          # Tauri + React + Zustand + TailwindCSS
+│   ├── src/               # React frontend
+│   └── src-tauri/         # Rust backend (keychain, shell, fs)
+├── services/api/          # Hono + Drizzle ORM (Cloudflare Workers)
+├── packages/ui/           # Shared UI components
+└── testing/e2e/           # Playwright E2E tests
+```
 
-### Idea Maze
+**Stack**: Tauri 2 &middot; React 18 &middot; Zustand &middot; TailwindCSS &middot; Hono &middot; Drizzle ORM &middot; Turborepo &middot; pnpm
 
-The Idea Maze is a visual brainstorming canvas that helps you explore, organize, and refine your concepts with AI assistance before you start building.
-
-**Canvas-Based Ideation:**
-
-- Create idea nodes by double-clicking anywhere on the canvas
-- Drag and drop to organize your thoughts spatially
-- Connect related ideas with relationship lines
-- Paste text or images directly onto the canvas
-- Support for multiple moodboards to separate different projects
-
-**Relationship Types:**
-
-Ideas can be connected with meaningful relationships:
-- **Related**: Concepts that share common themes
-- **Depends-on**: Prerequisites or foundational ideas
-- **Contradicts**: Conflicting approaches to explore
-- **Extends**: Ideas that build upon others
-- **Alternative**: Different solutions to the same problem
-
-**AI-Powered Features:**
-
-The Idea Maze integrates with Claude Code to provide intelligent assistance:
-
-1. **Find Connections**: AI analyzes all your ideas and suggests meaningful relationships you might have missed. Each suggestion includes a confidence score and reasoning.
-
-2. **Generate Ideas**: Select one or more ideas and let AI suggest related concepts—extensions, alternatives, prerequisites, implications, or adjacent possibilities.
-
-3. **Critique Ideas**: Get a devil's advocate analysis from multiple perspectives (Skeptic, Pessimist, Competitor, User, Maintainer) to identify gaps, edge cases, and blind spots.
-
-**Keyboard Shortcuts:**
-- `N`: Create new node
-- `C`: Toggle connect mode
-- `V`: Select mode
-- `H`: Pan mode
-- `Cmd+A`: Select all
-- `Cmd+D`: Duplicate
-- `Delete`: Remove selection
-
-**Local-First Storage:**
-
-All your moodboards are stored locally on your machine (`~/.local/share/sh.hatch.desktop/idea-maze/`). Your ideas never leave your computer unless you choose to export them.
-
-### Skills Marketplace
-
-The Skills Marketplace lets you discover and install Claude Code skills to extend what your AI agent can do.
-
-**What are Skills?**
-
-Skills are reusable prompts and capabilities that teach Claude Code new tricks—from writing commit messages in a specific style to generating code following particular patterns. Think of them as plugins for your AI assistant.
-
-**Browsing Skills:**
-
-- Search semantically across 60,000+ skills
-- Filter by category (development, writing, analysis, etc.)
-- View skill details, author, and GitHub stars
-- One-click installation to your local or global skills folder
-
-**Data Sources:**
-
-The marketplace aggregates skills from multiple sources:
-- [aitmpl.com](https://www.aitmpl.com) (AI Templates)
-- [SkillsMP](https://skillsmp.com)
-- GitHub repositories with `SKILL.md` files
-
-**Installation Options:**
-
-- **Local**: Install to `.claude/skills/` in your current project
-- **Global**: Install to `~/.claude/skills/` for use across all projects
-
-**Ask Agent:**
-
-Not sure which skills would help? The "Ask Agent" feature analyzes your codebase and suggests relevant skills based on the technologies and patterns you're using.
-
-## Getting Started
+## Development
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm 8.15.0+
+- Node.js 20+
+- pnpm 9+
+- Rust (stable)
 
-### Installation
+### Setup
 
 ```bash
 pnpm install
-```
 
-### Environment Setup
-
-Create environment files with the following variables:
-
-**`services/api/.dev.vars`**:
-```bash
-DATABASE_URL=libsql://your-db.turso.io
-DATABASE_AUTH_TOKEN=your-turso-token
-CLAUDE_API_KEY=sk-ant-...
-CF_API_TOKEN=your-cloudflare-token
-CF_ACCOUNT_ID=your-account-id
-```
-
-### Development
-
-```bash
 # Start the desktop app
 pnpm dev
 
-# Optional: Run the API server (in a separate terminal)
-pnpm dev:api          # Backend at http://localhost:8787
+# Optional: API server (separate terminal)
+pnpm dev:api
+```
+
+### Testing
+
+```bash
+pnpm test                    # Unit tests (Vitest)
+pnpm test:critical-flows     # E2E tests (Playwright)
 ```
 
 ### Building
 
 ```bash
-pnpm build
-```
-
-## Desktop App
-
-The desktop app is built with Tauri and provides a full IDE experience for building with AI.
-
-### Features
-
-- **BYOA Mode (Bring Your Own Agent)**: Connect your preferred AI coding agent (Claude Code, Cursor, or OpenCode)
-- **GitHub Integration**: OAuth device flow authentication for seamless GitHub access
-- **Repository Management**: Clone, create, and manage Git repositories
-- **Workspaces**: Isolated branches for parallel agent work without conflicts
-- **Project Tree**: Full file explorer with support for navigating your codebase
-- **Editor with Tabs**: Open multiple files and diffs in a tabbed interface
-- **Diff Viewer**: Side-by-side diff visualization with syntax highlighting for reviewing changes
-- **Git Operations**: Stage, commit, push, and create pull requests directly from the app
-- **Live Preview**: Real-time preview of your web application as you build
-
-### Prerequisites
-
-- Node.js 18+
-- Rust (for Tauri native backend)
-- pnpm
-
-### Building for Distribution
-
-```bash
 pnpm build:desktop
 ```
 
-### GitHub OAuth Setup
+## Privacy
 
-Before repository features work, create a GitHub OAuth App:
-
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click "New OAuth App"
-3. Set **Authorization callback URL** to `http://localhost` (device flow)
-4. Copy your **Client ID** to `src-tauri/src/github.rs`
-
-The app uses GitHub's Device Flow for authentication—no client secret required.
-
-## Database
-
-```bash
-cd services/api
-
-pnpm db:generate      # Generate migrations
-pnpm db:migrate       # Run migrations
-```
+Hatch is local-first. Your workspaces, moodboards, and designs stay on your machine. API keys are stored in your OS keychain (macOS Keychain, Linux Secret Service). Nothing leaves your computer unless you explicitly deploy or push to GitHub.
 
 ## License
 
-MIT
+[MIT](LICENSE)
