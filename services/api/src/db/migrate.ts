@@ -35,12 +35,21 @@ async function migrate() {
     CREATE TABLE IF NOT EXISTS deployments (
       id TEXT PRIMARY KEY,
       project_id TEXT REFERENCES projects(id),
+      target TEXT DEFAULT 'cloudflare',
       status TEXT DEFAULT 'pending',
       url TEXT,
       logs TEXT,
       created_at INTEGER
     );
   `)
+
+  // Add target column to existing deployments table (safe if already present)
+  try {
+    await client.execute(`ALTER TABLE deployments ADD COLUMN target TEXT DEFAULT 'cloudflare'`)
+    console.log('Added target column to deployments table.')
+  } catch {
+    // Column already exists — that's fine
+  }
 
   console.log('Migrations complete.')
 }

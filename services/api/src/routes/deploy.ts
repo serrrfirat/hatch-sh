@@ -6,15 +6,31 @@ import { eq } from 'drizzle-orm'
 import { deployments, projects } from '../db/schema'
 import { nanoid } from 'nanoid'
 import { CloudflareService } from '../services/cloudflare'
+import { HereNowService } from '../services/herenow'
+import { RailwayService } from '../services/railway'
+import type { DeployTarget, DeployService } from '../services/deploy-types'
 import type { Database } from '../db/client'
 
 type Bindings = {
   CF_ACCOUNT_ID: string
   CF_API_TOKEN: string
+  HERENOW_API_TOKEN: string
+  RAILWAY_API_TOKEN: string
 }
 
 type Variables = {
   db: Database
+}
+
+function createDeployService(target: DeployTarget, env: Bindings): DeployService {
+  switch (target) {
+    case 'cloudflare':
+      return new CloudflareService(env.CF_ACCOUNT_ID, env.CF_API_TOKEN)
+    case 'herenow':
+      return new HereNowService(env.HERENOW_API_TOKEN || undefined)
+    case 'railway':
+      return new RailwayService(env.RAILWAY_API_TOKEN)
+  }
 }
 
 const deployRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>()
@@ -23,10 +39,11 @@ deployRouter.post(
   '/',
   zValidator('json', z.object({
     projectId: z.string(),
+    target: z.enum(['cloudflare', 'herenow', 'railway']).default('cloudflare'),
   })),
   async (c) => {
     const db = c.get('db')
-    const { projectId } = c.req.valid('json')
+    const { projectId, target } = c.req.valid('json')
 
     // Get project
     const project = await db.select().from(projects).where(eq(projects.id, projectId)).get()
@@ -43,11 +60,12 @@ deployRouter.post(
     await db.insert(deployments).values({
       id: deploymentId,
       projectId,
+      target,
       status: 'pending',
     })
 
-    // Deploy to Cloudflare Pages in background
-    const cfService = new CloudflareService(c.env.CF_ACCOUNT_ID, c.env.CF_API_TOKEN)
+    // Deploy in background using the appropriate service
+    const service = createDeployService(target, c.env)
     const projectSlug = project.name.toLowerCase().replace(/\s+/g, '-')
     const codeFiles: Record<string, string> = JSON.parse(project.code)
 
@@ -58,18 +76,11 @@ deployRouter.post(
           .set({ status: 'building' })
           .where(eq(deployments.id, deploymentId))
 
-        // Create project (ignore error if it already exists)
-        try {
-          await cfService.createPagesProject(projectSlug)
-        } catch {
-          // Project may already exist — that's fine
-        }
-
         await db.update(deployments)
           .set({ status: 'deploying' })
           .where(eq(deployments.id, deploymentId))
 
-        const deployment = await cfService.uploadFiles(projectSlug, codeFiles)
+        const deployment = await service.deploy(projectSlug, codeFiles)
         const url = deployment.url
 
         await db.update(deployments)
@@ -89,6 +100,7 @@ deployRouter.post(
 
     return c.json({
       deploymentId,
+      target,
       status: 'pending',
       message: 'Deployment started',
     }, 202)

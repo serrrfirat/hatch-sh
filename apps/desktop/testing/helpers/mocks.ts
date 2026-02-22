@@ -95,8 +95,10 @@ export function createKeychainMock() {
       anthropicApiKey: store.get('anthropic_api_key') ?? null,
       cfAccountId: store.get('cf_account_id') ?? null,
       cfApiToken: store.get('cf_api_token') ?? null,
+      herenowApiToken: store.get('herenow_api_token') ?? null,
+      railwayApiToken: store.get('railway_api_token') ?? null,
     })),
-    KEYCHAIN_KEYS: ['anthropic_api_key', 'cf_account_id', 'cf_api_token'],
+    KEYCHAIN_KEYS: ['anthropic_api_key', 'cf_account_id', 'cf_api_token', 'herenow_api_token', 'railway_api_token'],
     _store: store,
   }
 }

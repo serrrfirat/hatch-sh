@@ -14,7 +14,9 @@ export interface CFDeploymentStatus {
   latest_stage: { name: string; status: string }
 }
 
-export class CloudflareService {
+import type { DeployService, DeployResult, DeployStatusResult } from './deploy-types'
+
+export class CloudflareService implements DeployService {
   private accountId: string
   private apiToken: string
   private baseUrl = 'https://api.cloudflare.com/client/v4'
@@ -80,5 +82,33 @@ export class CloudflareService {
     )
 
     return this.handleResponse<CFDeploymentStatus>(response)
+  }
+
+  // DeployService interface adapters
+
+  async deploy(projectName: string, files: Record<string, string>): Promise<DeployResult> {
+    // Create project (ignore error if it already exists)
+    try {
+      await this.createPagesProject(projectName)
+    } catch {
+      // Project may already exist — that's fine
+    }
+
+    const deployment = await this.uploadFiles(projectName, files)
+    return { id: deployment.id, url: deployment.url }
+  }
+
+  async getStatus(projectName: string, deploymentId: string): Promise<DeployStatusResult> {
+    const status = await this.getDeploymentStatus(projectName, deploymentId)
+    const stageMap: Record<string, string> = {
+      active: 'live',
+      idle: 'live',
+      failure: 'failed',
+    }
+    return {
+      id: status.id,
+      url: status.url,
+      stage: stageMap[status.latest_stage.status] ?? status.latest_stage.status,
+    }
   }
 }

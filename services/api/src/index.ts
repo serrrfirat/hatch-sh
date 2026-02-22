@@ -14,6 +14,8 @@ type Bindings = {
   CLAUDE_API_KEY: string
   CF_API_TOKEN: string
   CF_ACCOUNT_ID: string
+  HERENOW_API_TOKEN: string
+  RAILWAY_API_TOKEN: string
   ENVIRONMENT: string
   SKILLSMP_API_KEY?: string
 }
@@ -40,9 +42,14 @@ app.use('/api/*', async (c, next) => {
   const cfAccountId = c.req.header('X-CF-Account-Id')
   const cfApiToken = c.req.header('X-CF-API-Token')
 
+  const herenowToken = c.req.header('X-HereNow-API-Token')
+  const railwayToken = c.req.header('X-Railway-API-Token')
+
   if (anthropicKey) c.env.CLAUDE_API_KEY = anthropicKey
   if (cfAccountId) c.env.CF_ACCOUNT_ID = cfAccountId
   if (cfApiToken) c.env.CF_API_TOKEN = cfApiToken
+  if (herenowToken) c.env.HERENOW_API_TOKEN = herenowToken
+  if (railwayToken) c.env.RAILWAY_API_TOKEN = railwayToken
 
   await next()
 })

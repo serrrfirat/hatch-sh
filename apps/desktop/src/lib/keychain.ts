@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /** Keys that can be stored in the OS keychain. */
-export type KeychainKey = 'anthropic_api_key' | 'cf_account_id' | 'cf_api_token'
+export type KeychainKey = 'anthropic_api_key' | 'cf_account_id' | 'cf_api_token' | 'herenow_api_token' | 'railway_api_token'
 
 /** All keychain key names, for iteration. */
-export const KEYCHAIN_KEYS: KeychainKey[] = ['anthropic_api_key', 'cf_account_id', 'cf_api_token']
+export const KEYCHAIN_KEYS: KeychainKey[] = ['anthropic_api_key', 'cf_account_id', 'cf_api_token', 'herenow_api_token', 'railway_api_token']
 
 /** Store a secret in the OS keychain. */
 export async function keychainSet(key: KeychainKey, value: string): Promise<void> {
@@ -31,11 +31,15 @@ export async function getServiceCredentials(): Promise<{
   anthropicApiKey: string | null
   cfAccountId: string | null
   cfApiToken: string | null
+  herenowApiToken: string | null
+  railwayApiToken: string | null
 }> {
-  const [anthropicApiKey, cfAccountId, cfApiToken] = await Promise.all([
+  const [anthropicApiKey, cfAccountId, cfApiToken, herenowApiToken, railwayApiToken] = await Promise.all([
     keychainGet('anthropic_api_key'),
     keychainGet('cf_account_id'),
     keychainGet('cf_api_token'),
+    keychainGet('herenow_api_token'),
+    keychainGet('railway_api_token'),
   ])
-  return { anthropicApiKey, cfAccountId, cfApiToken }
+  return { anthropicApiKey, cfAccountId, cfApiToken, herenowApiToken, railwayApiToken }
 }

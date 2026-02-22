@@ -1,19 +1,29 @@
-import type { DeployStatus } from '../../hooks/useDeploy'
+import type { DeployStatus, DeployTarget } from '../../hooks/useDeploy'
+
+const TARGET_LABELS: Record<DeployTarget, string> = {
+  cloudflare: 'Cloudflare Pages',
+  herenow: 'here.now',
+  railway: 'Railway',
+}
 
 interface DeploymentStatusProps {
   status: DeployStatus
   url: string | null
   error: string | null
+  target?: DeployTarget | null
 }
 
-const STATUS_LABELS: Record<DeployStatus, string> = {
-  idle: '',
-  deploying: 'Deploying to Cloudflare Pages...',
-  success: 'Deployment live!',
-  error: 'Deployment failed',
+function getStatusLabel(status: DeployStatus, target?: DeployTarget | null): string {
+  if (status === 'idle') return ''
+  if (status === 'deploying') {
+    const label = target ? TARGET_LABELS[target] : 'Cloudflare Pages'
+    return `Deploying to ${label}...`
+  }
+  if (status === 'success') return 'Deployment live!'
+  return 'Deployment failed'
 }
 
-export function DeploymentStatus({ status, url, error }: DeploymentStatusProps) {
+export function DeploymentStatus({ status, url, error, target }: DeploymentStatusProps) {
   if (status === 'idle') return null
 
   return (
@@ -22,7 +32,7 @@ export function DeploymentStatus({ status, url, error }: DeploymentStatusProps) 
         {status === 'deploying' && (
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
         )}
-        <span>{STATUS_LABELS[status]}</span>
+        <span>{getStatusLabel(status, target)}</span>
       </div>
 
       {status === 'success' && url && (

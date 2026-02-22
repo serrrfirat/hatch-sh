@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import type { DeployTarget } from '../services/deploy-types'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -29,6 +30,7 @@ export const chatMessages = sqliteTable('chat_messages', {
 export const deployments = sqliteTable('deployments', {
   id: text('id').primaryKey(),
   projectId: text('project_id').references(() => projects.id),
+  target: text('target').$type<DeployTarget>().default('cloudflare'),
   status: text('status').$type<'pending' | 'building' | 'deploying' | 'live' | 'failed'>().default('pending'),
   url: text('url'),
   logs: text('logs'),

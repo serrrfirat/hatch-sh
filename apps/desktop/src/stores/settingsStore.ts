@@ -208,6 +208,8 @@ export const useSettingsStore = create<SettingsState>()(
         anthropic_api_key: false,
         cf_account_id: false,
         cf_api_token: false,
+        herenow_api_token: false,
+        railway_api_token: false,
       },
 
       // Onboarding defaults

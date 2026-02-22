@@ -675,6 +675,20 @@ function ApiKeysSettings() {
         isSet={keychainStatus.cf_api_token}
         onSaved={refreshKeychainStatus}
       />
+      <SecretField
+        label="here.now API Token"
+        description="Optional — enables permanent deploys. Without a token, deploys expire after 24 hours."
+        keychainKey="herenow_api_token"
+        isSet={keychainStatus.herenow_api_token}
+        onSaved={refreshKeychainStatus}
+      />
+      <SecretField
+        label="Railway API Token"
+        description="Required for Railway deploys. Get one at railway.com/account/tokens."
+        keychainKey="railway_api_token"
+        isSet={keychainStatus.railway_api_token}
+        onSaved={refreshKeychainStatus}
+      />
 
       {/* API URL — not a secret, stored in localStorage */}
       <div className="py-4">
