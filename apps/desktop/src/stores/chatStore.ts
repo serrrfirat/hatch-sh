@@ -9,9 +9,16 @@ export interface ToolUse {
   status: 'running' | 'completed' | 'error'
 }
 
+export interface MessageMetadata {
+  writtenFiles?: Array<{
+    path: string
+    size: number
+  }>
+}
+
 export interface Message {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: Date
   isStreaming?: boolean
@@ -23,6 +30,7 @@ export interface Message {
   duration?: number
   /** Start time for timing */
   startTime?: number
+  metadata?: MessageMetadata
 }
 
 // Pending PR request info
@@ -38,6 +46,7 @@ interface ChatState {
   currentProjectId: string | null
   // Pending PR request - set by UI, consumed by ChatArea
   pendingOpenPR: PendingOpenPR | null
+  contextWindowSize: number
 
   // Actions
   setWorkspaceId: (workspaceId: string | null) => void
@@ -46,9 +55,11 @@ interface ChatState {
   updateMessageThinking: (id: string, thinking: string) => void
   addToolUse: (messageId: string, tool: ToolUse) => void
   updateToolUse: (messageId: string, toolId: string, updates: Partial<ToolUse>) => void
+  updateMessageMetadata: (id: string, metadata: MessageMetadata) => void
   setMessageDuration: (id: string) => void
   setLoading: (loading: boolean) => void
   setProjectId: (id: string) => void
+  setContextWindowSize: (size: number) => void
   clearMessages: () => void
   // PR actions
   triggerOpenPR: (uncommittedChanges?: number) => void
@@ -63,6 +74,7 @@ export const useChatStore = create<ChatState>()(
       isLoading: false,
       currentProjectId: null,
       pendingOpenPR: null,
+      contextWindowSize: 20,
 
       setWorkspaceId: (workspaceId) => {
         set({ currentWorkspaceId: workspaceId, isLoading: false })
@@ -137,9 +149,7 @@ export const useChatStore = create<ChatState>()(
             messagesByWorkspace: {
               ...state.messagesByWorkspace,
               [currentWorkspaceId]: currentMessages.map((msg) =>
-                msg.id === messageId
-                  ? { ...msg, toolUses: [...(msg.toolUses || []), tool] }
-                  : msg
+                msg.id === messageId ? { ...msg, toolUses: [...(msg.toolUses || []), tool] } : msg
               ),
             },
           }
@@ -170,6 +180,23 @@ export const useChatStore = create<ChatState>()(
         })
       },
 
+      updateMessageMetadata: (id, metadata) => {
+        const { currentWorkspaceId } = get()
+        if (!currentWorkspaceId) return
+
+        set((state) => {
+          const currentMessages = state.messagesByWorkspace[currentWorkspaceId] || []
+          return {
+            messagesByWorkspace: {
+              ...state.messagesByWorkspace,
+              [currentWorkspaceId]: currentMessages.map((msg) =>
+                msg.id === id ? { ...msg, metadata: { ...(msg.metadata || {}), ...metadata } } : msg
+              ),
+            },
+          }
+        })
+      },
+
       setMessageDuration: (id) => {
         const { currentWorkspaceId } = get()
         if (!currentWorkspaceId) return
@@ -193,6 +220,7 @@ export const useChatStore = create<ChatState>()(
 
       setLoading: (isLoading) => set({ isLoading }),
       setProjectId: (currentProjectId) => set({ currentProjectId }),
+      setContextWindowSize: (size: number) => set({ contextWindowSize: size }),
 
       clearMessages: () => {
         const { currentWorkspaceId } = get()
