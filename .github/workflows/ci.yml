@@ -104,6 +104,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium chromium-headless-shell
+
       - name: Critical desktop flow gates
         run: pnpm test:critical-flows
 
