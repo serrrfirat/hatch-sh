@@ -11,7 +11,7 @@ mod git;
 mod keychain;
 mod skills;
 
-use github::{github_start_device_flow, github_poll_for_token, github_get_auth_state, github_sign_out, github_validate_token};
+use github::{github_check_gh_installed, github_login, github_get_auth_state, github_sign_out, github_validate_token};
 use git::{
     git_clone_repo, git_open_local_repo, git_create_workspace_branch, git_delete_workspace_branch,
     git_list_worktrees, git_prune_worktrees,
@@ -1312,8 +1312,8 @@ pub fn run() {
             // Opencode streaming
             run_opencode_streaming,
             // GitHub auth commands
-            github_start_device_flow,
-            github_poll_for_token,
+            github_check_gh_installed,
+            github_login,
             github_get_auth_state,
             github_sign_out,
             github_validate_token,

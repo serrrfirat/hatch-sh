@@ -55,21 +55,9 @@ pub async fn git_clone_repo(repo_url: String, repo_name: String) -> Result<Repos
         return Err(format!("Repository '{}' already exists at {:?}", repo_name, local_path));
     }
 
-    // Build clone URL with token if available
-    let clone_url = if let Some(token) = get_access_token() {
-        // Convert https://github.com/owner/repo to https://token@github.com/owner/repo
-        if repo_url.starts_with("https://github.com/") {
-            repo_url.replace("https://github.com/", &format!("https://{}@github.com/", token))
-        } else {
-            repo_url.clone()
-        }
-    } else {
-        repo_url.clone()
-    };
-
-    // Clone the repository
+    // Clone the repository (gh credential helper handles auth automatically)
     let output = AsyncCommand::new("git")
-        .args(["clone", &clone_url, local_path.to_str().unwrap()])
+        .args(["clone", &repo_url, local_path.to_str().unwrap()])
         .output()
         .await
         .map_err(|e| format!("Failed to run git clone: {}", e))?;
@@ -342,7 +330,7 @@ pub async fn git_create_pr(
     title: String,
     body: String,
 ) -> Result<String, String> {
-    let token = get_access_token()
+    let token = get_access_token().await
         .ok_or("Not authenticated with GitHub. Please sign in first.")?;
 
     let client = reqwest::Client::new();
@@ -391,7 +379,7 @@ pub async fn git_create_pr(
 /// Create a new GitHub repository
 #[tauri::command]
 pub async fn git_create_github_repo(name: String, is_private: bool) -> Result<Repository, String> {
-    let token = get_access_token()
+    let token = get_access_token().await
         .ok_or("Not authenticated with GitHub. Please sign in first.")?;
 
     let client = reqwest::Client::new();
@@ -444,14 +432,9 @@ pub async fn git_create_github_repo(name: String, is_private: bool) -> Result<Re
     std::fs::create_dir_all(&workspaces_dir)
         .map_err(|e| format!("Failed to create workspaces directory: {}", e))?;
 
-    // Clone with token authentication
-    let clone_url = repo_response.clone_url.replace(
-        "https://github.com/",
-        &format!("https://{}@github.com/", token),
-    );
-
+    // Clone the repository (gh credential helper handles auth automatically)
     let output = AsyncCommand::new("git")
-        .args(["clone", &clone_url, local_path.to_str().unwrap()])
+        .args(["clone", &repo_response.clone_url, local_path.to_str().unwrap()])
         .output()
         .await
         .map_err(|e| format!("Failed to clone repository: {}", e))?;
@@ -1094,7 +1077,7 @@ pub async fn git_get_pr(
     repo_full_name: String,
     pr_number: u32,
 ) -> Result<PullRequestInfo, String> {
-    let token = get_access_token()
+    let token = get_access_token().await
         .ok_or("Not authenticated with GitHub. Please sign in first.")?;
 
     let client = reqwest::Client::new();
@@ -1147,7 +1130,7 @@ pub async fn git_merge_pr(
     pr_number: u32,
     merge_method: String,
 ) -> Result<MergeResult, String> {
-    let token = get_access_token()
+    let token = get_access_token().await
         .ok_or("Not authenticated with GitHub. Please sign in first.")?;
 
     let client = reqwest::Client::new();

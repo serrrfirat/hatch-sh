@@ -14,28 +14,19 @@ export interface GitHubAuthState {
   is_authenticated: boolean
 }
 
-export interface DeviceFlowInit {
-  user_code: string
-  verification_uri: string
-  expires_in: number
-  device_code: string
+/**
+ * Check if the gh CLI is installed on the system
+ */
+export async function checkGhInstalled(): Promise<boolean> {
+  return invoke<boolean>('github_check_gh_installed')
 }
 
 /**
- * Start the GitHub device flow authentication
- * Opens the browser for user to authorize
- * Returns the user code to display
+ * Log in via gh CLI (opens browser for OAuth)
+ * Single call that replaces the old start+poll device flow
  */
-export async function startDeviceFlow(): Promise<DeviceFlowInit> {
-  return invoke<DeviceFlowInit>('github_start_device_flow')
-}
-
-/**
- * Poll for the access token after user authorizes
- * This will keep polling until the user completes authorization or timeout
- */
-export async function pollForToken(deviceCode: string): Promise<GitHubAuthState> {
-  return invoke<GitHubAuthState>('github_poll_for_token', { deviceCode })
+export async function login(): Promise<GitHubAuthState> {
+  return invoke<GitHubAuthState>('github_login')
 }
 
 /**

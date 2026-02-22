@@ -12,14 +12,14 @@ setupLocalStorageMock()
 
 // vi.hoisted ensures these are available when vi.mock factories run (hoisted)
 const {
-  mockStartDeviceFlow,
-  mockPollForToken,
+  mockCheckGhInstalled,
+  mockLogin,
   mockGetAuthState,
   mockSignOut,
   mockValidateToken,
 } = vi.hoisted(() => ({
-  mockStartDeviceFlow: vi.fn(),
-  mockPollForToken: vi.fn(),
+  mockCheckGhInstalled: vi.fn(),
+  mockLogin: vi.fn(),
   mockGetAuthState: vi.fn(),
   mockSignOut: vi.fn(),
   mockValidateToken: vi.fn(),
@@ -28,8 +28,8 @@ const {
 vi.mock('zustand/middleware', async () => mockZustandPersist())
 vi.mock('../../src/lib/git/bridge', () => createGitBridgeMock())
 vi.mock('../../src/lib/github/bridge', () => ({
-  startDeviceFlow: mockStartDeviceFlow,
-  pollForToken: mockPollForToken,
+  checkGhInstalled: mockCheckGhInstalled,
+  login: mockLogin,
   getAuthState: mockGetAuthState,
   signOut: mockSignOut,
   validateToken: mockValidateToken,
@@ -38,7 +38,7 @@ vi.mock('../../src/lib/github/bridge', () => ({
 import { useRepositoryStore } from '../../src/stores/repositoryStore'
 import { useChatStore } from '../../src/stores/chatStore'
 
-describe('GitHub OAuth flow', () => {
+describe('GitHub auth via gh CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useRepositoryStore.setState(
@@ -49,63 +49,54 @@ describe('GitHub OAuth flow', () => {
     useChatStore.setState(createDefaultChatState())
   })
 
-  describe('device code polling fix', () => {
-    it('startDeviceFlow returns device_code in addition to user_code', async () => {
-      mockStartDeviceFlow.mockResolvedValue({
-        user_code: 'ABCD-1234',
-        verification_uri: 'https://github.com/login/device',
-        expires_in: 900,
-        device_code: 'dev-code-abc',
-      })
+  describe('gh CLI detection', () => {
+    it('checkGhInstalled sets isGhInstalled to true when gh is available', async () => {
+      mockCheckGhInstalled.mockResolvedValue(true)
 
-      const result = await useRepositoryStore.getState().startGitHubLogin()
-      expect(result.userCode).toBe('ABCD-1234')
-      // After fix, startGitHubLogin should also return deviceCode
-      expect(result.deviceCode).toBe('dev-code-abc')
+      await useRepositoryStore.getState().checkGhInstalled()
+      expect(mockCheckGhInstalled).toHaveBeenCalled()
+      expect(useRepositoryStore.getState().isGhInstalled).toBe(true)
     })
 
-    it('completeGitHubLogin passes device_code to pollForToken, not user_code', async () => {
-      mockStartDeviceFlow.mockResolvedValue({
-        user_code: 'ABCD-1234',
-        verification_uri: 'https://github.com/login/device',
-        expires_in: 900,
-        device_code: 'dev-code-abc',
-      })
+    it('checkGhInstalled sets isGhInstalled to false when gh is not found', async () => {
+      mockCheckGhInstalled.mockResolvedValue(false)
 
-      mockPollForToken.mockResolvedValue({
+      await useRepositoryStore.getState().checkGhInstalled()
+      expect(useRepositoryStore.getState().isGhInstalled).toBe(false)
+    })
+  })
+
+  describe('login flow', () => {
+    it('loginWithGitHub calls bridge.login and sets githubAuth on success', async () => {
+      mockLogin.mockResolvedValue({
         is_authenticated: true,
         access_token: 'gho_abc123',
         user: { login: 'testuser', id: 1, avatar_url: 'https://...' },
       })
 
-      // Start device flow first
-      await useRepositoryStore.getState().startGitHubLogin()
-      // Complete login — should pass device_code, not user_code
-      await useRepositoryStore.getState().completeGitHubLogin('dev-code-abc')
+      await useRepositoryStore.getState().loginWithGitHub()
 
-      expect(mockPollForToken).toHaveBeenCalledWith('dev-code-abc')
+      expect(mockLogin).toHaveBeenCalled()
+      const state = useRepositoryStore.getState()
+      expect(state.githubAuth?.is_authenticated).toBe(true)
+      expect(state.githubAuth?.user?.login).toBe('testuser')
+      expect(state.isAuthenticating).toBe(false)
     })
 
-    it('pollForToken rejects with clean error on expired_token', async () => {
-      mockPollForToken.mockRejectedValue(new Error('Authorization expired. Please try again.'))
+    it('loginWithGitHub sets error on failure', async () => {
+      mockLogin.mockRejectedValue(new Error('gh CLI not installed'))
 
-      useRepositoryStore.setState({ isAuthenticating: true })
       await expect(
-        useRepositoryStore.getState().completeGitHubLogin('dev-code')
-      ).rejects.toThrow('Authorization expired')
-    })
+        useRepositoryStore.getState().loginWithGitHub()
+      ).rejects.toThrow('gh CLI not installed')
 
-    it('pollForToken rejects with clean error on access_denied', async () => {
-      mockPollForToken.mockRejectedValue(new Error('Access denied by user.'))
-
-      useRepositoryStore.setState({ isAuthenticating: true })
-      await expect(
-        useRepositoryStore.getState().completeGitHubLogin('dev-code')
-      ).rejects.toThrow('Access denied')
+      const state = useRepositoryStore.getState()
+      expect(state.isAuthenticating).toBe(false)
+      expect(state.authError).toBe('gh CLI not installed')
     })
   })
 
-  describe('token validation', () => {
+  describe('auth state', () => {
     it('checkGitHubAuth calls getAuthState from bridge', async () => {
       mockGetAuthState.mockResolvedValue({
         is_authenticated: true,
@@ -118,7 +109,7 @@ describe('GitHub OAuth flow', () => {
       expect(useRepositoryStore.getState().githubAuth?.is_authenticated).toBe(true)
     })
 
-    it('checkGitHubAuth returns user info when token is valid', async () => {
+    it('checkGitHubAuth returns user info when authenticated', async () => {
       mockGetAuthState.mockResolvedValue({
         is_authenticated: true,
         access_token: 'gho_valid',
@@ -131,7 +122,20 @@ describe('GitHub OAuth flow', () => {
       expect(auth?.user?.id).toBe(42)
     })
 
-    it('signOut clears token and resets auth state', async () => {
+    it('getAuthState returns unauthenticated when not logged in', async () => {
+      mockGetAuthState.mockResolvedValue({
+        is_authenticated: false,
+        access_token: undefined,
+        user: undefined,
+      })
+
+      await useRepositoryStore.getState().checkGitHubAuth()
+      expect(useRepositoryStore.getState().githubAuth?.is_authenticated).toBe(false)
+    })
+  })
+
+  describe('sign out', () => {
+    it('signOut clears auth state', async () => {
       // Set authenticated state first
       useRepositoryStore.setState({
         githubAuth: {

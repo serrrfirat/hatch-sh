@@ -1,11 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use std::time::Duration;
-use tokio::time::sleep;
-
-// GitHub OAuth App credentials - these should be configured for your app
-// For development, you'll need to create a GitHub OAuth App
-const GITHUB_CLIENT_ID: &str = "Ov23liYourClientIdHere"; // TODO: Replace with actual client ID
+use std::env;
+use std::path::PathBuf;
+use tokio::process::Command as AsyncCommand;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubUser {
@@ -33,249 +29,173 @@ impl Default for GitHubAuthState {
     }
 }
 
-// Global auth state (in production, consider using tauri's state management)
-lazy_static::lazy_static! {
-    static ref AUTH_STATE: Mutex<GitHubAuthState> = Mutex::new(GitHubAuthState::default());
-}
-
-#[derive(Debug, Deserialize)]
-struct DeviceCodeResponse {
-    device_code: String,
-    user_code: String,
-    verification_uri: String,
-    expires_in: u64,
-    interval: u64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DeviceFlowInit {
-    pub user_code: String,
-    pub verification_uri: String,
-    pub expires_in: u64,
-    pub device_code: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct AccessTokenResponse {
-    access_token: Option<String>,
-    token_type: Option<String>,
-    scope: Option<String>,
-    error: Option<String>,
-    error_description: Option<String>,
-}
-
-/// Start the GitHub device flow authentication
-#[tauri::command]
-pub async fn github_start_device_flow() -> Result<DeviceFlowInit, String> {
-    let client = reqwest::Client::new();
-
-    let response = client
-        .post("https://github.com/login/device/code")
-        .header("Accept", "application/json")
-        .form(&[
-            ("client_id", GITHUB_CLIENT_ID),
-            ("scope", "repo"),
-        ])
-        .send()
+/// Find the gh CLI executable by checking common locations
+async fn find_gh_path() -> Option<PathBuf> {
+    // First try using 'which' with user's shell PATH
+    if let Ok(output) = AsyncCommand::new("sh")
+        .args(["-l", "-c", "which gh"])
+        .output()
         .await
-        .map_err(|e| format!("Failed to start device flow: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("GitHub API error: {}", response.status()));
-    }
-
-    let device_response: DeviceCodeResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    // Store the device code for polling
     {
-        let mut state = AUTH_STATE.lock().map_err(|e| format!("Lock error: {}", e))?;
-        *state = GitHubAuthState::default();
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
     }
 
-    // Open the verification URL in the browser
-    let _ = open::that(&device_response.verification_uri);
+    // Check common installation locations
+    let home = env::var("HOME").unwrap_or_default();
+    let common_paths = vec![
+        "/opt/homebrew/bin/gh".to_string(),
+        "/usr/local/bin/gh".to_string(),
+        format!("{}/.local/bin/gh", home),
+        "/usr/bin/gh".to_string(),
+    ];
 
-    Ok(DeviceFlowInit {
-        user_code: device_response.user_code,
-        verification_uri: device_response.verification_uri,
-        expires_in: device_response.expires_in,
-        device_code: device_response.device_code,
+    for path in common_paths {
+        let p = PathBuf::from(&path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    // Last resort: try PATH directly
+    if let Ok(output) = AsyncCommand::new("which").arg("gh").output().await {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
+    }
+
+    None
+}
+
+/// Check if the gh CLI is installed
+#[tauri::command]
+pub async fn github_check_gh_installed() -> Result<bool, String> {
+    Ok(find_gh_path().await.is_some())
+}
+
+/// Get the current auth state by querying gh CLI
+#[tauri::command]
+pub async fn github_get_auth_state() -> Result<GitHubAuthState, String> {
+    let gh_path = match find_gh_path().await {
+        Some(path) => path,
+        None => return Ok(GitHubAuthState::default()),
+    };
+
+    // Check auth status by fetching user info
+    let output = AsyncCommand::new(&gh_path)
+        .args(["api", "/user"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run gh api: {}", e))?;
+
+    if !output.status.success() {
+        // Not authenticated or gh not configured
+        return Ok(GitHubAuthState::default());
+    }
+
+    let user: GitHubUser = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse user info: {}", e))?;
+
+    // Get the token for API calls
+    let token = get_access_token().await;
+
+    Ok(GitHubAuthState {
+        access_token: token,
+        user: Some(user),
+        is_authenticated: true,
     })
 }
 
-/// Poll for the access token after user authorizes
+/// Log in via gh CLI (opens browser for OAuth)
 #[tauri::command]
-pub async fn github_poll_for_token(device_code: String) -> Result<GitHubAuthState, String> {
-    let client = reqwest::Client::new();
+pub async fn github_login() -> Result<GitHubAuthState, String> {
+    let gh_path = find_gh_path().await
+        .ok_or("gh CLI is not installed. Install it from https://cli.github.com")?;
 
-    let interval = Duration::from_secs(5);
-    let max_attempts: u64 = 180; // ~15 min timeout at 5s intervals
-
-    for _ in 0..max_attempts {
-        sleep(interval).await;
-
-        let token_response = client
-            .post("https://github.com/login/oauth/access_token")
-            .header("Accept", "application/json")
-            .form(&[
-                ("client_id", GITHUB_CLIENT_ID),
-                ("device_code", &device_code),
-                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ])
-            .send()
-            .await
-            .map_err(|e| format!("Failed to poll for token: {}", e))?;
-
-        let token_data: AccessTokenResponse = token_response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse token response: {}", e))?;
-
-        if let Some(access_token) = token_data.access_token {
-            // Got the token! Now fetch user info
-            let user = fetch_github_user(&client, &access_token).await?;
-
-            let auth_state = GitHubAuthState {
-                access_token: Some(access_token.clone()),
-                user: Some(user),
-                is_authenticated: true,
-            };
-
-            // Store in global state
-            {
-                let mut state = AUTH_STATE.lock().map_err(|e| format!("Lock error: {}", e))?;
-                *state = auth_state.clone();
-            }
-
-            // Also save to disk for persistence
-            save_auth_to_disk(&auth_state)?;
-
-            return Ok(auth_state);
-        }
-
-        if let Some(error) = token_data.error {
-            match error.as_str() {
-                "authorization_pending" => continue,
-                "slow_down" => {
-                    sleep(Duration::from_secs(5)).await;
-                    continue;
-                }
-                "expired_token" => return Err("Authorization expired. Please try again.".to_string()),
-                "access_denied" => return Err("Access denied by user.".to_string()),
-                _ => return Err(format!("GitHub error: {}", token_data.error_description.unwrap_or(error))),
-            }
-        }
-    }
-
-    Err("Authorization timed out".to_string())
-}
-
-async fn fetch_github_user(client: &reqwest::Client, token: &str) -> Result<GitHubUser, String> {
-    let response = client
-        .get("https://api.github.com/user")
-        .header("Authorization", format!("Bearer {}", token))
-        .header("User-Agent", "hatch-desktop")
-        .send()
+    // Run gh auth login --web -s repo
+    let output = AsyncCommand::new(&gh_path)
+        .args(["auth", "login", "--web", "-h", "github.com", "-s", "repo"])
+        .output()
         .await
-        .map_err(|e| format!("Failed to fetch user: {}", e))?;
+        .map_err(|e| format!("Failed to run gh auth login: {}", e))?;
 
-    if !response.status().is_success() {
-        return Err(format!("GitHub API error: {}", response.status()));
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("GitHub login failed: {}", stderr));
     }
 
-    response
-        .json()
+    // Fetch user info after successful login
+    github_get_auth_state().await
+}
+
+/// Sign out from GitHub via gh CLI
+#[tauri::command]
+pub async fn github_sign_out() -> Result<(), String> {
+    let gh_path = match find_gh_path().await {
+        Some(path) => path,
+        None => return Ok(()), // Nothing to sign out from
+    };
+
+    let output = AsyncCommand::new(&gh_path)
+        .args(["auth", "logout", "--hostname", "github.com"])
+        .stdin(std::process::Stdio::null())
+        .output()
         .await
-        .map_err(|e| format!("Failed to parse user: {}", e))
-}
+        .map_err(|e| format!("Failed to run gh auth logout: {}", e))?;
 
-/// Get the current auth state
-#[tauri::command]
-pub fn github_get_auth_state() -> Result<GitHubAuthState, String> {
-    // First try to load from disk
-    if let Ok(state) = load_auth_from_disk() {
-        if state.is_authenticated {
-            // Update global state
-            let mut global = AUTH_STATE.lock().map_err(|e| format!("Lock error: {}", e))?;
-            *global = state.clone();
-            return Ok(state);
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Ignore "not logged in" errors
+        if !stderr.contains("not logged in") {
+            return Err(format!("Sign out failed: {}", stderr));
         }
-    }
-
-    // Fall back to in-memory state
-    let state = AUTH_STATE.lock().map_err(|e| format!("Lock error: {}", e))?;
-    Ok(state.clone())
-}
-
-/// Sign out from GitHub
-#[tauri::command]
-pub fn github_sign_out() -> Result<(), String> {
-    {
-        let mut state = AUTH_STATE.lock().map_err(|e| format!("Lock error: {}", e))?;
-        *state = GitHubAuthState::default();
-    }
-
-    // Remove saved auth
-    if let Some(config_dir) = dirs::config_dir() {
-        let auth_file = config_dir.join("hatch").join("github_auth.json");
-        let _ = std::fs::remove_file(auth_file);
     }
 
     Ok(())
 }
 
-fn get_auth_file_path() -> Option<std::path::PathBuf> {
-    dirs::config_dir().map(|d| d.join("hatch").join("github_auth.json"))
-}
-
-fn save_auth_to_disk(state: &GitHubAuthState) -> Result<(), String> {
-    let path = get_auth_file_path().ok_or("Could not determine config directory")?;
-
-    // Create directory if needed
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create config directory: {}", e))?;
-    }
-
-    let json = serde_json::to_string_pretty(state)
-        .map_err(|e| format!("Failed to serialize auth state: {}", e))?;
-
-    std::fs::write(&path, json)
-        .map_err(|e| format!("Failed to write auth file: {}", e))?;
-
-    Ok(())
-}
-
-fn load_auth_from_disk() -> Result<GitHubAuthState, String> {
-    let path = get_auth_file_path().ok_or("Could not determine config directory")?;
-
-    let json = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read auth file: {}", e))?;
-
-    serde_json::from_str(&json)
-        .map_err(|e| format!("Failed to parse auth file: {}", e))
-}
-
-/// Validate the stored token by fetching user info from GitHub
+/// Validate the current auth by fetching user info
 #[tauri::command]
 pub async fn github_validate_token() -> Result<GitHubUser, String> {
-    let token = get_access_token().ok_or("Not authenticated")?;
-    let client = reqwest::Client::new();
-    fetch_github_user(&client, &token).await
-}
+    let gh_path = find_gh_path().await
+        .ok_or("gh CLI is not installed")?;
 
-/// Get access token for API calls
-pub fn get_access_token() -> Option<String> {
-    if let Ok(state) = AUTH_STATE.lock() {
-        return state.access_token.clone();
+    let output = AsyncCommand::new(&gh_path)
+        .args(["api", "/user"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to validate token: {}", e))?;
+
+    if !output.status.success() {
+        return Err("Not authenticated".to_string());
     }
 
-    // Try loading from disk
-    if let Ok(state) = load_auth_from_disk() {
-        return state.access_token;
+    serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse user info: {}", e))
+}
+
+/// Get access token from gh CLI for API calls
+pub async fn get_access_token() -> Option<String> {
+    let gh_path = find_gh_path().await?;
+
+    let output = AsyncCommand::new(&gh_path)
+        .args(["auth", "token"])
+        .output()
+        .await
+        .ok()?;
+
+    if output.status.success() {
+        let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !token.is_empty() {
+            return Some(token);
+        }
     }
 
     None

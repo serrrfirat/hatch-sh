@@ -38,6 +38,7 @@ interface RepositoryState {
   githubAuth: GitHubAuthState | null
   isAuthenticating: boolean
   authError: string | null
+  isGhInstalled: boolean | null
 
   // Repositories
   repositories: Repository[]
@@ -52,9 +53,9 @@ interface RepositoryState {
   cloneProgress: string | null
 
   // Actions - Auth
+  checkGhInstalled: () => Promise<void>
   checkGitHubAuth: () => Promise<void>
-  startGitHubLogin: () => Promise<{ userCode: string; verificationUri: string; deviceCode: string }>
-  completeGitHubLogin: (deviceCode: string) => Promise<void>
+  loginWithGitHub: () => Promise<void>
   signOutGitHub: () => Promise<void>
 
   // Actions - Repositories
@@ -87,6 +88,7 @@ export const useRepositoryStore = create<RepositoryState>()(
       githubAuth: null,
       isAuthenticating: false,
       authError: null,
+      isGhInstalled: null,
       repositories: [],
       currentRepository: null,
       workspaces: [],
@@ -95,6 +97,15 @@ export const useRepositoryStore = create<RepositoryState>()(
       cloneProgress: null,
 
       // Auth actions
+      checkGhInstalled: async () => {
+        try {
+          const installed = await githubBridge.checkGhInstalled()
+          set({ isGhInstalled: installed })
+        } catch {
+          set({ isGhInstalled: false })
+        }
+      },
+
       checkGitHubAuth: async () => {
         try {
           const auth = await githubBridge.getAuthState()
@@ -104,24 +115,10 @@ export const useRepositoryStore = create<RepositoryState>()(
         }
       },
 
-      startGitHubLogin: async () => {
+      loginWithGitHub: async () => {
         set({ isAuthenticating: true, authError: null })
         try {
-          const result = await githubBridge.startDeviceFlow()
-          return {
-            userCode: result.user_code,
-            verificationUri: result.verification_uri,
-            deviceCode: result.device_code,
-          }
-        } catch (error) {
-          set({ isAuthenticating: false, authError: error instanceof Error ? error.message : 'Login failed' })
-          throw error
-        }
-      },
-
-      completeGitHubLogin: async (deviceCode: string) => {
-        try {
-          const auth = await githubBridge.pollForToken(deviceCode)
+          const auth = await githubBridge.login()
           set({ githubAuth: auth, isAuthenticating: false, authError: null })
         } catch (error) {
           set({ isAuthenticating: false, authError: error instanceof Error ? error.message : 'Login failed' })

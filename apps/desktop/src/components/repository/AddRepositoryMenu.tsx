@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FolderOpen, Globe, Plus, Loader2, Github, Copy, Check, X } from 'lucide-react'
+import { FolderOpen, Globe, Plus, Loader2, Github, X, AlertTriangle } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 
@@ -18,19 +18,17 @@ export function AddRepositoryMenu({ isOpen, onClose, position }: AddRepositoryMe
   const [repoName, setRepoName] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [deviceCode, setDeviceCode] = useState<{ userCode: string; verificationUri: string } | null>(null)
-  const [copied, setCopied] = useState(false)
 
   const {
     githubAuth,
     isAuthenticating,
+    isGhInstalled,
     isCloning,
     cloneProgress,
     cloneRepository,
     openLocalRepository,
     createNewRepository,
-    startGitHubLogin,
-    completeGitHubLogin,
+    loginWithGitHub,
   } = useRepositoryStore()
 
   const isAuthenticated = githubAuth?.is_authenticated ?? false
@@ -92,28 +90,10 @@ export function AddRepositoryMenu({ isOpen, onClose, position }: AddRepositoryMe
   const handleGitHubLogin = async () => {
     try {
       setError(null)
-      const result = await startGitHubLogin()
-      setDeviceCode(result)
-      // Start polling for completion
-      completeGitHubLogin(result.deviceCode)
-        .then(() => {
-          setDeviceCode(null)
-          setView('main')
-        })
-        .catch((err) => {
-          setError(err instanceof Error ? err.message : 'Login failed')
-          setDeviceCode(null)
-        })
+      await loginWithGitHub()
+      setView('main')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start login')
-    }
-  }
-
-  const handleCopyCode = () => {
-    if (deviceCode?.userCode) {
-      navigator.clipboard.writeText(deviceCode.userCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setError(err instanceof Error ? err.message : 'Login failed')
     }
   }
 
@@ -122,7 +102,6 @@ export function AddRepositoryMenu({ isOpen, onClose, position }: AddRepositoryMe
     setCloneUrl('')
     setRepoName('')
     setError(null)
-    setDeviceCode(null)
     onClose()
   }
 
@@ -294,61 +273,48 @@ export function AddRepositoryMenu({ isOpen, onClose, position }: AddRepositoryMe
                   </button>
                 </div>
 
-                {!deviceCode ? (
-                  <div className="text-center py-4">
-                    <Github size={40} className="mx-auto text-neutral-400 mb-4" />
-                    <p className="text-sm text-neutral-400 mb-4">
-                      Connect your GitHub account to create and manage repositories
-                    </p>
-                    <button
-                      onClick={handleGitHubLogin}
-                      disabled={isAuthenticating}
-                      className="px-6 py-2 bg-white text-black text-sm font-medium rounded-lg hover:bg-neutral-200 disabled:opacity-50 transition-colors"
-                    >
-                      {isAuthenticating ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" />
-                          Connecting...
-                        </span>
-                      ) : (
-                        'Continue with GitHub'
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-neutral-400 mb-2">
-                      Enter this code on GitHub:
-                    </p>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <code className="px-4 py-2 bg-neutral-800 rounded-lg text-xl font-mono text-white tracking-wider">
-                        {deviceCode.userCode}
-                      </code>
+                <div className="text-center py-4">
+                  {isGhInstalled === false ? (
+                    <>
+                      <AlertTriangle size={40} className="mx-auto text-amber-400 mb-4" />
+                      <p className="text-sm text-neutral-400 mb-2">
+                        GitHub CLI (gh) is not installed
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        Install it from{' '}
+                        <a
+                          href="https://cli.github.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline"
+                        >
+                          cli.github.com
+                        </a>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Github size={40} className="mx-auto text-neutral-400 mb-4" />
+                      <p className="text-sm text-neutral-400 mb-4">
+                        Connect your GitHub account to create and manage repositories
+                      </p>
                       <button
-                        onClick={handleCopyCode}
-                        className="p-2 text-neutral-500 hover:text-white transition-colors"
+                        onClick={handleGitHubLogin}
+                        disabled={isAuthenticating}
+                        className="px-6 py-2 bg-white text-black text-sm font-medium rounded-lg hover:bg-neutral-200 disabled:opacity-50 transition-colors"
                       >
-                        {copied ? <Check size={18} /> : <Copy size={18} />}
+                        {isAuthenticating ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 size={14} className="animate-spin" />
+                            Signing in...
+                          </span>
+                        ) : (
+                          'Continue with GitHub'
+                        )}
                       </button>
-                    </div>
-                    <p className="text-xs text-neutral-500 mb-4">
-                      A browser window should have opened. If not, go to:
-                      <br />
-                      <a
-                        href={deviceCode.verificationUri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline"
-                      >
-                        {deviceCode.verificationUri}
-                      </a>
-                    </p>
-                    <div className="flex items-center justify-center gap-2 text-xs text-neutral-500">
-                      <Loader2 size={14} className="animate-spin" />
-                      Waiting for authorization...
-                    </div>
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
 
                 {error && <p className="mt-2 text-xs text-red-400 text-center">{error}</p>}
               </div>

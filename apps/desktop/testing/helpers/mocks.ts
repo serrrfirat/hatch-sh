@@ -44,10 +44,11 @@ export function createGitBridgeMock() {
  */
 export function createGitHubBridgeMock() {
   return {
+    checkGhInstalled: vi.fn(async () => true),
+    login: vi.fn(),
     getAuthState: vi.fn(),
-    startDeviceFlow: vi.fn(),
-    pollForToken: vi.fn(),
     signOut: vi.fn(),
+    validateToken: vi.fn(),
   }
 }
 
