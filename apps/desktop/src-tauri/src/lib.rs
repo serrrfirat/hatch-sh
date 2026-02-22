@@ -59,6 +59,57 @@ pub struct AvailableModels {
     error: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct ProjectFileInput {
+    path: String,
+    content: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ProjectFileWriteResult {
+    path: String,
+    success: bool,
+    size: usize,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn write_project_files(files: Vec<ProjectFileInput>, base_dir: String) -> Vec<ProjectFileWriteResult> {
+    let mut results = Vec::with_capacity(files.len());
+
+    for file in files {
+        let full_path = PathBuf::from(&base_dir).join(&file.path);
+        let mut write_result = ProjectFileWriteResult {
+            path: file.path.clone(),
+            success: false,
+            size: 0,
+            error: None,
+        };
+
+        if let Some(parent) = full_path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                write_result.error = Some(format!("Failed to create parent directories: {}", error));
+                results.push(write_result);
+                continue;
+            }
+        }
+
+        match std::fs::write(&full_path, file.content.as_bytes()) {
+            Ok(_) => {
+                write_result.success = true;
+                write_result.size = file.content.len();
+            }
+            Err(error) => {
+                write_result.error = Some(format!("Failed to write file: {}", error));
+            }
+        }
+
+        results.push(write_result);
+    }
+
+    results
+}
+
 // =============================================================================
 // Claude Code Implementation
 // =============================================================================
@@ -326,8 +377,30 @@ stderr: "Claude Code not found".to_string(),
     };
 
     let stdout = child.stdout.take().expect("Failed to get stdout");
+    let stderr = child.stderr.take().expect("Failed to get stderr");
     let mut reader = BufReader::new(stdout).lines();
     let mut full_output = String::new();
+
+    let stderr_app = app.clone();
+    let stderr_session_id = session_id.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut full_stderr = String::new();
+
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            if !line.is_empty() {
+                full_stderr.push_str(&line);
+                full_stderr.push('\n');
+                let _ = stderr_app.emit("claude-stream", StreamEvent {
+                    event_type: "stderr".to_string(),
+                    data: line,
+                    session_id: stderr_session_id.clone(),
+                });
+            }
+        }
+
+        full_stderr
+    });
 
     // Stream each line as an event
     while let Ok(Some(line)) = reader.next_line().await {
@@ -351,6 +424,22 @@ stderr: "Claude Code not found".to_string(),
         Err(_) => (false, None),
     };
 
+    let full_stderr = stderr_handle.await.unwrap_or_default();
+
+    if !success {
+        let error_message = if !full_stderr.trim().is_empty() {
+            format!("Claude Code stream interrupted (exit {:?}): {}", exit_code, full_stderr.trim())
+        } else {
+            format!("Claude Code stream interrupted (exit {:?})", exit_code)
+        };
+
+        let _ = app.emit("claude-stream", StreamEvent {
+            event_type: "error".to_string(),
+            data: error_message.clone(),
+            session_id: session_id.clone(),
+        });
+    }
+
     // Emit completion event
     let _ = app.emit("claude-stream", StreamEvent {
         event_type: "done".to_string(),
@@ -361,7 +450,7 @@ stderr: "Claude Code not found".to_string(),
     CommandResult {
         success,
         stdout: full_output,
-        stderr: String::new(),
+        stderr: full_stderr,
         code: exit_code,
     }
 }
@@ -671,6 +760,20 @@ async fn run_opencode_streaming(
         Ok(s) => (s.success(), s.code()),
         Err(_) => (false, None),
     };
+
+    if !success {
+        let error_message = if !full_stderr.trim().is_empty() {
+            format!("Opencode stream interrupted (exit {:?}): {}", exit_code, full_stderr.trim())
+        } else {
+            format!("Opencode stream interrupted (exit {:?})", exit_code)
+        };
+
+        let _ = app.emit("opencode-stream", StreamEvent {
+            event_type: "error".to_string(),
+            data: error_message,
+            session_id: session_id.clone(),
+        });
+    }
 
     // Emit completion event
     let _ = app.emit("opencode-stream", StreamEvent {
@@ -1290,6 +1393,21 @@ async fn webview_navigate(app: tauri::AppHandle, webview_label: String, directio
         .map_err(|e| format!("Failed to execute navigation: {}", e))
 }
 
+
+// =============================================================================
+// File Tree Commands
+// =============================================================================
+
+/// Read a directory tree recursively for the file tree sidebar.
+/// Delegates to the existing list_directory_files logic from git.rs.
+/// Skips hidden files (starting with '.'), node_modules, target, .git.
+/// Sorts directories first, then files, both alphabetically.
+/// Max depth: 10 levels.
+#[tauri::command]
+async fn read_directory_tree(path: String) -> Result<Vec<git::FileEntry>, String> {
+    list_directory_files(path, Some(10), Some(false)).await
+}
+
 // =============================================================================
 // Application Entry Point
 // =============================================================================
@@ -1348,8 +1466,11 @@ pub fn run() {
             is_skill_installed,
             get_skill_install_path,
             run_shell_command,
+            write_project_files,
             // Webview navigation
-            webview_navigate
+            webview_navigate,
+            // File tree
+            read_directory_tree
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
