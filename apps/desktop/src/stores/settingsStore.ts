@@ -346,7 +346,7 @@ export const useSettingsStore = create<SettingsState>()(
       setOnboardingComplete: () => {
         set({ hasCompletedOnboarding: true, onboardingStep: 0 })
         // Also write a standalone flag — Zustand persist can be unreliable across restarts
-        try { localStorage.setItem('hatch-onboarding-done', '1') } catch {}
+        try { localStorage.setItem('hatch-onboarding-done', '1') } catch { /* ignore localStorage errors */ }
       },
       setOnboardingStep: (step) => set({ onboardingStep: step }),
 

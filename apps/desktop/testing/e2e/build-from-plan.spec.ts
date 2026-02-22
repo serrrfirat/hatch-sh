@@ -127,7 +127,7 @@ describe('P1-H1: buildFromPlan function', () => {
     )
 
     // Manually add the plan node to the moodboard
-    ideaStore.updateNode // We need to add the node directly
+    // We need to add the node directly
     const moodboard = useIdeaMazeStore.getState().currentMoodboard!
     useIdeaMazeStore.setState({
       currentMoodboard: {
