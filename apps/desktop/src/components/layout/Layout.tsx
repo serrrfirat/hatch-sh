@@ -14,6 +14,7 @@ import { keychainSet } from '../../lib/keychain'
 import { CreatePRModal } from '../repository/CreatePRModal'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { OnboardingWizard } from '../onboarding/OnboardingWizard'
+import { AuthExpiredBanner } from '../repository/AuthExpiredBanner'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
@@ -279,6 +280,9 @@ export function Layout() {
           </button>
         </div>
       </header>
+
+      {/* Auth Expired Banner */}
+      <AuthExpiredBanner />
 
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">

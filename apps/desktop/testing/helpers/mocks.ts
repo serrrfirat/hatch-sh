@@ -49,6 +49,7 @@ export function createGitHubBridgeMock() {
     getAuthState: vi.fn(),
     signOut: vi.fn(),
     validateToken: vi.fn(),
+    isAuthExpiredError: vi.fn(() => false),
   }
 }
 
