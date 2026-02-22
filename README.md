@@ -1,5 +1,4 @@
 <p align="center">
-  <!-- Replace with your hero banner image -->
   <img src=".github/assets/hero.jpg" alt="Hatch" width="100%" />
 </p>
 
@@ -24,11 +23,6 @@
 </p>
 
 ---
-
-<!-- Replace with your demo GIF -->
-<p align="center">
-  <img src=".github/assets/demo.gif" alt="Hatch demo" width="90%" />
-</p>
 
 ## Install
 
