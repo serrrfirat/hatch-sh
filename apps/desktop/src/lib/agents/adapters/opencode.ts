@@ -18,6 +18,7 @@ import type {
   StreamEvent,
   SendMessageOptions,
 } from '../types'
+import { createLineBuffer, safeParseJsonLine } from '../streamUtils'
 
 interface TauriStreamEvent {
   type: string
@@ -38,10 +39,7 @@ const config: AgentConfig = {
 /**
  * Build a prompt string from message history for Opencode
  */
-function buildPromptFromMessages(
-  messages: AgentMessage[],
-  systemPrompt?: string
-): string {
+function buildPromptFromMessages(messages: AgentMessage[], systemPrompt?: string): string {
   let contextPrompt = ''
 
   // Add system prompt if provided
@@ -72,101 +70,115 @@ function buildPromptFromMessages(
  * - step_start/step_finish: Step boundaries
  */
 function parseOpencodeOutput(line: string): StreamEvent | null {
-  if (!line.trim()) return null
+  const parsed = safeParseJsonLine(line, 'opencode')
+  if (parsed.errorEvent) return parsed.errorEvent
+  if (!parsed.value || typeof parsed.value !== 'object') return null
 
-  try {
-    const data = JSON.parse(line)
+  const data = parsed.value as Record<string, unknown>
+  const part =
+    data.part && typeof data.part === 'object' ? (data.part as Record<string, unknown>) : null
 
-    // Handle opencode streaming event format
-    // Events have { type, timestamp, sessionID, part }
-    if (data.type && data.part) {
-      const part = data.part
+  // Handle opencode streaming event format
+  // Events have { type, timestamp, sessionID, part }
+  if (typeof data.type === 'string' && part) {
+    // Text event: { type: "text", part: { type: "text", text: "..." } }
+    if (data.type === 'text' && typeof part.text === 'string') {
+      return { type: 'text', content: part.text }
+    }
 
-      // Text event: { type: "text", part: { type: "text", text: "..." } }
-      if (data.type === 'text' && part.text) {
-        return { type: 'text', content: part.text }
-      }
+    // Tool use event: { type: "tool_use", part: { type: "tool", tool: "bash", callID: "...", state: {...} } }
+    if (data.type === 'tool_use' && part.type === 'tool') {
+      const state =
+        part.state && typeof part.state === 'object'
+          ? (part.state as Record<string, unknown>)
+          : undefined
+      const toolName = typeof part.tool === 'string' ? part.tool : 'unknown'
+      const toolId = typeof part.callID === 'string' ? part.callID : String(Date.now())
+      const toolInput =
+        state?.input && typeof state.input === 'object'
+          ? (state.input as Record<string, unknown>)
+          : {}
+      const toolOutput = state?.output
+      const status = state?.status
 
-      // Tool use event: { type: "tool_use", part: { type: "tool", tool: "bash", callID: "...", state: {...} } }
-      if (data.type === 'tool_use' && part.type === 'tool') {
-        const toolName = part.tool || 'unknown'
-        const toolId = part.callID || String(Date.now())
-        const toolInput = part.state?.input || {}
-        const toolOutput = part.state?.output
-        const status = part.state?.status
-
-        // If tool is completed, return as tool_result
-        if (status === 'completed' && toolOutput !== undefined) {
-          return {
-            type: 'tool_result',
-            toolId,
-            toolResult: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
-          }
-        }
-
-        // Otherwise return as tool_use (starting)
+      // If tool is completed, return as tool_result
+      if (status === 'completed' && toolOutput !== undefined) {
         return {
-          type: 'tool_use',
-          toolName,
+          type: 'tool_result',
           toolId,
-          toolInput,
+          toolResult: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
         }
       }
 
-      // Thinking/reasoning event (if opencode supports it)
-      if (part.type === 'reasoning' || part.type === 'thinking') {
-        return { type: 'thinking', content: part.text || '' }
-      }
-    }
-
-    // Legacy JSON-RPC format (fallback)
-    if (data.result) {
-      const result = data.result
-      if (result.message?.parts) {
-        for (const part of result.message.parts) {
-          if (part.type === 'text') {
-            return { type: 'text', content: part.text }
-          }
-          if (part.type === 'reasoning') {
-            return { type: 'thinking', content: part.text }
-          }
-          if (part.type === 'tool') {
-            return {
-              type: 'tool_use',
-              toolName: part.name,
-              toolId: part.id || String(Date.now()),
-              toolInput: part.input,
-            }
-          }
-        }
-      }
-      if (typeof result === 'string') {
-        return { type: 'text', content: result }
-      }
-    }
-
-    // Handle error responses
-    if (data.error) {
+      // Otherwise return as tool_use (starting)
       return {
-        type: 'error',
-        content: data.error.message || 'Opencode error',
+        type: 'tool_use',
+        toolName,
+        toolId,
+        toolInput,
       }
     }
 
-    // Debug event (from our Rust code)
-    if (data.type === 'debug') {
-      console.log('[opencode] Debug:', data.command || data)
-      return null // Don't show debug events to user
+    // Thinking/reasoning event (if opencode supports it)
+    if (part.type === 'reasoning' || part.type === 'thinking') {
+      return { type: 'thinking', content: typeof part.text === 'string' ? part.text : '' }
     }
-
-    return null
-  } catch {
-    // Not JSON, treat as plain text
-    if (line.trim()) {
-      return { type: 'text', content: line + '\n' }
-    }
-    return null
   }
+
+  // Legacy JSON-RPC format (fallback)
+  if (data.result) {
+    const result = data.result
+    const resultObj =
+      result && typeof result === 'object' ? (result as Record<string, unknown>) : null
+    const resultMessage =
+      resultObj?.message && typeof resultObj.message === 'object'
+        ? (resultObj.message as Record<string, unknown>)
+        : null
+    if (Array.isArray(resultMessage?.parts)) {
+      for (const resultPart of resultMessage.parts) {
+        if (!resultPart || typeof resultPart !== 'object') continue
+        const partObj = resultPart as Record<string, unknown>
+        if (partObj.type === 'text' && typeof partObj.text === 'string') {
+          return { type: 'text', content: partObj.text }
+        }
+        if (partObj.type === 'reasoning' && typeof partObj.text === 'string') {
+          return { type: 'thinking', content: partObj.text }
+        }
+        if (partObj.type === 'tool') {
+          return {
+            type: 'tool_use',
+            toolName: typeof partObj.name === 'string' ? partObj.name : undefined,
+            toolId: typeof partObj.id === 'string' ? partObj.id : String(Date.now()),
+            toolInput:
+              partObj.input && typeof partObj.input === 'object'
+                ? (partObj.input as Record<string, unknown>)
+                : {},
+          }
+        }
+      }
+    }
+    if (typeof result === 'string') {
+      return { type: 'text', content: result }
+    }
+  }
+
+  // Handle error responses
+  if (data.error) {
+    const error =
+      data.error && typeof data.error === 'object' ? (data.error as Record<string, unknown>) : null
+    return {
+      type: 'error',
+      content: typeof error?.message === 'string' ? error.message : 'Opencode error',
+    }
+  }
+
+  // Debug event (from our Rust code)
+  if (data.type === 'debug') {
+    console.log('[opencode] Debug:', data.command || data)
+    return null // Don't show debug events to user
+  }
+
+  return null
 }
 
 export const opencodeAdapter: AgentAdapter = {
@@ -183,24 +195,20 @@ export const opencodeAdapter: AgentAdapter = {
       return {
         installed: false,
         authenticated: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to check Opencode status',
+        error: error instanceof Error ? error.message : 'Failed to check Opencode status',
       }
     }
   },
 
-  async sendMessage(
-    messages: AgentMessage[],
-    options?: SendMessageOptions
-  ): Promise<string> {
+  async sendMessage(messages: AgentMessage[], options?: SendMessageOptions): Promise<string> {
     const { systemPrompt, onStream, model, workingDirectory } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
     const sessionId = crypto.randomUUID()
 
     let fullResponse = ''
     let unlisten: UnlistenFn | null = null
+    const stdoutBuffer = createLineBuffer()
+    const stderrBuffer = createLineBuffer()
 
     try {
       // Set up listener for stream events BEFORE invoking
@@ -211,18 +219,8 @@ export const opencodeAdapter: AgentAdapter = {
         if (payload.session_id !== sessionId) return
 
         if (payload.type === 'line' && payload.data) {
-          // Opencode may output multiple JSON objects on the same line
-          // Split by '} {' to handle this case
-          const jsonObjects = payload.data.split(/\}\s*\{/).map((part: string, index: number, arr: string[]) => {
-            if (arr.length === 1) return part
-            if (index === 0) return part + '}'
-            if (index === arr.length - 1) return '{' + part
-            return '{' + part + '}'
-          })
-
-          for (const jsonStr of jsonObjects) {
-            // Use parseOpencodeOutput directly to avoid `this` binding issues
-            const streamEvent = parseOpencodeOutput(jsonStr)
+          for (const line of stdoutBuffer.pushChunk(`${payload.data}\n`)) {
+            const streamEvent = parseOpencodeOutput(line)
             if (streamEvent) {
               onStream?.(streamEvent)
               if (streamEvent.type === 'text' && streamEvent.content) {
@@ -231,20 +229,31 @@ export const opencodeAdapter: AgentAdapter = {
             }
           }
         } else if (payload.type === 'stderr' && payload.data) {
-          // Handle stderr output - could be debug info or errors
-          // Try to parse as JSON first, otherwise treat as text
-          const streamEvent = parseOpencodeOutput(payload.data)
-          if (streamEvent) {
-            onStream?.(streamEvent)
-          } else {
-            // Emit raw stderr as text so user can see what's happening
-            onStream?.({ type: 'text', content: payload.data + '\n' })
-            fullResponse += payload.data + '\n'
+          for (const line of stderrBuffer.pushChunk(`${payload.data}\n`)) {
+            const streamEvent = parseOpencodeOutput(line)
+            if (streamEvent) {
+              onStream?.(streamEvent)
+            }
           }
         } else if (payload.type === 'error' && payload.data) {
           console.error('[opencode-stream] error:', payload.data)
           onStream?.({ type: 'error', content: payload.data })
         } else if (payload.type === 'done') {
+          for (const line of stdoutBuffer.flush()) {
+            const streamEvent = parseOpencodeOutput(line)
+            if (streamEvent) {
+              onStream?.(streamEvent)
+              if (streamEvent.type === 'text' && streamEvent.content) {
+                fullResponse += streamEvent.content
+              }
+            }
+          }
+          for (const line of stderrBuffer.flush()) {
+            const streamEvent = parseOpencodeOutput(line)
+            if (streamEvent) {
+              onStream?.(streamEvent)
+            }
+          }
           onStream?.({ type: 'done' })
         }
       })
