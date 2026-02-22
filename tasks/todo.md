@@ -116,7 +116,137 @@
 ---
 
 ## Phase 2: Reliability & Trust
-*Deferred*
+*Priority order: A → C → B → D | Cost/token visibility deferred to Phase 3*
+
+### Stream A: Error Handling & Resilience
+
+#### P2-A1: Agent stream interruption recovery
+ [ ] Detect stream disconnection (process crash, network drop, EventSource close)
+ [ ] Implement retry logic with exponential backoff for cloud API streams
+ [ ] For local agents: detect process exit mid-stream, surface error + offer "Retry"
+ [ ] Preserve partial response on interruption (don't lose what was already streamed)
+ [ ] Tests: stream interruption scenarios (3+ tests)
+ Files: `useChat.ts`, `claudeCode.ts`, `opencode.ts`, `cursor.ts`, `lib.rs`
+
+#### P2-A2: Malformed JSON handling
+ [ ] Add JSON validation layer before parsing in all adapters
+ [ ] Emit structured error events instead of silently skipping bad lines
+ [ ] Log malformed lines for debugging (not user-facing)
+ [ ] Handle partial JSON at stream boundaries (buffered line reassembly)
+ [ ] Tests: malformed JSON edge cases (3+ tests)
+ Files: `claudeCode.ts`, `opencode.ts`, `cursor.ts`, `chat.ts` (cloud SSE)
+
+#### P2-A3: Actionable Git operation failure messages
+ [ ] Map common Git errors to user-friendly messages:
+  - Push rejected → "Pull first, then push again"
+  - Auth failure → "GitHub token expired — reconnect in Settings"
+  - Merge conflict → "Conflict in {files} — resolve before committing"
+  - Clone failure → "Repository not found or no access"
+ [ ] Surface messages in toast/notification UI (not console)
+ [ ] Tests: error mapping (4+ tests)
+ Files: `bridge.ts` (git), `repositoryStore.ts`, `github.rs`
+
+#### P2-A4: Expired GitHub auth → re-auth flow
+ [ ] Add token expiration detection (check 401 on GitHub API calls)
+ [ ] On expired token: show banner/modal prompting re-auth
+ [ ] Re-auth flow reuses existing device code flow (don't require full re-login)
+ [ ] After re-auth: retry the failed operation automatically
+ [ ] Tests: expiration detection + re-auth trigger (3+ tests)
+ Files: `bridge.ts` (github), `github.rs`, `repositoryStore.ts`, `settingsStore.ts`
+
+---
+
+### Stream C: Multi-File Project Support
+
+#### P2-C1: Write extracted files to workspace filesystem
+ [ ] After `extractCodeBlocks()`, write each `CodeBlock` to workspace project directory
+ [ ] Use Tauri FS API (or Rust command) to write files with proper directory creation
+ [ ] Handle file overwrites with confirmation or auto-overwrite on AI regeneration
+ [ ] Update `projects.code` column to store file manifest (paths) not full content
+ [ ] Tests: file writing, directory creation, overwrite handling (4+ tests)
+ Files: `chat.ts` (API route), new `fileWriter.ts` utility, Rust FS commands
+
+#### P2-C2: File tree component in Build tab
+ [ ] Create `FileTree` component that reads workspace filesystem
+ [ ] Show real directory structure with expand/collapse
+ [ ] Click file → open in editor tab
+ [ ] Visual indicators for AI-generated vs user-edited files
+ [ ] Auto-refresh on file changes (watch or poll)
+ [ ] Tests: component rendering, interaction (3+ tests)
+ Files: new `components/build/FileTree.tsx`, `IDEPage.tsx`
+
+#### P2-C3: Multi-file bundler for Live Preview
+ [ ] Update esbuild virtual FS plugin to accept file map (multiple files)
+ [ ] Entry point detection: `index.tsx` > `App.tsx` > `main.tsx` > first file
+ [ ] Resolve cross-file imports within the virtual filesystem
+ [ ] Handle CSS/style imports across files
+ [ ] Fallback: if bundling fails, show the main component only (current behavior)
+ [ ] Tests: multi-file bundling, import resolution, entry detection (4+ tests)
+ Files: `lib/bundler/index.ts`, `usePreview.ts`, `PreviewPanel.tsx`
+
+---
+
+### Stream B: Context Management
+
+#### P2-B1: Sliding window for chat history
+ [ ] Implement configurable window size (default: last 20 messages sent to API)
+ [ ] Keep system prompt + plan context always included (not part of window)
+ [ ] Oldest messages outside window excluded from API call, kept in UI
+ [ ] Show visual indicator when context is truncated ("Showing last N messages")
+ [ ] Tests: windowing logic, system prompt preservation (3+ tests)
+ Files: `useChat.ts`, `chatStore.ts`
+
+#### P2-B2: Auto-summarize older conversation context
+ [ ] When window shifts, summarize excluded messages into a context block
+ [ ] Summary injected as system-level context ("Previous conversation summary: ...")
+ [ ] Use lightweight model call (Haiku) for summarization
+ [ ] Cache summaries per conversation to avoid re-summarizing
+ [ ] Tests: summarization trigger, injection, caching (3+ tests)
+ Files: `useChat.ts`, new `lib/contextSummarizer.ts`, `chatStore.ts`
+
+#### P2-B3: Project-level memory file (.hatch/context.md)
+ [ ] Create `.hatch/context.md` in workspace root on first AI decision
+ [ ] Auto-append key decisions (tech choices, architecture, constraints)
+ [ ] Inject file contents into system prompt for every message
+ [ ] User can manually edit the file to correct/add context
+ [ ] Tests: file creation, decision extraction, injection (3+ tests)
+ Files: new `lib/projectMemory.ts`, `useChat.ts`, Tauri FS commands
+
+---
+
+### Stream D: Idea Maze Undo/History
+
+#### P2-D1: Undo/redo with Cmd+Z / Cmd+Shift+Z
+ [ ] Add `zundo` (zustand temporal middleware) or custom history middleware
+ [ ] Track mutation history for node/connection operations (not viewport/UI state)
+ [ ] Register Cmd+Z and Cmd+Shift+Z keyboard shortcuts on IdeaMazePage
+ [ ] Cap history stack (50-100 entries, in-memory only, clears on restart)
+ [ ] Tests: undo/redo actions, history cap, keyboard shortcuts (4+ tests)
+ Files: `ideaMazeStore.ts`, `IdeaMazePage.tsx`, new `useUndoRedo.ts` hook
+
+#### P2-D2: Snapshot history with restore
+ [ ] Named snapshots: user can save current state as "Snapshot: {name}"
+ [ ] Snapshot list panel in sidebar (name, timestamp, node count)
+ [ ] Restore from snapshot replaces current moodboard state
+ [ ] Snapshots stored to filesystem alongside moodboard files
+ [ ] Tests: save/list/restore snapshots (3+ tests)
+ Files: `ideaMazeStore.ts`, `storage.ts`, new `components/ideaMaze/SnapshotPanel.tsx`
+
+#### P2-D3: Auto-save indicator
+ [ ] Show save status in Idea Maze toolbar: Saved ✓ / Saving... / Unsaved changes
+ [ ] Track `lastSavedAt` timestamp in store
+ [ ] Visual transition between states (subtle, non-distracting)
+ [ ] Tests: indicator state transitions (2+ tests)
+ Files: `ideaMazeStore.ts`, `storage.ts`, `VerticalToolbar.tsx` or new status component
+
+---
+
+### Phase 2 Exit Criteria
+ [ ] 30-minute Build session without unrecoverable error
+ [ ] Stream interruption recovers gracefully (retry or partial save)
+ [ ] Multi-file project renders correctly in Live Preview
+ [ ] Chat context stays manageable after 50+ messages
+ [ ] Idea Maze supports undo/redo for all node/connection operations
 
 ## Phase 3: Worth Using (OSS)
 *Billing/Stripe removed. Auth, templates, agent UX only.*
