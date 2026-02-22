@@ -16,6 +16,7 @@ import {
 import { useIdeaMazeStore } from '../../stores/ideaMazeStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useIdeaMazeChat } from '../../hooks/useIdeaMazeChat'
+import { SnapshotPanel } from './SnapshotPanel'
 import {
   staggerContainerVariants,
   staggerItemVariants,
@@ -43,13 +44,8 @@ export function IdeaMazeSidebar() {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const {
-    aiSuggestions,
-    selection,
-    currentMoodboard,
-    acceptAISuggestion,
-    removeAISuggestion,
-  } = useIdeaMazeStore()
+  const { aiSuggestions, selection, currentMoodboard, acceptAISuggestion, removeAISuggestion } =
+    useIdeaMazeStore()
 
   const { agentStatuses, checkAgentStatus, isCheckingAgent } = useSettingsStore()
 
@@ -93,9 +89,8 @@ export function IdeaMazeSidebar() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  const selectedNodes = currentMoodboard?.nodes.filter((n) =>
-    selection.nodeIds.includes(n.id)
-  ) || []
+  const selectedNodes =
+    currentMoodboard?.nodes.filter((n) => selection.nodeIds.includes(n.id)) || []
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isProcessing) return
@@ -185,10 +180,8 @@ export function IdeaMazeSidebar() {
 
     if (isMultiSelect) {
       // Toggle selection for multi-select mode
-      setSelectedOptions(prev =>
-        prev.includes(option)
-          ? prev.filter(o => o !== option)
-          : [...prev, option]
+      setSelectedOptions((prev) =>
+        prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option]
       )
     } else {
       // Single select - send immediately
@@ -213,7 +206,12 @@ export function IdeaMazeSidebar() {
 
   const tabs = [
     { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
-    { id: 'suggestions' as const, label: 'Suggestions', icon: Lightbulb, count: aiSuggestions.length },
+    {
+      id: 'suggestions' as const,
+      label: 'Suggestions',
+      icon: Lightbulb,
+      count: aiSuggestions.length,
+    },
   ]
 
   // Interview Mode: Chat Flow Design
@@ -251,32 +249,23 @@ export function IdeaMazeSidebar() {
         {/* Chat Area - Bubble Style */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {chatMessages.map((msg) => {
-            const displayContent = msg.role === 'assistant'
-              ? cleanMessageContent(msg.content)
-              : msg.content
+            const displayContent =
+              msg.role === 'assistant' ? cleanMessageContent(msg.content) : msg.content
 
             if (!displayContent && !msg.isStreaming && msg.role === 'assistant') {
               return null
             }
 
             return (
-              <div
-                key={msg.id}
-                className={msg.role === 'user' ? 'pl-8' : 'pr-8'}
-              >
+              <div key={msg.id} className={msg.role === 'user' ? 'pl-8' : 'pr-8'}>
                 <div
                   className={`p-3 text-sm ${
-                    msg.role === 'user'
-                      ? 'rounded-2xl rounded-tr-md'
-                      : 'rounded-2xl rounded-tl-md'
+                    msg.role === 'user' ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-tl-md'
                   }`}
                   style={{
-                    backgroundColor: msg.role === 'user'
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : COLORS.surface,
-                    border: msg.role === 'user'
-                      ? '1px solid rgba(16, 185, 129, 0.3)'
-                      : 'none',
+                    backgroundColor:
+                      msg.role === 'user' ? 'rgba(16, 185, 129, 0.15)' : COLORS.surface,
+                    border: msg.role === 'user' ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
                   }}
                 >
                   <p className="whitespace-pre-wrap" style={{ color: COLORS.text }}>
@@ -314,12 +303,14 @@ export function IdeaMazeSidebar() {
                     whileTap={{ scale: 0.99 }}
                     className="w-full p-3 rounded-2xl rounded-tr-md text-left text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     style={{
-                      backgroundColor: isMultiSelect && isSelected
-                        ? 'rgba(16, 185, 129, 0.25)'
-                        : 'rgba(16, 185, 129, 0.08)',
-                      border: isMultiSelect && isSelected
-                        ? '1px solid rgba(16, 185, 129, 0.5)'
-                        : '1px solid rgba(16, 185, 129, 0.2)',
+                      backgroundColor:
+                        isMultiSelect && isSelected
+                          ? 'rgba(16, 185, 129, 0.25)'
+                          : 'rgba(16, 185, 129, 0.08)',
+                      border:
+                        isMultiSelect && isSelected
+                          ? '1px solid rgba(16, 185, 129, 0.5)'
+                          : '1px solid rgba(16, 185, 129, 0.2)',
                       color: COLORS.text,
                     }}
                   >
@@ -346,11 +337,13 @@ export function IdeaMazeSidebar() {
                   whileTap={{ scale: selectedOptions.length > 0 ? 0.99 : 1 }}
                   className="w-full p-3 rounded-2xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
                   style={{
-                    backgroundColor: selectedOptions.length > 0 ? '#10b981' : 'rgba(16, 185, 129, 0.2)',
+                    backgroundColor:
+                      selectedOptions.length > 0 ? '#10b981' : 'rgba(16, 185, 129, 0.2)',
                     color: selectedOptions.length > 0 ? 'white' : COLORS.textMuted,
                   }}
                 >
-                  Continue{selectedOptions.length > 0 ? ` (${selectedOptions.length} selected)` : ''}
+                  Continue
+                  {selectedOptions.length > 0 ? ` (${selectedOptions.length} selected)` : ''}
                 </motion.button>
               )}
             </div>
@@ -405,10 +398,7 @@ export function IdeaMazeSidebar() {
       }}
     >
       {/* Header */}
-      <div
-        className="p-4"
-        style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}
-      >
+      <div className="p-4" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
         <div className="flex items-center gap-3 mb-4">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -434,7 +424,10 @@ export function IdeaMazeSidebar() {
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
               style={{
                 background: activeTab === tab.id ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                border: activeTab === tab.id ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
+                border:
+                  activeTab === tab.id
+                    ? '1px solid rgba(255, 255, 255, 0.15)'
+                    : '1px solid transparent',
                 color: activeTab === tab.id ? '#fff' : 'rgba(255, 255, 255, 0.4)',
               }}
             >
@@ -530,10 +523,11 @@ export function IdeaMazeSidebar() {
                     border: '1px solid rgba(255, 255, 255, 0.08)',
                   }}
                 >
-                  <Loader2 size={14} className="text-neutral-400 mt-0.5 flex-shrink-0 animate-spin" />
-                  <p className="text-xs text-neutral-400">
-                    Checking Claude Code status...
-                  </p>
+                  <Loader2
+                    size={14}
+                    className="text-neutral-400 mt-0.5 flex-shrink-0 animate-spin"
+                  />
+                  <p className="text-xs text-neutral-400">Checking Claude Code status...</p>
                 </div>
               )}
               {!isReady && !isCheckingAgent && (
@@ -553,16 +547,32 @@ export function IdeaMazeSidebar() {
 
               {/* Quick actions */}
               <div className="space-y-1.5 mb-6">
-                <p className="text-[10px] uppercase tracking-wider text-neutral-600 mb-2">Quick Actions</p>
+                <p className="text-[10px] uppercase tracking-wider text-neutral-600 mb-2">
+                  Quick Actions
+                </p>
                 <button
                   onClick={handleFindConnections}
-                  disabled={!isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length < 2}
+                  disabled={
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length < 2
+                  }
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                    !isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length < 2
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length < 2
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/5'
                   }`}
-                  title={!isReady ? 'Claude Code not ready' : currentMoodboard && currentMoodboard.nodes.length < 2 ? 'Need at least 2 nodes' : 'Find connections between ideas'}
+                  title={
+                    !isReady
+                      ? 'Claude Code not ready'
+                      : currentMoodboard && currentMoodboard.nodes.length < 2
+                        ? 'Need at least 2 nodes'
+                        : 'Find connections between ideas'
+                  }
                 >
                   {isProcessing ? (
                     <Loader2 size={16} className="animate-spin text-white" />
@@ -573,9 +583,17 @@ export function IdeaMazeSidebar() {
                 </button>
                 <button
                   onClick={handleGenerateIdeas}
-                  disabled={!isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length === 0}
+                  disabled={
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length === 0
+                  }
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                    !isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length === 0
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length === 0
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/5'
                   }`}
@@ -596,7 +614,13 @@ export function IdeaMazeSidebar() {
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/5'
                   }`}
-                  title={!isReady ? 'Claude Code not ready' : selection.nodeIds.length === 0 ? 'Select nodes to critique' : 'Critique selected ideas'}
+                  title={
+                    !isReady
+                      ? 'Claude Code not ready'
+                      : selection.nodeIds.length === 0
+                        ? 'Select nodes to critique'
+                        : 'Critique selected ideas'
+                  }
                 >
                   {isProcessing ? (
                     <Loader2 size={16} className="animate-spin text-purple-400" />
@@ -613,7 +637,13 @@ export function IdeaMazeSidebar() {
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/5'
                   }`}
-                  title={!isReady ? 'Claude Code not ready' : selection.nodeIds.length === 0 ? 'Select ideas to create a plan' : 'Interview to create a plan'}
+                  title={
+                    !isReady
+                      ? 'Claude Code not ready'
+                      : selection.nodeIds.length === 0
+                        ? 'Select ideas to create a plan'
+                        : 'Interview to create a plan'
+                  }
                 >
                   {isProcessing ? (
                     <Loader2 size={16} className="animate-spin text-emerald-400" />
@@ -624,13 +654,27 @@ export function IdeaMazeSidebar() {
                 </button>
                 <button
                   onClick={handleStartMoodboardInterview}
-                  disabled={!isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length === 0}
+                  disabled={
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length === 0
+                  }
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                    !isReady || isProcessing || !currentMoodboard || currentMoodboard.nodes.length === 0
+                    !isReady ||
+                    isProcessing ||
+                    !currentMoodboard ||
+                    currentMoodboard.nodes.length === 0
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/5'
                   }`}
-                  title={!isReady ? 'Claude Code not ready' : !currentMoodboard || currentMoodboard.nodes.length === 0 ? 'Add ideas first' : 'Create a plan from all ideas on the moodboard'}
+                  title={
+                    !isReady
+                      ? 'Claude Code not ready'
+                      : !currentMoodboard || currentMoodboard.nodes.length === 0
+                        ? 'Add ideas first'
+                        : 'Create a plan from all ideas on the moodboard'
+                  }
                 >
                   {isProcessing ? (
                     <Loader2 size={16} className="animate-spin text-emerald-400/70" />
@@ -663,9 +707,8 @@ export function IdeaMazeSidebar() {
                 <div className="space-y-3">
                   {chatMessages.map((msg) => {
                     // Clean up the message content for display
-                    const displayContent = msg.role === 'assistant'
-                      ? cleanMessageContent(msg.content)
-                      : msg.content
+                    const displayContent =
+                      msg.role === 'assistant' ? cleanMessageContent(msg.content) : msg.content
 
                     // Skip rendering if there's no content after cleaning (unless streaming)
                     if (!displayContent && !msg.isStreaming && msg.role === 'assistant') {
@@ -677,12 +720,14 @@ export function IdeaMazeSidebar() {
                         key={msg.id}
                         className={`p-3 rounded-lg ${msg.role === 'user' ? 'ml-4' : 'mr-4'}`}
                         style={{
-                          backgroundColor: msg.role === 'user'
-                            ? 'rgba(255, 255, 255, 0.1)'
-                            : 'rgba(255, 255, 255, 0.05)',
-                          border: msg.role === 'user'
-                            ? '1px solid rgba(255, 255, 255, 0.15)'
-                            : '1px solid rgba(255, 255, 255, 0.06)',
+                          backgroundColor:
+                            msg.role === 'user'
+                              ? 'rgba(255, 255, 255, 0.1)'
+                              : 'rgba(255, 255, 255, 0.05)',
+                          border:
+                            msg.role === 'user'
+                              ? '1px solid rgba(255, 255, 255, 0.15)'
+                              : '1px solid rgba(255, 255, 255, 0.06)',
                         }}
                       >
                         <p className="text-xs mb-1 uppercase tracking-wider text-neutral-600">
@@ -699,78 +744,90 @@ export function IdeaMazeSidebar() {
                   })}
 
                   {/* Multiple choice options for interview */}
-                  {isInterviewing && currentOptions && currentOptions.length > 0 && !isProcessing && (
-                    <div
-                      className="p-3 rounded-lg space-y-2"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                      }}
-                    >
-                      {currentQuestion && (
-                        <p className="text-xs font-medium mb-2 text-neutral-400">
-                          {currentQuestion}
-                        </p>
-                      )}
-                      {isMultiSelect && (
-                        <p className="text-[10px] mb-2 text-neutral-600">
-                          Select all that apply
-                        </p>
-                      )}
-                      {currentOptions.map((option, idx) => {
-                        const isSelected = selectedOptions.includes(option)
-                        return (
+                  {isInterviewing &&
+                    currentOptions &&
+                    currentOptions.length > 0 &&
+                    !isProcessing && (
+                      <div
+                        className="p-3 rounded-lg space-y-2"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}
+                      >
+                        {currentQuestion && (
+                          <p className="text-xs font-medium mb-2 text-neutral-400">
+                            {currentQuestion}
+                          </p>
+                        )}
+                        {isMultiSelect && (
+                          <p className="text-[10px] mb-2 text-neutral-600">Select all that apply</p>
+                        )}
+                        {currentOptions.map((option, idx) => {
+                          const isSelected = selectedOptions.includes(option)
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => handleSelectOption(option)}
+                              disabled={isProcessing}
+                              className="w-full p-2.5 rounded-lg text-left text-sm transition-all hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                              style={{
+                                backgroundColor:
+                                  isMultiSelect && isSelected
+                                    ? 'rgba(255, 255, 255, 0.1)'
+                                    : 'rgba(255, 255, 255, 0.05)',
+                                border:
+                                  isMultiSelect && isSelected
+                                    ? '1px solid rgba(255, 255, 255, 0.2)'
+                                    : '1px solid rgba(255, 255, 255, 0.08)',
+                                color: '#e5e5e5',
+                              }}
+                            >
+                              {isMultiSelect && (
+                                <span
+                                  className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+                                  style={{
+                                    borderColor: isSelected
+                                      ? 'rgba(255, 255, 255, 0.4)'
+                                      : 'rgba(255, 255, 255, 0.2)',
+                                    backgroundColor: isSelected
+                                      ? 'rgba(255, 255, 255, 0.2)'
+                                      : 'transparent',
+                                  }}
+                                >
+                                  {isSelected && <Check size={12} className="text-white" />}
+                                </span>
+                              )}
+                              <span>{option}</span>
+                            </button>
+                          )
+                        })}
+                        {isMultiSelect && (
                           <button
-                            key={idx}
-                            onClick={() => handleSelectOption(option)}
-                            disabled={isProcessing}
-                            className="w-full p-2.5 rounded-lg text-left text-sm transition-all hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            onClick={handleSubmitMultiSelect}
+                            disabled={isProcessing || selectedOptions.length === 0}
+                            className="w-full p-2.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
                             style={{
-                              backgroundColor: isMultiSelect && isSelected
-                                ? 'rgba(255, 255, 255, 0.1)'
-                                : 'rgba(255, 255, 255, 0.05)',
-                              border: isMultiSelect && isSelected
-                                ? '1px solid rgba(255, 255, 255, 0.2)'
-                                : '1px solid rgba(255, 255, 255, 0.08)',
-                              color: '#e5e5e5',
+                              backgroundColor:
+                                selectedOptions.length > 0
+                                  ? 'rgba(255, 255, 255, 0.15)'
+                                  : 'rgba(255, 255, 255, 0.05)',
+                              color:
+                                selectedOptions.length > 0 ? 'white' : 'rgba(255, 255, 255, 0.4)',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
                             }}
                           >
-                            {isMultiSelect && (
-                              <span
-                                className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
-                                style={{
-                                  borderColor: isSelected ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.2)',
-                                  backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
-                                }}
-                              >
-                                {isSelected && (
-                                  <Check size={12} className="text-white" />
-                                )}
-                              </span>
-                            )}
-                            <span>{option}</span>
+                            Continue
+                            {selectedOptions.length > 0
+                              ? ` (${selectedOptions.length} selected)`
+                              : ''}
                           </button>
-                        )
-                      })}
-                      {isMultiSelect && (
-                        <button
-                          onClick={handleSubmitMultiSelect}
-                          disabled={isProcessing || selectedOptions.length === 0}
-                          className="w-full p-2.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-                          style={{
-                            backgroundColor: selectedOptions.length > 0 ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                            color: selectedOptions.length > 0 ? 'white' : 'rgba(255, 255, 255, 0.4)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                          }}
-                        >
-                          Continue{selectedOptions.length > 0 ? ` (${selectedOptions.length} selected)` : ''}
-                        </button>
-                      )}
-                      <p className="text-[10px] mt-2 text-neutral-600">
-                        Or type your own answer below
-                      </p>
-                    </div>
-                  )}
+                        )}
+                        <p className="text-[10px] mt-2 text-neutral-600">
+                          Or type your own answer below
+                        </p>
+                      </div>
+                    )}
 
                   <div ref={messagesEndRef} />
                 </div>
@@ -795,9 +852,7 @@ export function IdeaMazeSidebar() {
                   >
                     <Lightbulb size={20} className="text-neutral-500" />
                   </div>
-                  <p className="text-sm text-neutral-500">
-                    No suggestions yet
-                  </p>
+                  <p className="text-sm text-neutral-500">No suggestions yet</p>
                   <p className="text-xs mt-1 text-neutral-600">
                     Select nodes and ask AI for analysis
                   </p>
@@ -826,15 +881,15 @@ export function IdeaMazeSidebar() {
                           {suggestion.type === 'connection'
                             ? 'Connection'
                             : suggestion.type === 'node'
-                            ? 'New Idea'
-                            : 'Critique'}
+                              ? 'New Idea'
+                              : 'Critique'}
                         </p>
                         <p className="text-sm text-neutral-300">
                           {suggestion.type === 'connection'
                             ? suggestion.data.reasoning
                             : suggestion.type === 'node'
-                            ? suggestion.data.title
-                            : suggestion.data.critique}
+                              ? suggestion.data.title
+                              : suggestion.data.critique}
                         </p>
                         {suggestion.type === 'connection' && (
                           <div className="flex items-center gap-1 mt-1">
@@ -879,14 +934,15 @@ export function IdeaMazeSidebar() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="px-4 pb-4">
+          <SnapshotPanel />
+        </div>
       </div>
 
       {/* Input */}
       {activeTab === 'chat' && (
-        <div
-          className="p-3"
-          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
-        >
+        <div className="p-3" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
           <div
             className="flex items-center gap-2 p-2 rounded-xl"
             style={{
