@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { bundleCode, createPreviewBlobUrl } from '../lib/bundler'
+import { bundleCode, bundleMultiFile, createPreviewBlobUrl } from '../lib/bundler'
 
 interface PreviewState {
   url: string | null
@@ -16,7 +16,11 @@ interface PreviewMessage {
   col?: number
 }
 
-export function usePreview(code: string | undefined) {
+function hasFileEntries(files?: Record<string, string>): files is Record<string, string> {
+  return Boolean(files && Object.keys(files).length > 0)
+}
+
+export function usePreview(code?: string, files?: Record<string, string>) {
   const [state, setState] = useState<PreviewState>({
     url: null,
     error: null,
@@ -43,46 +47,56 @@ export function usePreview(code: string | undefined) {
   }, [])
 
   // Bundle and create preview URL
-  const updatePreview = useCallback(async (sourceCode: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }))
-
-    try {
-      const result = await bundleCode(sourceCode)
-
-      if (result.error) {
-        setState({
-          url: null,
-          error: result.error,
-          isLoading: false,
-        })
+  const updatePreview = useCallback(
+    async (sourceCode?: string, sourceFiles?: Record<string, string>) => {
+      if (!sourceCode && !hasFileEntries(sourceFiles)) {
+        setState({ url: null, error: null, isLoading: false })
         return
       }
 
-      // Revoke previous blob URL
-      if (previousUrlRef.current) {
-        URL.revokeObjectURL(previousUrlRef.current)
+      setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+      try {
+        const result = hasFileEntries(sourceFiles)
+          ? await bundleMultiFile(sourceFiles)
+          : await bundleCode(sourceCode || '')
+
+        if (result.error) {
+          setState({
+            url: null,
+            error: result.error,
+            isLoading: false,
+          })
+          return
+        }
+
+        // Revoke previous blob URL
+        if (previousUrlRef.current) {
+          URL.revokeObjectURL(previousUrlRef.current)
+        }
+
+        const url = createPreviewBlobUrl(result.code)
+        previousUrlRef.current = url
+
+        setState({
+          url,
+          error: null,
+          isLoading: false,
+        })
+      } catch (error) {
+        setState({
+          url: null,
+          error: error instanceof Error ? error.message : 'Failed to build preview',
+          isLoading: false,
+        })
       }
-
-      const url = createPreviewBlobUrl(result.code)
-      previousUrlRef.current = url
-
-      setState({
-        url,
-        error: null,
-        isLoading: false,
-      })
-    } catch (error) {
-      setState({
-        url: null,
-        error: error instanceof Error ? error.message : 'Failed to build preview',
-        isLoading: false,
-      })
-    }
-  }, [])
+    },
+    []
+  )
 
   // Debounced code update
   useEffect(() => {
-    if (!code) {
+    if (!code && !hasFileEntries(files)) {
       setState({ url: null, error: null, isLoading: false })
       return
     }
@@ -94,7 +108,7 @@ export function usePreview(code: string | undefined) {
 
     // Debounce to avoid rebuilding on every keystroke
     debounceTimerRef.current = window.setTimeout(() => {
-      updatePreview(code)
+      updatePreview(code, files)
     }, 500)
 
     return () => {
@@ -102,7 +116,7 @@ export function usePreview(code: string | undefined) {
         clearTimeout(debounceTimerRef.current)
       }
     }
-  }, [code, updatePreview])
+  }, [code, files, updatePreview])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -114,10 +128,10 @@ export function usePreview(code: string | undefined) {
   }, [])
 
   const refresh = useCallback(() => {
-    if (code) {
-      updatePreview(code)
+    if (code || hasFileEntries(files)) {
+      updatePreview(code, files)
     }
-  }, [code, updatePreview])
+  }, [code, files, updatePreview])
 
   return {
     ...state,

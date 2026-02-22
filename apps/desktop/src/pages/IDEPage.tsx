@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { ChatArea } from '../components/chat/ChatArea'
 import { RightPanel } from '../components/ide/RightPanel'
 import { useProjectStore } from '../stores/projectStore'
@@ -7,13 +7,16 @@ import { useEditorStore } from '../stores/editorStore'
 import { FileViewer } from '../components/editor/FileViewer'
 import { DiffViewer } from '../components/editor/DiffViewer'
 import { FileIcon } from '../components/icons/FileIcon'
+import { FileTree } from '../components/build/FileTree'
+import { useRepositoryStore } from '../stores/repositoryStore'
 import { cn } from '@hatch/ui'
 import { X, MessageSquare, GitCompare } from 'lucide-react'
 
 export function IDEPage() {
   const { currentProject, setCurrentProject, addProject, addWorkspace, setCurrentWorkspace } = useProjectStore()
   const { setProjectId } = useChatStore()
-  const { tabs, activeTabId, setActiveTab, closeTab } = useEditorStore()
+  const { tabs, activeTabId, setActiveTab, closeTab, openFile } = useEditorStore()
+  const currentWorkspace = useRepositoryStore((s) => s.currentWorkspace)
 
   // Auto-create a demo project if none exists
   useEffect(() => {
@@ -47,8 +50,22 @@ export function IDEPage() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
+  const handleFileSelect = useCallback((filePath: string) => {
+    if (currentWorkspace?.localPath) {
+      openFile(filePath, currentWorkspace.localPath)
+    }
+  }, [currentWorkspace?.localPath, openFile])
+
   return (
     <div className="flex h-full w-full">
+      {/* Left Sidebar - File Tree */}
+      <div className="w-56 border-r border-white/10 flex-shrink-0 bg-zinc-900">
+        <FileTree
+          workspacePath={currentWorkspace?.localPath}
+          onFileSelect={handleFileSelect}
+        />
+      </div>
+
       {/* Main Content Section */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Tab Bar */}

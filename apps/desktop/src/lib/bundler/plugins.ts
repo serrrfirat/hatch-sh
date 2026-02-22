@@ -7,6 +7,8 @@ const EXTERNALS: Record<string, string> = {
   'react-dom/client': 'ReactDOM',
 }
 
+const RESOLUTION_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.css', '.json']
+
 export function createUnpkgPlugin(): Plugin {
   return {
     name: 'unpkg',
@@ -44,7 +46,9 @@ export function createUnpkgPlugin(): Plugin {
         try {
           const response = await fetch(args.path)
           if (!response.ok) {
-            throw new Error(`Failed to fetch package from ${args.path} (status: ${response.status})`)
+            throw new Error(
+              `Failed to fetch package from ${args.path} (status: ${response.status})`
+            )
           }
 
           const contents = await response.text()
@@ -72,47 +76,68 @@ export function createUnpkgPlugin(): Plugin {
   }
 }
 
+function normalizePath(filePath: string): string {
+  const normalized = filePath
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/\/+/g, '/')
+
+  return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized
+}
+
 // Helper to normalize and resolve file paths
 function resolvePath(basePath: string, relativePath: string): string {
-  // Remove leading ./ from relative path
-  const cleanRelative = relativePath.replace(/^\.\//, '')
+  const normalizedBase = normalizePath(basePath)
+  const normalizedRelative = relativePath.replace(/\\/g, '/')
 
-  // Get directory of base path
-  const baseDir = basePath.includes('/')
-    ? basePath.substring(0, basePath.lastIndexOf('/'))
+  if (!normalizedRelative.startsWith('.')) {
+    return normalizePath(normalizedRelative)
+  }
+
+  const baseDir = normalizedBase.includes('/')
+    ? normalizedBase.substring(0, normalizedBase.lastIndexOf('/'))
     : ''
 
-  // Handle ../ in paths
-  const parts = cleanRelative.split('/')
   const baseParts = baseDir ? baseDir.split('/') : []
+  const relativeParts = normalizedRelative.split('/')
 
-  for (const part of parts) {
+  for (const part of relativeParts) {
+    if (!part || part === '.') {
+      continue
+    }
+
     if (part === '..') {
       baseParts.pop()
-    } else if (part !== '.') {
-      baseParts.push(part)
+      continue
     }
+
+    baseParts.push(part)
   }
 
   return baseParts.join('/')
 }
 
-// Helper to find a file in the virtual filesystem with extension resolution
 function findFile(files: Record<string, string>, path: string): string | null {
-  const extensions = ['', '.tsx', '.ts', '.jsx', '.js']
-  for (const ext of extensions) {
-    const fullPath = path + ext
+  const normalizedPath = normalizePath(path)
+
+  if (files[normalizedPath] !== undefined) {
+    return normalizedPath
+  }
+
+  for (const extension of RESOLUTION_EXTENSIONS) {
+    const fullPath = `${normalizedPath}${extension}`
     if (files[fullPath] !== undefined) {
       return fullPath
     }
   }
-  // Also check for index files
-  for (const ext of ['.tsx', '.ts', '.jsx', '.js']) {
-    const indexPath = `${path}/index${ext}`
+
+  for (const extension of RESOLUTION_EXTENSIONS) {
+    const indexPath = `${normalizedPath}/index${extension}`
     if (files[indexPath] !== undefined) {
       return indexPath
     }
   }
+
   return null
 }
 
@@ -145,9 +170,15 @@ export function createVirtualFsPlugin(files: Record<string, string>): Plugin {
         if (content !== undefined) {
           const loader = args.path.endsWith('.css')
             ? 'css'
-            : args.path.endsWith('.ts') && !args.path.endsWith('.tsx')
-              ? 'ts'
-              : 'tsx'
+            : args.path.endsWith('.json')
+              ? 'json'
+              : args.path.endsWith('.tsx')
+                ? 'tsx'
+                : args.path.endsWith('.ts')
+                  ? 'ts'
+                  : args.path.endsWith('.jsx')
+                    ? 'jsx'
+                    : 'js'
           return {
             contents: content,
             loader,
