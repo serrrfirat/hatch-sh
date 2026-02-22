@@ -8,15 +8,17 @@ use tauri::{Emitter, Manager};
 
 mod github;
 mod git;
+mod keychain;
 mod skills;
 
-use github::{github_start_device_flow, github_poll_for_token, github_get_auth_state, github_sign_out};
+use github::{github_start_device_flow, github_poll_for_token, github_get_auth_state, github_sign_out, github_validate_token};
 use git::{
     git_clone_repo, git_open_local_repo, git_create_workspace_branch, git_delete_workspace_branch,
     git_list_worktrees, git_prune_worktrees,
     git_status, git_commit, git_push, git_create_pr, git_create_github_repo, git_diff,
     git_diff_stats, list_directory_files, read_file, git_file_diff, git_get_pr, git_merge_pr
 };
+use keychain::{keychain_set, keychain_get, keychain_delete, keychain_has};
 use skills::{
     install_skill, uninstall_skill, list_installed_skills, is_skill_installed, get_skill_install_path,
     run_shell_command
@@ -1314,6 +1316,7 @@ pub fn run() {
             github_poll_for_token,
             github_get_auth_state,
             github_sign_out,
+            github_validate_token,
             // Git commands
             git_clone_repo,
             git_open_local_repo,
@@ -1333,6 +1336,11 @@ pub fn run() {
             git_file_diff,
             git_get_pr,
             git_merge_pr,
+            // Keychain commands
+            keychain_set,
+            keychain_get,
+            keychain_delete,
+            keychain_has,
             // Skill installation commands
             install_skill,
             uninstall_skill,

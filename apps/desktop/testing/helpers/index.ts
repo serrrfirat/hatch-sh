@@ -14,5 +14,6 @@ export {
   createTauriCoreMock,
   createTauriEventMock,
   createIdeaMazeStorageMock,
+  createKeychainMock,
   setupLocalStorageMock,
 } from './mocks'

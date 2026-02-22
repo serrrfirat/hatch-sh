@@ -81,6 +81,26 @@ export function createIdeaMazeStorageMock() {
 }
 
 /**
+ * Keychain mock factory — in-memory store that mimics the OS keychain.
+ */
+export function createKeychainMock() {
+  const store = new Map<string, string>()
+  return {
+    keychainSet: vi.fn(async (key: string, value: string) => { store.set(key, value) }),
+    keychainGet: vi.fn(async (key: string) => store.get(key) ?? null),
+    keychainDelete: vi.fn(async (key: string) => { store.delete(key) }),
+    keychainHas: vi.fn(async (key: string) => store.has(key) && store.get(key) !== ''),
+    getServiceCredentials: vi.fn(async () => ({
+      anthropicApiKey: store.get('anthropic_api_key') ?? null,
+      cfAccountId: store.get('cf_account_id') ?? null,
+      cfApiToken: store.get('cf_api_token') ?? null,
+    })),
+    KEYCHAIN_KEYS: ['anthropic_api_key', 'cf_account_id', 'cf_api_token'],
+    _store: store,
+  }
+}
+
+/**
  * Setup localStorage mock for tests that need it.
  */
 export function setupLocalStorageMock() {

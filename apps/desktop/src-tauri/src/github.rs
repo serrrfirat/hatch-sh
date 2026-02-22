@@ -52,6 +52,7 @@ pub struct DeviceFlowInit {
     pub user_code: String,
     pub verification_uri: String,
     pub expires_in: u64,
+    pub device_code: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,31 +102,17 @@ pub async fn github_start_device_flow() -> Result<DeviceFlowInit, String> {
         user_code: device_response.user_code,
         verification_uri: device_response.verification_uri,
         expires_in: device_response.expires_in,
+        device_code: device_response.device_code,
     })
 }
 
 /// Poll for the access token after user authorizes
 #[tauri::command]
-pub async fn github_poll_for_token(user_code: String) -> Result<GitHubAuthState, String> {
+pub async fn github_poll_for_token(device_code: String) -> Result<GitHubAuthState, String> {
     let client = reqwest::Client::new();
 
-    // Get device code by starting a new flow (in production, cache this)
-    let device_response = client
-        .post("https://github.com/login/device/code")
-        .header("Accept", "application/json")
-        .form(&[
-            ("client_id", GITHUB_CLIENT_ID),
-            ("scope", "repo"),
-        ])
-        .send()
-        .await
-        .map_err(|e| format!("Failed to get device code: {}", e))?
-        .json::<DeviceCodeResponse>()
-        .await
-        .map_err(|e| format!("Failed to parse device code: {}", e))?;
-
-    let interval = Duration::from_secs(device_response.interval.max(5));
-    let max_attempts = device_response.expires_in / device_response.interval;
+    let interval = Duration::from_secs(5);
+    let max_attempts: u64 = 180; // ~15 min timeout at 5s intervals
 
     for _ in 0..max_attempts {
         sleep(interval).await;
@@ -135,7 +122,7 @@ pub async fn github_poll_for_token(user_code: String) -> Result<GitHubAuthState,
             .header("Accept", "application/json")
             .form(&[
                 ("client_id", GITHUB_CLIENT_ID),
-                ("device_code", &device_response.device_code),
+                ("device_code", &device_code),
                 ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ])
             .send()
@@ -270,6 +257,14 @@ fn load_auth_from_disk() -> Result<GitHubAuthState, String> {
 
     serde_json::from_str(&json)
         .map_err(|e| format!("Failed to parse auth file: {}", e))
+}
+
+/// Validate the stored token by fetching user info from GitHub
+#[tauri::command]
+pub async fn github_validate_token() -> Result<GitHubUser, String> {
+    let token = get_access_token().ok_or("Not authenticated")?;
+    let client = reqwest::Client::new();
+    fetch_github_user(&client, &token).await
 }
 
 /// Get access token for API calls

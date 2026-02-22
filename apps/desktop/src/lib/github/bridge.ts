@@ -18,6 +18,7 @@ export interface DeviceFlowInit {
   user_code: string
   verification_uri: string
   expires_in: number
+  device_code: string
 }
 
 /**
@@ -33,8 +34,8 @@ export async function startDeviceFlow(): Promise<DeviceFlowInit> {
  * Poll for the access token after user authorizes
  * This will keep polling until the user completes authorization or timeout
  */
-export async function pollForToken(userCode: string): Promise<GitHubAuthState> {
-  return invoke<GitHubAuthState>('github_poll_for_token', { userCode })
+export async function pollForToken(deviceCode: string): Promise<GitHubAuthState> {
+  return invoke<GitHubAuthState>('github_poll_for_token', { deviceCode })
 }
 
 /**
@@ -49,4 +50,11 @@ export async function getAuthState(): Promise<GitHubAuthState> {
  */
 export async function signOut(): Promise<void> {
   return invoke('github_sign_out')
+}
+
+/**
+ * Validate the stored token by checking against GitHub API
+ */
+export async function validateToken(): Promise<GitHubUser> {
+  return invoke<GitHubUser>('github_validate_token')
 }

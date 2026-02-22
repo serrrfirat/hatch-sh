@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useRepositoryStore } from '../../stores/repositoryStore'
@@ -10,8 +10,10 @@ import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
 import { DesignPage } from '../../pages/DesignPage'
 import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
+import { keychainSet } from '../../lib/keychain'
 import { CreatePRModal } from '../repository/CreatePRModal'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { OnboardingWizard } from '../onboarding/OnboardingWizard'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
@@ -25,8 +27,21 @@ export function Layout() {
   const [isMerging, setIsMerging] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } = useRepositoryStore()
-  const { claudeCodeStatus, currentPage, setCurrentPage } = useSettingsStore()
+  const { claudeCodeStatus, currentPage, setCurrentPage, hasCompletedOnboarding } = useSettingsStore()
   const { triggerOpenPR } = useChatStore()
+
+  // Migrate legacy anthropicApiKey from localStorage to OS keychain (one-time)
+  const migrationRan = useRef(false)
+  useEffect(() => {
+    if (migrationRan.current) return
+    migrationRan.current = true
+    const legacyKey = useSettingsStore.getState().anthropicApiKey
+    if (legacyKey) {
+      keychainSet('anthropic_api_key', legacyKey)
+        .then(() => useSettingsStore.getState().clearApiKey())
+        .catch((err) => console.error('Keychain migration failed:', err))
+    }
+  }, [])
 
   // Handler for "Create PR" button - triggers agent-based PR creation
   const handleCreatePR = () => {
@@ -79,6 +94,13 @@ export function Layout() {
       console.error('Failed to navigate forward:', err)
     }
   }, [currentPage])
+
+  // Check both Zustand persist and standalone flag (belt-and-suspenders)
+  const onboardingDone = hasCompletedOnboarding || localStorage.getItem('hatch-onboarding-done') === '1'
+
+  if (!onboardingDone) {
+    return <OnboardingWizard />
+  }
 
   return (
     <div className="h-screen flex flex-col bg-neutral-950 text-white selection:bg-white selection:text-black">

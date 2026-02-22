@@ -93,7 +93,7 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
       setError(null)
       const result = await startGitHubLogin()
       setDeviceCode(result)
-      completeGitHubLogin(result.userCode)
+      completeGitHubLogin(result.deviceCode)
         .then(() => {
           setDeviceCode(null)
           setModalView('quickstart')

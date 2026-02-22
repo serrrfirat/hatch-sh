@@ -34,6 +34,19 @@ app.use('*', cors({
 // Health check (before database middleware)
 app.get('/', (c) => c.json({ status: 'ok', service: 'hatch.sh API' }))
 
+// Credential override middleware — desktop app passes keys as headers
+app.use('/api/*', async (c, next) => {
+  const anthropicKey = c.req.header('X-Anthropic-Key')
+  const cfAccountId = c.req.header('X-CF-Account-Id')
+  const cfApiToken = c.req.header('X-CF-API-Token')
+
+  if (anthropicKey) c.env.CLAUDE_API_KEY = anthropicKey
+  if (cfAccountId) c.env.CF_ACCOUNT_ID = cfAccountId
+  if (cfApiToken) c.env.CF_API_TOKEN = cfApiToken
+
+  await next()
+})
+
 // Database middleware (only for /api routes)
 app.use('/api/*', async (c, next) => {
   const hasValidDbUrl = c.env.DATABASE_URL && c.env.DATABASE_URL.startsWith('libsql://')

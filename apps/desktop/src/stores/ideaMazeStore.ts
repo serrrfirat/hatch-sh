@@ -56,6 +56,10 @@ import {
   deleteMoodboard as deleteMoodboardFromStorage,
   migrateFromLocalStorage,
 } from '../lib/ideaMaze/storage'
+import { formatPlanAsMarkdown } from '../lib/ideaMaze/planExporter'
+import { useRepositoryStore } from './repositoryStore'
+import { useChatStore } from './chatStore'
+import { useSettingsStore } from './settingsStore'
 
 // Debounce timer for auto-save
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
@@ -180,6 +184,9 @@ interface IdeaMazeState {
   // Actions - Chat
   addChatMessage: (moodboardId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
   updateChatMessage: (moodboardId: string, messageId: string, content: string, isStreaming: boolean) => void
+
+  // Actions - Build handoff
+  buildFromPlan: (planNodeId: string) => Promise<void>
 
   // Actions - UI
   toggleSidebar: () => void
@@ -936,6 +943,48 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           },
         }
       })
+    },
+
+    // Build handoff action
+    buildFromPlan: async (planNodeId: string) => {
+      const moodboard = get().currentMoodboard
+      if (!moodboard) throw new Error('No moodboard loaded')
+
+      const node = moodboard.nodes.find(n => n.id === planNodeId)
+      if (!node) throw new Error('Node not found')
+
+      const planContent = node.content.find(c => c.type === 'plan')
+      if (!planContent || planContent.type !== 'plan') throw new Error('Node does not contain a plan')
+
+      // Get current repository
+      const repoStore = useRepositoryStore.getState()
+      const repo = repoStore.currentRepository
+      if (!repo) throw new Error('No repository selected')
+
+      // Create workspace
+      const workspace = await repoStore.createWorkspace(repo.id)
+
+      // Update workspace with plan reference
+      const workspaces = useRepositoryStore.getState().workspaces.map(w =>
+        w.id === workspace.id
+          ? { ...w, sourcePlan: planContent, sourcePlanId: planNodeId }
+          : w
+      )
+      const updatedWorkspace = workspaces.find(w => w.id === workspace.id)!
+      useRepositoryStore.setState({
+        workspaces,
+        currentWorkspace: updatedWorkspace,
+      })
+
+      // Format plan as markdown and seed chat
+      const markdown = formatPlanAsMarkdown(planContent)
+      useChatStore.getState().addMessage({
+        role: 'user',
+        content: `## Build from Plan\n\n${markdown}`,
+      })
+
+      // Switch to Build tab
+      useSettingsStore.getState().setCurrentPage('byoa')
     },
 
     // UI actions

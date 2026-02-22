@@ -12,12 +12,18 @@ import {
   MessageSquare,
   GitBranch,
   Bot,
+  Key,
   ChevronDown,
   ArrowLeft,
+  Eye,
+  EyeOff,
+  Trash2,
+  Save,
 } from "lucide-react";
+import { keychainSet, keychainDelete, type KeychainKey } from "../lib/keychain";
 import { DotGridLoader } from "./DotGridLoader";
 
-type SettingsTab = "chat" | "git" | "agents";
+type SettingsTab = "chat" | "git" | "agents" | "keys";
 
 /** Toggle switch component */
 function Toggle({
@@ -542,6 +548,162 @@ function AgentsSettings() {
   );
 }
 
+/** Secret field with masked input, show/hide toggle, save and clear */
+function SecretField({
+  label,
+  description,
+  keychainKey,
+  isSet,
+  onSaved,
+}: {
+  label: string;
+  description: string;
+  keychainKey: KeychainKey;
+  isSet: boolean;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      await keychainSet(keychainKey, value.trim());
+      setValue("");
+      setVisible(false);
+      onSaved();
+    } catch (err) {
+      console.error(`Failed to save ${keychainKey}:`, err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    try {
+      await keychainDelete(keychainKey);
+      setValue("");
+      onSaved();
+    } catch (err) {
+      console.error(`Failed to clear ${keychainKey}:`, err);
+    }
+  };
+
+  return (
+    <div className="py-4 border-b border-white/5 last:border-b-0">
+      <div className="flex items-center gap-2 mb-1">
+        <div
+          className={`w-2 h-2 rounded-full ${isSet ? "bg-emerald-500" : "bg-neutral-600"}`}
+        />
+        <div className="text-sm font-medium text-white">{label}</div>
+      </div>
+      <div className="text-xs text-neutral-500 mb-3">{description}</div>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <input
+            type={visible ? "text" : "password"}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={isSet ? "Key is set (enter new value to replace)" : "Enter key..."}
+            className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 pr-9 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20"
+          />
+          <button
+            onClick={() => setVisible(!visible)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+          >
+            {visible ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={!value.trim() || saving}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Save size={12} />
+          Save
+        </button>
+        {isSet && (
+          <button
+            onClick={handleClear}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 text-neutral-400 text-xs hover:text-red-400 hover:border-red-400/30 transition-colors"
+          >
+            <Trash2 size={12} />
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** API Keys settings tab content */
+function ApiKeysSettings() {
+  const { apiUrl, setApiUrl, keychainStatus, refreshKeychainStatus } =
+    useSettingsStore();
+
+  useEffect(() => {
+    refreshKeychainStatus();
+  }, [refreshKeychainStatus]);
+
+  return (
+    <div>
+      <h3 className="text-lg font-medium text-white mb-1">API Keys</h3>
+      <p className="text-xs text-neutral-500 mb-6">
+        Credentials for cloud services. Secrets are stored in your OS keychain.
+      </p>
+
+      <SecretField
+        label="Anthropic API Key"
+        description="Required for cloud-mode chat. Get one at console.anthropic.com."
+        keychainKey="anthropic_api_key"
+        isSet={keychainStatus.anthropic_api_key}
+        onSaved={refreshKeychainStatus}
+      />
+      <SecretField
+        label="Cloudflare Account ID"
+        description="Required for deploying to Cloudflare Pages."
+        keychainKey="cf_account_id"
+        isSet={keychainStatus.cf_account_id}
+        onSaved={refreshKeychainStatus}
+      />
+      <SecretField
+        label="Cloudflare API Token"
+        description="Required for deploying to Cloudflare Pages."
+        keychainKey="cf_api_token"
+        isSet={keychainStatus.cf_api_token}
+        onSaved={refreshKeychainStatus}
+      />
+
+      {/* API URL — not a secret, stored in localStorage */}
+      <div className="py-4">
+        <div className="text-sm font-medium text-white mb-1">API URL</div>
+        <div className="text-xs text-neutral-500 mb-3">
+          Base URL for the hatch.sh API backend.
+        </div>
+        <input
+          type="text"
+          value={apiUrl}
+          onChange={(e) => setApiUrl(e.target.value)}
+          placeholder="http://localhost:8787"
+          className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20"
+        />
+      </div>
+
+      {/* Info box */}
+      <div className="mt-4 p-4 bg-neutral-900/50 border border-white/5 rounded-lg">
+        <div className="text-xs text-neutral-500">
+          <strong className="text-neutral-400">Secure Storage:</strong>{" "}
+          API keys and tokens are stored in your operating system's keychain
+          (macOS Keychain, Linux Secret Service, or Windows Credential Manager)
+          — never in localStorage or plain text.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Full-page Settings component */
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("chat");
@@ -551,6 +713,7 @@ export function SettingsPage() {
     { id: "chat", label: "Chat", icon: <MessageSquare size={18} /> },
     { id: "git", label: "Git", icon: <GitBranch size={18} /> },
     { id: "agents", label: "Agents", icon: <Bot size={18} /> },
+    { id: "keys", label: "API Keys", icon: <Key size={18} /> },
   ];
 
   return (
@@ -593,6 +756,7 @@ export function SettingsPage() {
             {activeTab === "chat" && <ChatSettings />}
             {activeTab === "git" && <GitSettings />}
             {activeTab === "agents" && <AgentsSettings />}
+            {activeTab === "keys" && <ApiKeysSettings />}
           </div>
         </div>
       </div>

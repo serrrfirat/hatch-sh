@@ -6,6 +6,7 @@ import type { Repository, GitStatus } from '../lib/git/bridge'
 import type { GitHubAuthState } from '../lib/github/bridge'
 import { useChatStore } from './chatStore'
 import type { AgentId } from '../lib/agents/types'
+import type { PlanContent } from '../lib/ideaMaze/types'
 import { DEFAULT_AGENT_ID, isValidAgentId } from '../lib/agents/registry'
 import { generateWorkspaceName } from '../lib/pokemon'
 import { useSettingsStore } from './settingsStore'
@@ -27,6 +28,9 @@ export interface Workspace {
   prNumber?: number
   prUrl?: string
   prState?: 'open' | 'merged'
+  // Plan reference from Idea Maze
+  sourcePlan?: PlanContent
+  sourcePlanId?: string
 }
 
 interface RepositoryState {
@@ -49,8 +53,8 @@ interface RepositoryState {
 
   // Actions - Auth
   checkGitHubAuth: () => Promise<void>
-  startGitHubLogin: () => Promise<{ userCode: string; verificationUri: string }>
-  completeGitHubLogin: (userCode: string) => Promise<void>
+  startGitHubLogin: () => Promise<{ userCode: string; verificationUri: string; deviceCode: string }>
+  completeGitHubLogin: (deviceCode: string) => Promise<void>
   signOutGitHub: () => Promise<void>
 
   // Actions - Repositories
@@ -107,6 +111,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           return {
             userCode: result.user_code,
             verificationUri: result.verification_uri,
+            deviceCode: result.device_code,
           }
         } catch (error) {
           set({ isAuthenticating: false, authError: error instanceof Error ? error.message : 'Login failed' })
@@ -114,9 +119,9 @@ export const useRepositoryStore = create<RepositoryState>()(
         }
       },
 
-      completeGitHubLogin: async (userCode: string) => {
+      completeGitHubLogin: async (deviceCode: string) => {
         try {
-          const auth = await githubBridge.pollForToken(userCode)
+          const auth = await githubBridge.pollForToken(deviceCode)
           set({ githubAuth: auth, isAuthenticating: false, authError: null })
         } catch (error) {
           set({ isAuthenticating: false, authError: error instanceof Error ? error.message : 'Login failed' })

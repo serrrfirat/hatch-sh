@@ -7,6 +7,7 @@ import { chatMessages, projects } from '../db/schema'
 import { nanoid } from 'nanoid'
 import Anthropic from '@anthropic-ai/sdk'
 import type { Database } from '../db/client'
+import { extractCodeBlocks } from '../lib/codeExtractor'
 
 type Bindings = {
   CLAUDE_API_KEY: string
@@ -98,10 +99,14 @@ chatRouter.post(
       })
 
       // Extract and save code to project
-      const codeMatch = fullResponse.match(/```(?:tsx?|jsx?|javascript|typescript)?\n([\s\S]*?)```/)
-      if (codeMatch) {
+      const codeBlocks = extractCodeBlocks(fullResponse)
+      if (codeBlocks.length > 0) {
+        const codeFiles: Record<string, string> = {}
+        for (const block of codeBlocks) {
+          codeFiles[block.filePath] = block.content
+        }
         await db.update(projects)
-          .set({ code: codeMatch[1], updatedAt: new Date() })
+          .set({ code: JSON.stringify(codeFiles), updatedAt: new Date() })
           .where(eq(projects.id, projectId))
       }
 

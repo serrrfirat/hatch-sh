@@ -95,7 +95,7 @@ export function AddRepositoryMenu({ isOpen, onClose, position }: AddRepositoryMe
       const result = await startGitHubLogin()
       setDeviceCode(result)
       // Start polling for completion
-      completeGitHubLogin(result.userCode)
+      completeGitHubLogin(result.deviceCode)
         .then(() => {
           setDeviceCode(null)
           setView('main')

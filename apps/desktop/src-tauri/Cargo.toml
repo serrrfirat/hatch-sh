@@ -24,6 +24,7 @@ reqwest = { version = "0.11", features = ["json"] }
 dirs = "5"
 open = "5"
 lazy_static = "1.4"
+keyring = { version = "3", features = ["apple-native", "linux-native"] }
 
 # Dev profile - optimized for fast compilation
 [profile.dev]

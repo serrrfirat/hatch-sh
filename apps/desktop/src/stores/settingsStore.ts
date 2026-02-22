@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AgentId, AgentStatus, LocalAgentId, ModelInfo, AvailableModels } from "../lib/agents/types";
 import { isLocalAgent } from "../lib/agents/types";
 import { getLocalAdapter, LOCAL_AGENT_IDS, ALL_AGENT_IDS } from "../lib/agents/registry";
+import { keychainHas, type KeychainKey, KEYCHAIN_KEYS } from "../lib/keychain";
 
 /** Agent mode: 'cloud' for hatch.sh API, or any AgentId for local CLI agents */
 export type AgentMode = "cloud" | AgentId;
@@ -88,6 +89,18 @@ interface SettingsState {
   /** Whether we're loading models for an agent */
   isLoadingModels: boolean;
 
+  // Onboarding
+  /** Whether the user has completed the first-run onboarding wizard */
+  hasCompletedOnboarding: boolean;
+  /** Current step in the onboarding wizard (0-3) */
+  onboardingStep: number;
+
+  /** API URL for the hatch.sh backend */
+  apiUrl: string;
+
+  /** Tracks which keychain keys are set (not persisted — checked fresh on Settings open) */
+  keychainStatus: Record<KeychainKey, boolean>;
+
   /** Legacy: User's Anthropic API key (deprecated, use Claude Code instead) */
   anthropicApiKey: string | null;
   apiKeyValidated: boolean;
@@ -130,6 +143,14 @@ interface SettingsState {
   setAnthropicApiKey: (key: string | null) => void;
   setApiKeyValidated: (validated: boolean) => void;
   clearApiKey: () => void;
+
+  // API keys actions
+  setApiUrl: (url: string) => void;
+  refreshKeychainStatus: () => Promise<void>;
+
+  // Onboarding actions
+  setOnboardingComplete: () => void;
+  setOnboardingStep: (step: number) => void;
 
   // Legacy setters for backwards compatibility
   setClaudeCodeStatus: (status: AgentStatus | null) => void;
@@ -180,6 +201,18 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       isLoadingModels: false,
+
+      // API keys defaults
+      apiUrl: 'http://localhost:8787',
+      keychainStatus: {
+        anthropic_api_key: false,
+        cf_account_id: false,
+        cf_api_token: false,
+      },
+
+      // Onboarding defaults
+      hasCompletedOnboarding: false,
+      onboardingStep: 0,
 
       anthropicApiKey: null,
       apiKeyValidated: false,
@@ -293,6 +326,28 @@ export const useSettingsStore = create<SettingsState>()(
 
       setIsCheckingClaudeCode: (checking) => set({ isCheckingAgent: checking }),
 
+      // API keys actions
+      setApiUrl: (url) => set({ apiUrl: url }),
+      refreshKeychainStatus: async () => {
+        const status: Record<string, boolean> = {}
+        for (const key of KEYCHAIN_KEYS) {
+          try {
+            status[key] = await keychainHas(key)
+          } catch {
+            status[key] = false
+          }
+        }
+        set({ keychainStatus: status as Record<KeychainKey, boolean> })
+      },
+
+      // Onboarding actions
+      setOnboardingComplete: () => {
+        set({ hasCompletedOnboarding: true, onboardingStep: 0 })
+        // Also write a standalone flag — Zustand persist can be unreliable across restarts
+        try { localStorage.setItem('hatch-onboarding-done', '1') } catch {}
+      },
+      setOnboardingStep: (step) => set({ onboardingStep: step }),
+
       // Legacy methods
       setAnthropicApiKey: (key) =>
         set({ anthropicApiKey: key, apiKeyValidated: false }),
@@ -319,7 +374,11 @@ export const useSettingsStore = create<SettingsState>()(
         archiveOnMerge: state.archiveOnMerge,
         // Agent models
         agentModels: state.agentModels,
-        // Don't persist agentStatuses - always check fresh on app start
+        // API URL (not a secret, safe to persist in localStorage)
+        apiUrl: state.apiUrl,
+        // Onboarding
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
+        // Don't persist agentStatuses or keychainStatus - always check fresh
       }),
     }
   )
