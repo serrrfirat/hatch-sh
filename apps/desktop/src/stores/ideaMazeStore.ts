@@ -57,6 +57,8 @@ import {
   migrateFromLocalStorage,
 } from '../lib/ideaMaze/storage'
 import { formatPlanAsMarkdown } from '../lib/ideaMaze/planExporter'
+import { UndoManager } from '../lib/ideaMaze/undoManager'
+import type { Snapshot } from '../lib/ideaMaze/snapshots'
 import { useRepositoryStore } from './repositoryStore'
 import { useChatStore } from './chatStore'
 import { useSettingsStore } from './settingsStore'
@@ -97,6 +99,43 @@ const DEFAULT_CONNECTION_FILTERS: ConnectionFilters = {
   showAISuggested: true,
 }
 
+interface HistorySnapshot {
+  nodes: IdeaNode[]
+  connections: IdeaConnection[]
+}
+
+const undoManager = new UndoManager<HistorySnapshot>({ maxEntries: 50 })
+
+function moodboardToHistorySnapshot(moodboard: Moodboard): HistorySnapshot {
+  return {
+    nodes: moodboard.nodes,
+    connections: moodboard.connections,
+  }
+}
+
+function startTrackedChange(moodboard: Moodboard): void {
+  undoManager.push(moodboardToHistorySnapshot(moodboard))
+}
+
+function finishTrackedChange(moodboard: Moodboard): Pick<IdeaMazeState, 'canUndo' | 'canRedo'> {
+  undoManager.setCurrent(moodboardToHistorySnapshot(moodboard))
+  return {
+    canUndo: undoManager.canUndo,
+    canRedo: undoManager.canRedo,
+  }
+}
+
+function resetHistory(moodboard: Moodboard | null): Pick<IdeaMazeState, 'canUndo' | 'canRedo'> {
+  undoManager.clear()
+  if (moodboard) {
+    undoManager.setCurrent(moodboardToHistorySnapshot(moodboard))
+  }
+  return {
+    canUndo: false,
+    canRedo: false,
+  }
+}
+
 interface IdeaMazeState {
   // Storage state
   isStorageInitialized: boolean
@@ -126,6 +165,10 @@ interface IdeaMazeState {
   // UI state
   isSidebarOpen: boolean
   isMinimapVisible: boolean
+  canUndo: boolean
+  canRedo: boolean
+  // Save status
+  saveStatus: 'saved' | 'saving' | 'unsaved'
 
   // Actions - Storage
   initializeStore: () => Promise<void>
@@ -136,6 +179,7 @@ interface IdeaMazeState {
   deleteMoodboard: (id: string) => void
   updateMoodboardName: (id: string, name: string) => void
   setCurrentMoodboard: (moodboard: Moodboard | null) => void
+  restoreSnapshot: (snapshot: Snapshot) => void
 
   // Actions - Nodes
   addNode: (position: Position, content?: NodeContent[], title?: string) => IdeaNode
@@ -154,7 +198,11 @@ interface IdeaMazeState {
   clearNodeCritiques: (nodeId: string) => void
 
   // Actions - Connections
-  addConnection: (sourceId: string, targetId: string, relationship?: ConnectionRelationship) => IdeaConnection | null
+  addConnection: (
+    sourceId: string,
+    targetId: string,
+    relationship?: ConnectionRelationship
+  ) => IdeaConnection | null
   updateConnection: (connectionId: string, updates: Partial<IdeaConnection>) => void
   deleteConnection: (connectionId: string) => void
 
@@ -183,7 +231,12 @@ interface IdeaMazeState {
 
   // Actions - Chat
   addChatMessage: (moodboardId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
-  updateChatMessage: (moodboardId: string, messageId: string, content: string, isStreaming: boolean) => void
+  updateChatMessage: (
+    moodboardId: string,
+    messageId: string,
+    content: string,
+    isStreaming: boolean
+  ) => void
 
   // Actions - Build handoff
   buildFromPlan: (planNodeId: string) => Promise<void>
@@ -191,6 +244,10 @@ interface IdeaMazeState {
   // Actions - UI
   toggleSidebar: () => void
   toggleMinimap: () => void
+
+  // Actions - History
+  undo: () => void
+  redo: () => void
 
   // Actions - Connection Filters
   setConnectionFilter: (key: keyof ConnectionFilters, value: boolean) => void
@@ -265,6 +322,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     chatMessagesByMoodboard: {},
     isSidebarOpen: true,
     isMinimapVisible: false,
+    canUndo: false,
+    canRedo: false,
+    saveStatus: 'saved' as const,
 
     // Storage initialization
     initializeStore: async () => {
@@ -292,12 +352,14 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         // Sort by updatedAt descending
         moodboards.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
 
+        const initialMoodboard = moodboards[0] || null
         set({
           moodboards,
-          currentMoodboard: moodboards[0] || null,
-          viewport: moodboards[0]?.viewport || { ...DEFAULT_VIEWPORT },
+          currentMoodboard: initialMoodboard,
+          viewport: initialMoodboard?.viewport || { ...DEFAULT_VIEWPORT },
           isStorageInitialized: true,
           isLoading: false,
+          ...resetHistory(initialMoodboard),
         })
 
         console.log('[IdeaMaze Store] Initialized with', moodboards.length, 'moodboards')
@@ -320,6 +382,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         viewport: { ...DEFAULT_VIEWPORT },
         selection: { nodeIds: [], connectionIds: [] },
         aiSuggestions: [],
+        ...resetHistory(moodboard),
       }))
       // Save immediately for new moodboards
       saveMoodboard(moodboard).catch((err) =>
@@ -335,15 +398,21 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           viewport: moodboard.viewport,
           selection: { nodeIds: [], connectionIds: [] },
           aiSuggestions: [],
+          ...resetHistory(moodboard),
         })
       }
     },
 
     deleteMoodboard: (id) => {
-      set((state) => ({
-        moodboards: state.moodboards.filter((m) => m.id !== id),
-        currentMoodboard: state.currentMoodboard?.id === id ? null : state.currentMoodboard,
-      }))
+      set((state) => {
+        const moodboards = state.moodboards.filter((m) => m.id !== id)
+        const currentMoodboard = state.currentMoodboard?.id === id ? null : state.currentMoodboard
+        return {
+          moodboards,
+          currentMoodboard,
+          ...(state.currentMoodboard?.id === id ? resetHistory(null) : null),
+        }
+      })
       // Delete from file system
       deleteMoodboardFromStorage(id).catch((err) =>
         console.error('[IdeaMaze Store] Failed to delete moodboard from storage:', err)
@@ -365,13 +434,45 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       })
     },
 
-    setCurrentMoodboard: (moodboard) => set({ currentMoodboard: moodboard }),
+    setCurrentMoodboard: (moodboard) =>
+      set({
+        currentMoodboard: moodboard,
+        ...resetHistory(moodboard),
+      }),
+
+    restoreSnapshot: (snapshot) => {
+      set((state) => {
+        if (!state.currentMoodboard || state.currentMoodboard.id !== snapshot.moodboardId) {
+          return state
+        }
+
+        startTrackedChange(state.currentMoodboard)
+        const updatedMoodboard: Moodboard = {
+          ...state.currentMoodboard,
+          nodes: structuredClone(snapshot.nodes),
+          connections: structuredClone(snapshot.connections),
+          updatedAt: new Date(),
+        }
+
+        debouncedSave(updatedMoodboard)
+
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+          selection: { nodeIds: [], connectionIds: [] },
+          ...finishTrackedChange(updatedMoodboard),
+        }
+      })
+    },
 
     // Node actions
     addNode: (position, content, title) => {
       const node = createNode(position, content, title)
       set((state) => {
         if (!state.currentMoodboard) return state
+        startTrackedChange(state.currentMoodboard)
         const maxZ = Math.max(0, ...state.currentMoodboard.nodes.map((n) => n.zIndex))
         node.zIndex = maxZ + 1
         const updatedMoodboard = {
@@ -387,6 +488,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
             m.id === updatedMoodboard.id ? updatedMoodboard : m
           ),
           selection: { nodeIds: [node.id], connectionIds: [] },
+          ...finishTrackedChange(updatedMoodboard),
         }
       })
       return node
@@ -395,6 +497,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     updateNode: (nodeId, updates) => {
       set((state) => {
         if (!state.currentMoodboard) return state
+        const nodeExists = state.currentMoodboard.nodes.some((n) => n.id === nodeId)
+        if (!nodeExists) return state
+        startTrackedChange(state.currentMoodboard)
         const updatedMoodboard = {
           ...state.currentMoodboard,
           nodes: state.currentMoodboard.nodes.map((n) =>
@@ -409,13 +514,17 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           moodboards: state.moodboards.map((m) =>
             m.id === updatedMoodboard.id ? updatedMoodboard : m
           ),
+          ...finishTrackedChange(updatedMoodboard),
         }
-        })
-      },
+      })
+    },
 
     deleteNode: (nodeId) => {
       set((state) => {
         if (!state.currentMoodboard) return state
+        const nodeExists = state.currentMoodboard.nodes.some((n) => n.id === nodeId)
+        if (!nodeExists) return state
+        startTrackedChange(state.currentMoodboard)
         const updatedMoodboard = {
           ...state.currentMoodboard,
           nodes: state.currentMoodboard.nodes.filter((n) => n.id !== nodeId),
@@ -435,6 +544,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
             nodeIds: state.selection.nodeIds.filter((id) => id !== nodeId),
             connectionIds: state.selection.connectionIds,
           },
+          ...finishTrackedChange(updatedMoodboard),
         }
       })
     },
@@ -466,6 +576,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     bringNodeToFront: (nodeId) => {
       set((state) => {
         if (!state.currentMoodboard) return state
+        const nodeExists = state.currentMoodboard.nodes.some((n) => n.id === nodeId)
+        if (!nodeExists) return state
+        startTrackedChange(state.currentMoodboard)
         const maxZ = Math.max(0, ...state.currentMoodboard.nodes.map((n) => n.zIndex))
         const updatedMoodboard = {
           ...state.currentMoodboard,
@@ -481,6 +594,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           moodboards: state.moodboards.map((m) =>
             m.id === updatedMoodboard.id ? updatedMoodboard : m
           ),
+          ...finishTrackedChange(updatedMoodboard),
         }
       })
     },
@@ -609,6 +723,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       const connection = createConnection(sourceId, targetId, relationship)
       set((state) => {
         if (!state.currentMoodboard) return state
+        startTrackedChange(state.currentMoodboard)
         const updatedMoodboard = {
           ...state.currentMoodboard,
           connections: [...state.currentMoodboard.connections, connection],
@@ -621,10 +736,11 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           moodboards: state.moodboards.map((m) =>
             m.id === updatedMoodboard.id ? updatedMoodboard : m
           ),
+          ...finishTrackedChange(updatedMoodboard),
         }
       })
-        return connection
-      },
+      return connection
+    },
 
     updateConnection: (connectionId, updates) => {
       set((state) => {
@@ -650,6 +766,11 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     deleteConnection: (connectionId) => {
       set((state) => {
         if (!state.currentMoodboard) return state
+        const connectionExists = state.currentMoodboard.connections.some(
+          (c) => c.id === connectionId
+        )
+        if (!connectionExists) return state
+        startTrackedChange(state.currentMoodboard)
         const updatedMoodboard = {
           ...state.currentMoodboard,
           connections: state.currentMoodboard.connections.filter((c) => c.id !== connectionId),
@@ -666,6 +787,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
             nodeIds: state.selection.nodeIds,
             connectionIds: state.selection.connectionIds.filter((id) => id !== connectionId),
           },
+          ...finishTrackedChange(updatedMoodboard),
         }
       })
     },
@@ -689,224 +811,294 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       })
     },
 
-      pan: (deltaX, deltaY) => {
-        const { viewport } = get()
+    pan: (deltaX, deltaY) => {
+      const { viewport } = get()
+      get().setViewport({
+        ...viewport,
+        x: viewport.x + deltaX,
+        y: viewport.y + deltaY,
+      })
+    },
+
+    zoom: (delta, center) => {
+      const { viewport } = get()
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom + delta))
+
+      if (center) {
+        // Zoom towards the center point
+        const zoomRatio = newZoom / viewport.zoom
         get().setViewport({
-          ...viewport,
-          x: viewport.x + deltaX,
-          y: viewport.y + deltaY,
+          x: center.x - (center.x - viewport.x) * zoomRatio,
+          y: center.y - (center.y - viewport.y) * zoomRatio,
+          zoom: newZoom,
         })
-      },
+      } else {
+        get().setViewport({ ...viewport, zoom: newZoom })
+      }
+    },
 
-      zoom: (delta, center) => {
-        const { viewport } = get()
-        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom + delta))
+    zoomToFit: () => {
+      const moodboard = get().currentMoodboard
+      if (!moodboard || moodboard.nodes.length === 0) {
+        get().resetViewport()
+        return
+      }
 
-        if (center) {
-          // Zoom towards the center point
-          const zoomRatio = newZoom / viewport.zoom
-          get().setViewport({
-            x: center.x - (center.x - viewport.x) * zoomRatio,
-            y: center.y - (center.y - viewport.y) * zoomRatio,
-            zoom: newZoom,
-          })
-        } else {
-          get().setViewport({ ...viewport, zoom: newZoom })
+      // Calculate bounding box of all nodes
+      const padding = 50
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity
+
+      for (const node of moodboard.nodes) {
+        minX = Math.min(minX, node.position.x)
+        minY = Math.min(minY, node.position.y)
+        maxX = Math.max(maxX, node.position.x + node.dimensions.width)
+        maxY = Math.max(maxY, node.position.y + node.dimensions.height)
+      }
+
+      const width = maxX - minX + padding * 2
+      const height = maxY - minY + padding * 2
+
+      // Assume canvas is roughly 1200x800 (will be updated in component)
+      const canvasWidth = 1200
+      const canvasHeight = 800
+      const zoom = Math.min(Math.min(canvasWidth / width, canvasHeight / height), MAX_ZOOM)
+
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+
+      get().setViewport({
+        x: canvasWidth / 2 - centerX * zoom,
+        y: canvasHeight / 2 - centerY * zoom,
+        zoom: Math.max(MIN_ZOOM, zoom),
+      })
+    },
+
+    resetViewport: () => {
+      get().setViewport({ ...DEFAULT_VIEWPORT })
+    },
+
+    // Tool & Selection actions
+    setToolMode: (mode) => set({ toolMode: mode }),
+
+    selectNode: (nodeId, addToSelection = false) => {
+      set((state) => ({
+        selection: {
+          nodeIds: addToSelection
+            ? state.selection.nodeIds.includes(nodeId)
+              ? state.selection.nodeIds.filter((id) => id !== nodeId)
+              : [...state.selection.nodeIds, nodeId]
+            : [nodeId],
+          connectionIds: addToSelection ? state.selection.connectionIds : [],
+        },
+      }))
+    },
+
+    selectConnection: (connectionId, addToSelection = false) => {
+      set((state) => ({
+        selection: {
+          nodeIds: addToSelection ? state.selection.nodeIds : [],
+          connectionIds: addToSelection
+            ? state.selection.connectionIds.includes(connectionId)
+              ? state.selection.connectionIds.filter((id) => id !== connectionId)
+              : [...state.selection.connectionIds, connectionId]
+            : [connectionId],
+        },
+      }))
+    },
+
+    selectAll: () => {
+      const moodboard = get().currentMoodboard
+      if (!moodboard) return
+      set({
+        selection: {
+          nodeIds: moodboard.nodes.map((n) => n.id),
+          connectionIds: moodboard.connections.map((c) => c.id),
+        },
+      })
+    },
+
+    clearSelection: () => {
+      set({ selection: { nodeIds: [], connectionIds: [] } })
+    },
+
+    deleteSelection: () => {
+      const { selection, deleteNode, deleteConnection } = get()
+      selection.connectionIds.forEach((id) => deleteConnection(id))
+      selection.nodeIds.forEach((id) => deleteNode(id))
+    },
+
+    duplicateSelection: () => {
+      const state = get()
+      if (!state.currentMoodboard) return
+
+      const offset = 30
+      const nodeIdMap = new Map<string, string>()
+      const newNodeIds: string[] = []
+
+      // Duplicate nodes
+      for (const nodeId of state.selection.nodeIds) {
+        const node = state.currentMoodboard.nodes.find((n) => n.id === nodeId)
+        if (node) {
+          const newNode = get().addNode(
+            { x: node.position.x + offset, y: node.position.y + offset },
+            [...node.content],
+            node.title
+          )
+          nodeIdMap.set(node.id, newNode.id)
+          newNodeIds.push(newNode.id)
         }
-      },
+      }
 
-      zoomToFit: () => {
-        const moodboard = get().currentMoodboard
-        if (!moodboard || moodboard.nodes.length === 0) {
-          get().resetViewport()
-          return
+      // Duplicate connections between selected nodes
+      for (const conn of state.currentMoodboard.connections) {
+        const newSourceId = nodeIdMap.get(conn.sourceId)
+        const newTargetId = nodeIdMap.get(conn.targetId)
+        if (newSourceId && newTargetId) {
+          get().addConnection(newSourceId, newTargetId, conn.relationship)
         }
+      }
 
-        // Calculate bounding box of all nodes
-        const padding = 50
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      // Select the duplicated nodes
+      set({ selection: { nodeIds: newNodeIds, connectionIds: [] } })
+    },
 
-        for (const node of moodboard.nodes) {
-          minX = Math.min(minX, node.position.x)
-          minY = Math.min(minY, node.position.y)
-          maxX = Math.max(maxX, node.position.x + node.dimensions.width)
-          maxY = Math.max(maxY, node.position.y + node.dimensions.height)
-        }
+    // AI actions
+    addAISuggestion: (suggestion) => {
+      set((state) => ({
+        aiSuggestions: [...state.aiSuggestions, suggestion],
+      }))
+    },
 
-        const width = maxX - minX + padding * 2
-        const height = maxY - minY + padding * 2
+    removeAISuggestion: (suggestionId) => {
+      set((state) => ({
+        aiSuggestions: state.aiSuggestions.filter((s) => {
+          if (s.type === 'connection') return s.data.id !== suggestionId
+          if (s.type === 'node') return s.data.id !== suggestionId
+          if (s.type === 'critique') return s.data.id !== suggestionId
+          return true
+        }),
+      }))
+    },
 
-        // Assume canvas is roughly 1200x800 (will be updated in component)
-        const canvasWidth = 1200
-        const canvasHeight = 800
-        const zoom = Math.min(
-          Math.min(canvasWidth / width, canvasHeight / height),
-          MAX_ZOOM
-        )
+    acceptAISuggestion: (suggestionId) => {
+      const suggestion = get().aiSuggestions.find((s) => {
+        if (s.type === 'connection') return s.data.id === suggestionId
+        if (s.type === 'node') return s.data.id === suggestionId
+        if (s.type === 'critique') return s.data.id === suggestionId
+        return false
+      })
 
-        const centerX = (minX + maxX) / 2
-        const centerY = (minY + maxY) / 2
+      if (!suggestion) return
 
-        get().setViewport({
-          x: canvasWidth / 2 - centerX * zoom,
-          y: canvasHeight / 2 - centerY * zoom,
-          zoom: Math.max(MIN_ZOOM, zoom),
-        })
-      },
+      set((state) => {
+        if (!state.currentMoodboard) return state
 
-      resetViewport: () => {
-        get().setViewport({ ...DEFAULT_VIEWPORT })
-      },
+        let updatedMoodboard = state.currentMoodboard
+        if (suggestion.type === 'connection') {
+          const exists = state.currentMoodboard.connections.some(
+            (c) =>
+              (c.sourceId === suggestion.data.sourceId &&
+                c.targetId === suggestion.data.targetId) ||
+              (c.sourceId === suggestion.data.targetId && c.targetId === suggestion.data.sourceId)
+          )
 
-      // Tool & Selection actions
-      setToolMode: (mode) => set({ toolMode: mode }),
-
-      selectNode: (nodeId, addToSelection = false) => {
-        set((state) => ({
-          selection: {
-            nodeIds: addToSelection
-              ? state.selection.nodeIds.includes(nodeId)
-                ? state.selection.nodeIds.filter((id) => id !== nodeId)
-                : [...state.selection.nodeIds, nodeId]
-              : [nodeId],
-            connectionIds: addToSelection ? state.selection.connectionIds : [],
-          },
-        }))
-      },
-
-      selectConnection: (connectionId, addToSelection = false) => {
-        set((state) => ({
-          selection: {
-            nodeIds: addToSelection ? state.selection.nodeIds : [],
-            connectionIds: addToSelection
-              ? state.selection.connectionIds.includes(connectionId)
-                ? state.selection.connectionIds.filter((id) => id !== connectionId)
-                : [...state.selection.connectionIds, connectionId]
-              : [connectionId],
-          },
-        }))
-      },
-
-      selectAll: () => {
-        const moodboard = get().currentMoodboard
-        if (!moodboard) return
-        set({
-          selection: {
-            nodeIds: moodboard.nodes.map((n) => n.id),
-            connectionIds: moodboard.connections.map((c) => c.id),
-          },
-        })
-      },
-
-      clearSelection: () => {
-        set({ selection: { nodeIds: [], connectionIds: [] } })
-      },
-
-      deleteSelection: () => {
-        const { selection, deleteNode, deleteConnection } = get()
-        selection.connectionIds.forEach((id) => deleteConnection(id))
-        selection.nodeIds.forEach((id) => deleteNode(id))
-      },
-
-      duplicateSelection: () => {
-        const state = get()
-        if (!state.currentMoodboard) return
-
-        const offset = 30
-        const nodeIdMap = new Map<string, string>()
-        const newNodeIds: string[] = []
-
-        // Duplicate nodes
-        for (const nodeId of state.selection.nodeIds) {
-          const node = state.currentMoodboard.nodes.find((n) => n.id === nodeId)
-          if (node) {
-            const newNode = get().addNode(
-              { x: node.position.x + offset, y: node.position.y + offset },
-              [...node.content],
-              node.title
+          if (!exists && suggestion.data.sourceId !== suggestion.data.targetId) {
+            const connection = createConnection(
+              suggestion.data.sourceId,
+              suggestion.data.targetId,
+              suggestion.data.relationship
             )
-            nodeIdMap.set(node.id, newNode.id)
-            newNodeIds.push(newNode.id)
+            updatedMoodboard = {
+              ...state.currentMoodboard,
+              connections: [
+                ...state.currentMoodboard.connections,
+                {
+                  ...connection,
+                  aiSuggested: true,
+                  confidence: suggestion.data.confidence,
+                  reasoning: suggestion.data.reasoning,
+                },
+              ],
+              updatedAt: new Date(),
+            }
+          }
+        } else if (suggestion.type === 'node') {
+          const maxZ = Math.max(0, ...state.currentMoodboard.nodes.map((n) => n.zIndex))
+          const node = createNode(
+            suggestion.data.position,
+            [{ type: 'text', id: crypto.randomUUID(), text: suggestion.data.content }],
+            suggestion.data.title
+          )
+          node.zIndex = maxZ + 1
+          const aiNode: IdeaNode = { ...node, aiGenerated: true }
+
+          let connections = state.currentMoodboard.connections
+          if (suggestion.data.relatedToNodeId) {
+            const connectionExists = connections.some(
+              (c) =>
+                (c.sourceId === suggestion.data.relatedToNodeId && c.targetId === aiNode.id) ||
+                (c.sourceId === aiNode.id && c.targetId === suggestion.data.relatedToNodeId)
+            )
+            if (!connectionExists) {
+              connections = [
+                ...connections,
+                createConnection(suggestion.data.relatedToNodeId, aiNode.id, 'extends'),
+              ]
+            }
+          }
+
+          updatedMoodboard = {
+            ...state.currentMoodboard,
+            nodes: [...state.currentMoodboard.nodes, aiNode],
+            connections,
+            updatedAt: new Date(),
+          }
+        } else if (suggestion.type === 'critique') {
+          updatedMoodboard = {
+            ...state.currentMoodboard,
+            nodes: state.currentMoodboard.nodes.map((n) =>
+              n.id === suggestion.data.nodeId
+                ? {
+                    ...n,
+                    critiques: [
+                      ...(n.critiques || []),
+                      {
+                        id: crypto.randomUUID(),
+                        critique: suggestion.data.critique,
+                        suggestions: suggestion.data.suggestions,
+                        severity: suggestion.data.severity,
+                        createdAt: new Date(),
+                      },
+                    ],
+                    updatedAt: new Date(),
+                  }
+                : n
+            ),
+            updatedAt: new Date(),
           }
         }
 
-        // Duplicate connections between selected nodes
-        for (const conn of state.currentMoodboard.connections) {
-          const newSourceId = nodeIdMap.get(conn.sourceId)
-          const newTargetId = nodeIdMap.get(conn.targetId)
-          if (newSourceId && newTargetId) {
-            get().addConnection(newSourceId, newTargetId, conn.relationship)
-          }
+        if (updatedMoodboard !== state.currentMoodboard) {
+          debouncedSave(updatedMoodboard)
         }
 
-        // Select the duplicated nodes
-        set({ selection: { nodeIds: newNodeIds, connectionIds: [] } })
-      },
-
-      // AI actions
-      addAISuggestion: (suggestion) => {
-        set((state) => ({
-          aiSuggestions: [...state.aiSuggestions, suggestion],
-        }))
-      },
-
-      removeAISuggestion: (suggestionId) => {
-        set((state) => ({
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
           aiSuggestions: state.aiSuggestions.filter((s) => {
             if (s.type === 'connection') return s.data.id !== suggestionId
             if (s.type === 'node') return s.data.id !== suggestionId
             if (s.type === 'critique') return s.data.id !== suggestionId
             return true
           }),
-        }))
-      },
-
-      acceptAISuggestion: (suggestionId) => {
-        const suggestion = get().aiSuggestions.find((s) => {
-          if (s.type === 'connection') return s.data.id === suggestionId
-          if (s.type === 'node') return s.data.id === suggestionId
-          if (s.type === 'critique') return s.data.id === suggestionId
-          return false
-        })
-
-        if (!suggestion) return
-
-        if (suggestion.type === 'connection') {
-          const conn = get().addConnection(
-            suggestion.data.sourceId,
-            suggestion.data.targetId,
-            suggestion.data.relationship
-          )
-          if (conn) {
-            get().updateConnection(conn.id, {
-              aiSuggested: true,
-              confidence: suggestion.data.confidence,
-              reasoning: suggestion.data.reasoning,
-            })
-          }
-        } else if (suggestion.type === 'node') {
-          const node = get().addNode(
-            suggestion.data.position,
-            [{ type: 'text', id: crypto.randomUUID(), text: suggestion.data.content }],
-            suggestion.data.title
-          )
-          get().updateNode(node.id, { aiGenerated: true })
-
-          // If related to another node, create connection
-          if (suggestion.data.relatedToNodeId) {
-            get().addConnection(suggestion.data.relatedToNodeId, node.id, 'extends')
-          }
-        } else if (suggestion.type === 'critique') {
-          // Add critique to the target node
-          get().addCritiqueToNode(suggestion.data.nodeId, {
-            critique: suggestion.data.critique,
-            suggestions: suggestion.data.suggestions,
-            severity: suggestion.data.severity,
-          })
         }
-
-        get().removeAISuggestion(suggestionId)
-      },
+      })
+    },
 
     clearAISuggestions: () => set({ aiSuggestions: [] }),
 
@@ -936,9 +1128,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           chatMessagesByMoodboard: {
             ...state.chatMessagesByMoodboard,
             [moodboardId]: messages.map((msg) =>
-              msg.id === messageId
-                ? { ...msg, content: msg.content + content, isStreaming }
-                : msg
+              msg.id === messageId ? { ...msg, content: msg.content + content, isStreaming } : msg
             ),
           },
         }
@@ -950,11 +1140,12 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       const moodboard = get().currentMoodboard
       if (!moodboard) throw new Error('No moodboard loaded')
 
-      const node = moodboard.nodes.find(n => n.id === planNodeId)
+      const node = moodboard.nodes.find((n) => n.id === planNodeId)
       if (!node) throw new Error('Node not found')
 
-      const planContent = node.content.find(c => c.type === 'plan')
-      if (!planContent || planContent.type !== 'plan') throw new Error('Node does not contain a plan')
+      const planContent = node.content.find((c) => c.type === 'plan')
+      if (!planContent || planContent.type !== 'plan')
+        throw new Error('Node does not contain a plan')
 
       // Get current repository
       const repoStore = useRepositoryStore.getState()
@@ -965,12 +1156,12 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       const workspace = await repoStore.createWorkspace(repo.id)
 
       // Update workspace with plan reference
-      const workspaces = useRepositoryStore.getState().workspaces.map(w =>
-        w.id === workspace.id
-          ? { ...w, sourcePlan: planContent, sourcePlanId: planNodeId }
-          : w
-      )
-      const updatedWorkspace = workspaces.find(w => w.id === workspace.id)!
+      const workspaces = useRepositoryStore
+        .getState()
+        .workspaces.map((w) =>
+          w.id === workspace.id ? { ...w, sourcePlan: planContent, sourcePlanId: planNodeId } : w
+        )
+      const updatedWorkspace = workspaces.find((w) => w.id === workspace.id)!
       useRepositoryStore.setState({
         workspaces,
         currentWorkspace: updatedWorkspace,
@@ -991,6 +1182,72 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
     toggleMinimap: () => set((state) => ({ isMinimapVisible: !state.isMinimapVisible })),
+
+    undo: () => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        undoManager.setCurrent(moodboardToHistorySnapshot(state.currentMoodboard))
+        const previous = undoManager.undo()
+        if (!previous) {
+          return {
+            canUndo: undoManager.canUndo,
+            canRedo: undoManager.canRedo,
+          }
+        }
+
+        const updatedMoodboard: Moodboard = {
+          ...state.currentMoodboard,
+          nodes: previous.nodes,
+          connections: previous.connections,
+          updatedAt: new Date(),
+        }
+
+        debouncedSave(updatedMoodboard)
+
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+          selection: { nodeIds: [], connectionIds: [] },
+          canUndo: undoManager.canUndo,
+          canRedo: undoManager.canRedo,
+        }
+      })
+    },
+
+    redo: () => {
+      set((state) => {
+        if (!state.currentMoodboard) return state
+        undoManager.setCurrent(moodboardToHistorySnapshot(state.currentMoodboard))
+        const next = undoManager.redo()
+        if (!next) {
+          return {
+            canUndo: undoManager.canUndo,
+            canRedo: undoManager.canRedo,
+          }
+        }
+
+        const updatedMoodboard: Moodboard = {
+          ...state.currentMoodboard,
+          nodes: next.nodes,
+          connections: next.connections,
+          updatedAt: new Date(),
+        }
+
+        debouncedSave(updatedMoodboard)
+
+        return {
+          currentMoodboard: updatedMoodboard,
+          moodboards: state.moodboards.map((m) =>
+            m.id === updatedMoodboard.id ? updatedMoodboard : m
+          ),
+          selection: { nodeIds: [], connectionIds: [] },
+          canUndo: undoManager.canUndo,
+          canRedo: undoManager.canRedo,
+        }
+      })
+    },
 
     // Connection filter actions
     setConnectionFilter: (key, value) => {
@@ -1016,29 +1273,37 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
 // (lightweight settings that don't need file system storage)
 if (typeof window !== 'undefined') {
   const UI_PREFS_KEY = 'hatch-idea-maze-ui-prefs'
+  const canUseLocalStorage =
+    typeof localStorage !== 'undefined' &&
+    typeof localStorage.getItem === 'function' &&
+    typeof localStorage.setItem === 'function'
 
   // Load UI preferences from localStorage on init
-  try {
-    const stored = localStorage.getItem(UI_PREFS_KEY)
-    if (stored) {
-      const prefs = JSON.parse(stored)
-      useIdeaMazeStore.setState({
-        isSidebarOpen: prefs.isSidebarOpen ?? true,
-        isMinimapVisible: prefs.isMinimapVisible ?? false,
-      })
+  if (canUseLocalStorage) {
+    try {
+      const stored = localStorage.getItem(UI_PREFS_KEY)
+      if (stored) {
+        const prefs = JSON.parse(stored)
+        useIdeaMazeStore.setState({
+          isSidebarOpen: prefs.isSidebarOpen ?? true,
+          isMinimapVisible: prefs.isMinimapVisible ?? false,
+        })
+      }
+    } catch (e) {
+      console.warn('[IdeaMaze Store] Failed to load UI preferences:', e)
     }
-  } catch (e) {
-    console.warn('[IdeaMaze Store] Failed to load UI preferences:', e)
   }
 
   // Subscribe to UI preference changes and save to localStorage
   useIdeaMazeStore.subscribe(
     (state) => ({ isSidebarOpen: state.isSidebarOpen, isMinimapVisible: state.isMinimapVisible }),
     (prefs) => {
-      try {
-        localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs))
-      } catch (e) {
-        console.warn('[IdeaMaze Store] Failed to save UI preferences:', e)
+      if (canUseLocalStorage) {
+        try {
+          localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs))
+        } catch (e) {
+          console.warn('[IdeaMaze Store] Failed to save UI preferences:', e)
+        }
       }
     }
   )
