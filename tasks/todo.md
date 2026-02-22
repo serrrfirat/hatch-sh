@@ -95,6 +95,24 @@
 - [x] `cargo check` — compiles cleanly
 - [x] Rust keychain commands registered in invoke_handler
 
+### Stream L: Multi-Target Deployment (here.now + Railway)
+- [x] P1-L1: Shared `DeployService` interface + `DeployTarget` type
+- [x] P1-L2: DB schema — `target` column on deployments table + migration
+- [x] P1-L3: `HereNowService` (REST) + `RailwayService` (GraphQL)
+- [x] P1-L4: `CloudflareService` implements `DeployService` interface
+- [x] P1-L5: Deploy route — target dispatch via `createDeployService()` factory
+- [x] P1-L6: API middleware — `X-HereNow-API-Token` / `X-Railway-API-Token` headers
+- [x] P1-L7: Keychain + Settings UI — new token fields for here.now and Railway
+- [x] P1-L8: `useDeploy` hook — accepts `target` param
+- [x] P1-L9: `DeploymentStatus` — dynamic target labels
+- [x] P1-L10: `DeployTargetSelector` dropdown component
+- [x] P1-L11: Tests (15 new — herenow.test.ts + railway.test.ts)
+- [ ] **P1-L12: Wire deploy UI into chat view** — connect `useDeploy`, `DeployTargetSelector`, and `DeploymentStatus` into the actual app so users can trigger deploys from the UI. Currently these are standalone components with no parent consuming them.
+
+### Phase 1+L Verification
+- [x] `pnpm test` — 94 tests pass (16 files)
+- [x] `tsc --noEmit` (desktop + API) — 0 errors
+
 ---
 
 ## Phase 2: Reliability & Trust
