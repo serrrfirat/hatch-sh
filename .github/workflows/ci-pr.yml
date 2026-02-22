@@ -39,7 +39,7 @@ jobs:
   review-head-sha-gate:
     name: Review Head SHA Gate
     runs-on: ubuntu-latest
-    needs: [preflight-risk-policy, review-head-sha-gate]
+    needs: [preflight-risk-policy]
     permissions:
       checks: read
       contents: read

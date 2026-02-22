@@ -1,33 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockZustandPersist, createGitBridgeMock, createGitHubBridgeMock } from '../helpers'
+import { createTestRepository, createTestWorkspace, createDefaultRepositoryState } from '../helpers'
 
-vi.mock('zustand/middleware', async () => {
-  const actual = await vi.importActual<typeof import('zustand/middleware')>('zustand/middleware')
-  return {
-    ...actual,
-    persist: ((stateCreator: unknown) => stateCreator) as typeof actual.persist,
-  }
-})
-
-vi.mock('../../src/lib/git/bridge', () => ({
-  createWorkspaceBranch: vi.fn(),
-  deleteWorkspaceBranch: vi.fn(),
-  getGitStatus: vi.fn(),
-  commitChanges: vi.fn(),
-  pushChanges: vi.fn(),
-  createPR: vi.fn(),
-  mergePullRequest: vi.fn(),
-  cloneRepo: vi.fn(),
-  extractRepoName: vi.fn(),
-  openLocalRepo: vi.fn(),
-  createGitHubRepo: vi.fn(),
-}))
-
-vi.mock('../../src/lib/github/bridge', () => ({
-  getAuthState: vi.fn(),
-  startDeviceFlow: vi.fn(),
-  pollForToken: vi.fn(),
-  signOut: vi.fn(),
-}))
+vi.mock('zustand/middleware', async () => mockZustandPersist())
+vi.mock('../../src/lib/git/bridge', () => createGitBridgeMock())
+vi.mock('../../src/lib/github/bridge', () => createGitHubBridgeMock())
 
 import { useRepositoryStore } from '../../src/stores/repositoryStore'
 import * as gitBridge from '../../src/lib/git/bridge'
@@ -36,38 +13,17 @@ describe('failure path matrix', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    useRepositoryStore.setState({
-      githubAuth: null,
-      isAuthenticating: false,
-      authError: null,
-      repositories: [
-        {
-          id: 'repo-1',
-          name: 'hatch-sh',
-          full_name: 'serrrfirat/hatch-sh',
-          clone_url: 'https://github.com/serrrfirat/hatch-sh.git',
-          local_path: '/tmp/hatch-sh',
-          default_branch: 'master',
-          is_private: false,
-        },
-      ],
-      currentRepository: null,
-      workspaces: [
-        {
-          id: 'ws-1',
-          repositoryId: 'repo-1',
-          branchName: 'ws-1',
-          localPath: '/tmp/hatch-sh/.worktrees/ws-1',
-          repoPath: '/tmp/hatch-sh',
-          status: 'idle',
-          lastActive: new Date(),
-          agentId: 'claude-code',
-        },
-      ],
-      currentWorkspace: null,
-      isCloning: false,
-      cloneProgress: null,
-    })
+    useRepositoryStore.setState(
+      createDefaultRepositoryState({
+        repositories: [createTestRepository({ id: 'repo-1' })],
+        workspaces: [
+          createTestWorkspace({
+            id: 'ws-1',
+            repositoryId: 'repo-1',
+          }),
+        ],
+      })
+    )
   })
 
   it('marks workspace as error when git push fails', async () => {
@@ -96,5 +52,33 @@ describe('failure path matrix', () => {
     await expect(useRepositoryStore.getState().mergePullRequest('ws-1')).rejects.toThrow(
       'No PR associated with this workspace'
     )
+  })
+
+  it('recovers workspace status from error to idle on successful operation', async () => {
+    // Start in error state
+    useRepositoryStore.getState().updateWorkspaceStatus('ws-1', 'error')
+    const errorWs = useRepositoryStore.getState().workspaces.find((w) => w.id === 'ws-1')
+    expect(errorWs?.status).toBe('error')
+
+    // Successful commit should recover to idle
+    vi.mocked(gitBridge.commitChanges).mockResolvedValue('abc123')
+    await useRepositoryStore.getState().commitChanges('ws-1', 'fix: recover')
+
+    const recoveredWs = useRepositoryStore.getState().workspaces.find((w) => w.id === 'ws-1')
+    expect(recoveredWs?.status).toBe('idle')
+  })
+
+  it('surfaces clone failure without corrupting repository list', async () => {
+    vi.mocked(gitBridge.cloneRepo).mockRejectedValue(new Error('network timeout'))
+    vi.mocked(gitBridge.extractRepoName).mockReturnValue('test-repo')
+
+    const reposBefore = useRepositoryStore.getState().repositories.length
+
+    await expect(useRepositoryStore.getState().cloneRepository('https://github.com/test/repo')).rejects.toThrow(
+      'network timeout'
+    )
+
+    expect(useRepositoryStore.getState().repositories.length).toBe(reposBefore)
+    expect(useRepositoryStore.getState().isCloning).toBe(false)
   })
 })

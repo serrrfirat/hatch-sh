@@ -63,11 +63,7 @@ export interface MasonryItem {
   height: number
   title?: string
   description?: string
-  tokenSymbol?: string
-  marketCap?: number
-  creatorAddress?: string
   deploymentUrl?: string
-  tokenAddress?: string
 }
 
 interface GridItem extends MasonryItem {
@@ -226,15 +222,6 @@ export const MasonryGallery: React.FC<MasonryGalleryProps> = ({
     if (info) gsap.to(info, { opacity: 0, y: 10, duration: 0.3 })
   }
 
-  const formatMarketCap = (mc: number) => {
-    if (mc >= 1e6) return `$${(mc / 1e6).toFixed(2)}M`
-    if (mc >= 1e3) return `$${(mc / 1e3).toFixed(2)}K`
-    return `$${mc.toFixed(2)}`
-  }
-
-  const truncateAddress = (addr: string) =>
-    `${addr.slice(0, 6)}...${addr.slice(-4)}`
-
   return (
     <div
       ref={containerRef}
@@ -262,20 +249,6 @@ export const MasonryGallery: React.FC<MasonryGalleryProps> = ({
             {/* Color Overlay */}
             <div className="color-overlay absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 pointer-events-none" />
 
-            {/* Token Badge */}
-            {item.tokenSymbol && (
-              <div className="absolute top-4 left-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full">
-                <span className="text-xs font-semibold text-black">${item.tokenSymbol}</span>
-              </div>
-            )}
-
-            {/* Market Cap Badge */}
-            {item.marketCap && (
-              <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
-                <span className="text-xs font-medium text-white">{formatMarketCap(item.marketCap)}</span>
-              </div>
-            )}
-
             {/* Info Panel */}
             <div
               className="item-info absolute bottom-0 left-0 right-0 p-5 opacity-0 translate-y-2"
@@ -289,12 +262,6 @@ export const MasonryGallery: React.FC<MasonryGalleryProps> = ({
                   {item.description}
                 </p>
               )}
-              {item.creatorAddress && (
-                <p className="text-white/50 text-xs font-mono">
-                  by {truncateAddress(item.creatorAddress)}
-                </p>
-              )}
-
               {/* Action Buttons */}
               <div className="flex gap-2 mt-3">
                 {item.deploymentUrl && (
@@ -306,17 +273,6 @@ export const MasonryGallery: React.FC<MasonryGalleryProps> = ({
                     className="flex-1 px-3 py-2 bg-white text-black text-xs font-medium rounded-lg hover:bg-white/90 transition-colors"
                   >
                     Try App
-                  </button>
-                )}
-                {item.tokenAddress && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(`https://sepolia.basescan.org/token/${item.tokenAddress}`, '_blank')
-                    }}
-                    className="flex-1 px-3 py-2 bg-white/20 text-white text-xs font-medium rounded-lg hover:bg-white/30 transition-colors"
-                  >
-                    Trade
                   </button>
                 )}
               </div>

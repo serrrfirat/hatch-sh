@@ -1,54 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  mockZustandPersist,
+  createGitBridgeMock,
+  createGitHubBridgeMock,
+  createIdeaMazeStorageMock,
+  setupLocalStorageMock,
+} from '../helpers'
+import {
+  createDefaultRepositoryState,
+  createDefaultChatState,
+  createTestRepository,
+  createTestMoodboardContent,
+} from '../helpers'
 
-Object.defineProperty(globalThis, 'localStorage', {
-  value: {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-  },
-  configurable: true,
-})
+setupLocalStorageMock()
 
-vi.mock('zustand/middleware', async () => {
-  const actual = await vi.importActual<typeof import('zustand/middleware')>('zustand/middleware')
-  return {
-    ...actual,
-    persist: ((stateCreator: unknown) => stateCreator) as typeof actual.persist,
-  }
-})
-
-vi.mock('../../src/lib/ideaMaze/storage', () => ({
-  initializeStorage: vi.fn().mockResolvedValue(undefined),
-  saveMoodboard: vi.fn().mockResolvedValue(undefined),
-  loadAllMoodboards: vi.fn().mockResolvedValue([]),
-  deleteMoodboard: vi.fn().mockResolvedValue(undefined),
-  migrateFromLocalStorage: vi.fn().mockResolvedValue([]),
-  saveImageForAIContext: vi.fn().mockResolvedValue('/tmp/img.png'),
-}))
-
+vi.mock('zustand/middleware', async () => mockZustandPersist())
+vi.mock('../../src/lib/ideaMaze/storage', () => createIdeaMazeStorageMock())
 vi.mock('../../src/lib/git/bridge', () => ({
+  ...createGitBridgeMock(),
   createWorkspaceBranch: vi.fn().mockResolvedValue({
     branch_name: 'ws-ideamaze',
     worktree_path: '/tmp/hatch-sh/.worktrees/ws-ideamaze',
   }),
-  deleteWorkspaceBranch: vi.fn(),
-  getGitStatus: vi.fn(),
-  commitChanges: vi.fn(),
-  pushChanges: vi.fn(),
-  createPR: vi.fn(),
-  mergePullRequest: vi.fn(),
-  cloneRepo: vi.fn(),
-  extractRepoName: vi.fn(),
-  openLocalRepo: vi.fn(),
-  createGitHubRepo: vi.fn(),
 }))
-
-vi.mock('../../src/lib/github/bridge', () => ({
-  getAuthState: vi.fn(),
-  startDeviceFlow: vi.fn(),
-  pollForToken: vi.fn(),
-  signOut: vi.fn(),
-}))
+vi.mock('../../src/lib/github/bridge', () => createGitHubBridgeMock())
 
 import { useIdeaMazeStore } from '../../src/stores/ideaMazeStore'
 import { useRepositoryStore } from '../../src/stores/repositoryStore'
@@ -84,36 +60,13 @@ describe('idea maze -> plan -> build flow', () => {
       isMinimapVisible: false,
     })
 
-    useRepositoryStore.setState({
-      githubAuth: null,
-      isAuthenticating: false,
-      authError: null,
-      repositories: [
-        {
-          id: 'repo-1',
-          name: 'hatch-sh',
-          full_name: 'serrrfirat/hatch-sh',
-          clone_url: 'https://github.com/serrrfirat/hatch-sh.git',
-          local_path: '/tmp/hatch-sh',
-          default_branch: 'master',
-          is_private: false,
-        },
-      ],
-      currentRepository: null,
-      workspaces: [],
-      currentWorkspace: null,
-      isCloning: false,
-      cloneProgress: null,
-    })
+    useRepositoryStore.setState(
+      createDefaultRepositoryState({
+        repositories: [createTestRepository({ id: 'repo-1' })],
+      })
+    )
 
-    useChatStore.setState({
-      messagesByWorkspace: {},
-      currentWorkspaceId: null,
-      isLoading: false,
-      currentProjectId: null,
-      pendingOpenPR: null,
-    })
-
+    useChatStore.setState(createDefaultChatState())
     useSettingsStore.setState({ currentPage: 'idea-maze' })
   })
 
@@ -122,10 +75,10 @@ describe('idea maze -> plan -> build flow', () => {
     ideaStore.createNewMoodboard('My Ideas')
 
     const nodeA = ideaStore.addNode({ x: 100, y: 100 }, [
-      { type: 'text', id: crypto.randomUUID(), text: 'Mind map for product architecture' },
+      createTestMoodboardContent('Mind map for product architecture'),
     ])
     const nodeB = ideaStore.addNode({ x: 450, y: 120 }, [
-      { type: 'text', id: crypto.randomUUID(), text: 'Agent harness and release automation' },
+      createTestMoodboardContent('Agent harness and release automation'),
     ])
 
     const connection = ideaStore.addConnection(nodeA.id, nodeB.id, 'extends')

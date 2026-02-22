@@ -4,10 +4,9 @@ import { logger } from 'hono/logger'
 import { projectsRouter } from './routes/projects'
 import { chatRouter } from './routes/chat'
 import { deployRouter } from './routes/deploy'
-import { tokensRouter } from './routes/tokens'
 import { discoveryRouter } from './routes/discovery'
 import { skillsmpRouter } from './routes/skillsmp'
-import { createDb, createMockDb, type Database } from './db/client'
+import { createDb, createLocalDb, type Database } from './db/client'
 
 type Bindings = {
   DATABASE_URL: string
@@ -37,15 +36,13 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'hatch.sh API' }))
 
 // Database middleware (only for /api routes)
 app.use('/api/*', async (c, next) => {
-  const isDev = c.env.ENVIRONMENT === 'development'
   const hasValidDbUrl = c.env.DATABASE_URL && c.env.DATABASE_URL.startsWith('libsql://')
 
-  if (isDev && !hasValidDbUrl) {
-    // Use mock database for local development
-    c.set('db', createMockDb())
-  } else {
+  if (hasValidDbUrl) {
     const db = createDb(c.env.DATABASE_URL, c.env.DATABASE_AUTH_TOKEN)
     c.set('db', db)
+  } else {
+    c.set('db', createLocalDb())
   }
   await next()
 })
@@ -54,7 +51,6 @@ app.use('/api/*', async (c, next) => {
 app.route('/api/projects', projectsRouter)
 app.route('/api/chat', chatRouter)
 app.route('/api/deploy', deployRouter)
-app.route('/api/tokens', tokensRouter)
 app.route('/api/discovery', discoveryRouter)
 app.route('/api/skillsmp', skillsmpRouter)
 

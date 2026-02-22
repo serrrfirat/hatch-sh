@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createTauriCoreMock, createTauriEventMock } from '../helpers'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
-
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
-}))
+vi.mock('@tauri-apps/api/core', () => createTauriCoreMock())
+vi.mock('@tauri-apps/api/event', () => createTauriEventMock())
 
 import { invoke } from '@tauri-apps/api/core'
 import { sendToClaudeCode } from '../../src/lib/claudeCode/bridge'
@@ -66,5 +62,69 @@ describe('agent harness streaming flow', () => {
     })
 
     await expect(sendToClaudeCode('hello')).rejects.toThrow('auth failed')
+  })
+
+  it('handles interleaved event types correctly', async () => {
+    const stdout = [
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'text', text: 'Step 1 ' },
+            { type: 'tool_use', id: 'tool-a', name: 'write', input: { path: 'a.ts', content: 'code' } },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: 'tool_result',
+        tool_use_id: 'tool-a',
+        content: 'written',
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'text', text: 'Step 2' },
+          ],
+        },
+      }),
+    ].join('\n')
+
+    vi.mocked(invoke).mockResolvedValue({
+      success: true,
+      stdout,
+      stderr: '',
+      code: 0,
+    })
+
+    const events: string[] = []
+    const result = await sendToClaudeCode('do something', 'system', (e) => {
+      events.push(e.type)
+    })
+
+    expect(result).toContain('Step 1')
+    expect(result).toContain('Step 2')
+    expect(events).toContain('tool_use')
+    expect(events).toContain('tool_result')
+  })
+
+  it('handles malformed JSON lines gracefully', async () => {
+    const stdout = [
+      'not valid json',
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: 'recovered' }] },
+      }),
+    ].join('\n')
+
+    vi.mocked(invoke).mockResolvedValue({
+      success: true,
+      stdout,
+      stderr: '',
+      code: 0,
+    })
+
+    const result = await sendToClaudeCode('test')
+    expect(result).toContain('recovered')
   })
 })

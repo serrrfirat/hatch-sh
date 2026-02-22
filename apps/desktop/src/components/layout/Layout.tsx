@@ -11,6 +11,7 @@ import { MarketplacePage } from '../../pages/MarketplacePage'
 import { DesignPage } from '../../pages/DesignPage'
 import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
 import { CreatePRModal } from '../repository/CreatePRModal'
+import { ErrorBoundary } from '../ErrorBoundary'
 
 const pageTabs: { id: AppPage; label: string; icon: typeof Terminal }[] = [
   { id: 'byoa', label: 'Build', icon: Terminal },
@@ -261,36 +262,41 @@ export function Layout() {
       <main className="flex-1 flex overflow-hidden">
         {currentPage === 'byoa' ? (
           <>
-            {/* Sidebar */}
-            <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
-              <ProjectTree />
-            </aside>
-
-            {/* Main area */}
-            <div className="flex-1 bg-neutral-950 overflow-hidden">
-              <Outlet />
-            </div>
+            <ErrorBoundary sectionName="Project Sidebar">
+              <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
+                <ProjectTree />
+              </aside>
+            </ErrorBoundary>
+            <ErrorBoundary sectionName="Build">
+              <div className="flex-1 bg-neutral-950 overflow-hidden">
+                <Outlet />
+              </div>
+            </ErrorBoundary>
           </>
         ) : currentPage === 'design' ? (
-          /* Full-page Design */
-          <div className="flex-1 bg-neutral-950 overflow-hidden">
-            <DesignPage />
-          </div>
+          <ErrorBoundary sectionName="Design">
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <DesignPage />
+            </div>
+          </ErrorBoundary>
         ) : currentPage === 'marketplace' ? (
-          /* Full-page Marketplace/Skills */
-          <div className="flex-1 bg-neutral-950 overflow-hidden">
-            <MarketplacePage />
-          </div>
+          <ErrorBoundary sectionName="Skills Marketplace">
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <MarketplacePage />
+            </div>
+          </ErrorBoundary>
         ) : currentPage === 'settings' ? (
-          /* Full-page Settings */
-          <div className="flex-1 bg-neutral-950 overflow-hidden">
-            <SettingsPage />
-          </div>
+          <ErrorBoundary sectionName="Settings">
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <SettingsPage />
+            </div>
+          </ErrorBoundary>
         ) : (
-          /* Full-page Idea Maze */
-          <div className="flex-1 bg-neutral-950 overflow-hidden">
-            <IdeaMazePage />
-          </div>
+          <ErrorBoundary sectionName="Idea Maze">
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <IdeaMazePage />
+            </div>
+          </ErrorBoundary>
         )}
       </main>
 

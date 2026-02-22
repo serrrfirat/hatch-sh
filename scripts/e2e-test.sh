@@ -85,22 +85,9 @@ else
     warn "Deploy returned: $DEPLOY_RESPONSE"
 fi
 
-# Test 6: Token Launch Endpoint
+# Test 6: Discovery Endpoint
 echo ""
-echo "6. Testing Token Launch Endpoint..."
-TOKEN_RESPONSE=$(curl -s -X POST "${API_URL}/api/tokens/launch" \
-    -H "Content-Type: application/json" \
-    -d "{\"projectId\": \"$PROJECT_ID\", \"name\": \"Test Token\", \"symbol\": \"TEST\", \"imageUri\": \"\", \"creatorAddress\": \"0x0000000000000000000000000000000000000000\"}")
-
-if echo "$TOKEN_RESPONSE" | grep -q "id\|tokenAddress"; then
-    success "Token launch endpoint working"
-else
-    warn "Token launch returned: $TOKEN_RESPONSE"
-fi
-
-# Test 7: Discovery Endpoint
-echo ""
-echo "7. Testing Discovery Endpoint..."
+echo "6. Testing Discovery Endpoint..."
 DISCOVERY_RESPONSE=$(curl -s "${API_URL}/api/discovery")
 
 if [ -n "$DISCOVERY_RESPONSE" ] && [ "$DISCOVERY_RESPONSE" != "Internal Server Error" ]; then
@@ -109,9 +96,9 @@ else
     warn "Discovery returned: $DISCOVERY_RESPONSE"
 fi
 
-# Test 8: Web Frontend
+# Test 7: Web Frontend
 echo ""
-echo "8. Testing Web Frontend..."
+echo "7. Testing Web Frontend..."
 if curl -s "${WEB_URL}" | grep -q "hatch\|html"; then
     success "Web frontend is running"
 else

@@ -48,3 +48,12 @@ yarn-error.log*
 
 # Claude skills (installed locally)
 .claude/skills/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Local dev database
+*.db
+*.db-journal
+*.db-wal

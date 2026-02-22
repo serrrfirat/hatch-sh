@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { eq, desc } from 'drizzle-orm'
-import { projects, tokenLaunches } from '../db/schema'
+import { projects } from '../db/schema'
 import type { Database } from '../db/client'
 
 type Variables = {
@@ -9,36 +9,26 @@ type Variables = {
 
 const discoveryRouter = new Hono<{ Variables: Variables }>()
 
-// List all launched apps
+// List all deployed apps
 discoveryRouter.get('/', async (c) => {
   const db = c.get('db')
   const sortBy = c.req.query('sort') || 'recent'
 
-  // Get projects with tokens
-  const launchedProjects = await db
-    .select({
-      project: projects,
-      token: tokenLaunches,
-    })
+  // Get deployed projects
+  const deployedProjects = await db
+    .select()
     .from(projects)
-    .leftJoin(tokenLaunches, eq(projects.id, tokenLaunches.projectId))
-    .where(eq(projects.status, 'launched'))
+    .where(eq(projects.status, 'deployed'))
     .orderBy(desc(projects.createdAt))
     .all()
 
   // Transform for frontend
-  const apps = launchedProjects.map(({ project, token }) => ({
+  const apps = deployedProjects.map((project) => ({
     id: project.id,
     name: project.name,
     description: project.description,
     deploymentUrl: project.deploymentUrl,
     createdAt: project.createdAt,
-    token: token ? {
-      address: token.tokenAddress,
-      name: token.name,
-      symbol: token.symbol,
-      imageUri: token.imageUri,
-    } : null,
   }))
 
   return c.json(apps)
@@ -50,12 +40,8 @@ discoveryRouter.get('/:id', async (c) => {
   const id = c.req.param('id')
 
   const result = await db
-    .select({
-      project: projects,
-      token: tokenLaunches,
-    })
+    .select()
     .from(projects)
-    .leftJoin(tokenLaunches, eq(projects.id, tokenLaunches.projectId))
     .where(eq(projects.id, id))
     .get()
 
@@ -63,10 +49,7 @@ discoveryRouter.get('/:id', async (c) => {
     return c.json({ error: 'App not found' }, 404)
   }
 
-  return c.json({
-    ...result.project,
-    token: result.token,
-  })
+  return c.json(result)
 })
 
 export { discoveryRouter }

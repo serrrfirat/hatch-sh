@@ -1,33 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockZustandPersist, createGitBridgeMock, createGitHubBridgeMock } from '../helpers'
+import { createDefaultRepositoryState, createDefaultChatState, createTestRepository } from '../helpers'
 
-vi.mock('zustand/middleware', async () => {
-  const actual = await vi.importActual<typeof import('zustand/middleware')>('zustand/middleware')
-  return {
-    ...actual,
-    persist: ((stateCreator: unknown) => stateCreator) as typeof actual.persist,
-  }
-})
-
-vi.mock('../../src/lib/git/bridge', () => ({
-  createWorkspaceBranch: vi.fn(),
-  deleteWorkspaceBranch: vi.fn(),
-  getGitStatus: vi.fn(),
-  commitChanges: vi.fn(),
-  pushChanges: vi.fn(),
-  createPR: vi.fn(),
-  mergePullRequest: vi.fn(),
-  cloneRepo: vi.fn(),
-  extractRepoName: vi.fn(),
-  openLocalRepo: vi.fn(),
-  createGitHubRepo: vi.fn(),
-}))
-
-vi.mock('../../src/lib/github/bridge', () => ({
-  getAuthState: vi.fn(),
-  startDeviceFlow: vi.fn(),
-  pollForToken: vi.fn(),
-  signOut: vi.fn(),
-}))
+vi.mock('zustand/middleware', async () => mockZustandPersist())
+vi.mock('../../src/lib/git/bridge', () => createGitBridgeMock())
+vi.mock('../../src/lib/github/bridge', () => createGitHubBridgeMock())
 
 import { useRepositoryStore } from '../../src/stores/repositoryStore'
 import { useChatStore } from '../../src/stores/chatStore'
@@ -36,34 +13,12 @@ import * as gitBridge from '../../src/lib/git/bridge'
 describe('shipping workspace -> PR flow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useRepositoryStore.setState({
-      githubAuth: null,
-      isAuthenticating: false,
-      authError: null,
-      repositories: [
-        {
-          id: 'repo-1',
-          name: 'hatch-sh',
-          full_name: 'serrrfirat/hatch-sh',
-          clone_url: 'https://github.com/serrrfirat/hatch-sh.git',
-          local_path: '/tmp/hatch-sh',
-          default_branch: 'master',
-          is_private: false,
-        },
-      ],
-      currentRepository: null,
-      workspaces: [],
-      currentWorkspace: null,
-      isCloning: false,
-      cloneProgress: null,
-    })
-    useChatStore.setState({
-      messagesByWorkspace: {},
-      currentWorkspaceId: null,
-      isLoading: false,
-      currentProjectId: null,
-      pendingOpenPR: null,
-    })
+    useRepositoryStore.setState(
+      createDefaultRepositoryState({
+        repositories: [createTestRepository({ id: 'repo-1' })],
+      })
+    )
+    useChatStore.setState(createDefaultChatState())
   })
 
   it('creates workspace, commits, pushes, creates and merges PR', async () => {
@@ -116,5 +71,36 @@ describe('shipping workspace -> PR flow', () => {
 
     expect(finalWorkspace?.prState).toBe('merged')
     expect(finalWorkspace?.prNumber).toBe(42)
+  })
+
+  it('removeWorkspace cleans up associated chat state', async () => {
+    vi.mocked(gitBridge.createWorkspaceBranch).mockResolvedValue({
+      branch_name: 'ws-cleanup',
+      worktree_path: '/tmp/hatch-sh/.worktrees/ws-cleanup',
+    })
+    vi.mocked(gitBridge.deleteWorkspaceBranch).mockResolvedValue()
+
+    const workspace = await useRepositoryStore.getState().createWorkspace('repo-1')
+    useRepositoryStore.getState().setCurrentWorkspace(workspace)
+
+    expect(useChatStore.getState().currentWorkspaceId).toBe(workspace.id)
+
+    await useRepositoryStore.getState().removeWorkspace(workspace.id)
+
+    expect(useRepositoryStore.getState().currentWorkspace).toBeNull()
+    expect(useChatStore.getState().currentWorkspaceId).toBeNull()
+  })
+
+  it('workspace initializes with correct agent selection', async () => {
+    vi.mocked(gitBridge.createWorkspaceBranch).mockResolvedValue({
+      branch_name: 'ws-agent',
+      worktree_path: '/tmp/hatch-sh/.worktrees/ws-agent',
+    })
+
+    const workspace = await useRepositoryStore.getState().createWorkspace('repo-1')
+
+    // Default agent should be set
+    expect(workspace.agentId).toBeDefined()
+    expect(workspace.isInitializing).toBe(false)
   })
 })

@@ -15,8 +15,7 @@ export interface Project {
   name: string
   code?: string
   deploymentUrl?: string
-  tokenAddress?: string
-  status: 'draft' | 'deployed' | 'launched'
+  status: 'draft' | 'deployed'
   workspaces: Workspace[]
   isExpanded?: boolean
 }

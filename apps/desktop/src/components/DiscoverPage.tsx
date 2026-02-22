@@ -9,11 +9,6 @@ interface DiscoveredApp {
   id: string
   name: string
   description: string
-  tokenSymbol: string
-  tokenAddress: string
-  marketCap: number
-  price: number
-  creatorAddress: string
   deploymentUrl: string
   createdAt: string
   thumbnail?: string
@@ -25,11 +20,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-1',
     name: 'Vibe Check',
     description: 'A mood tracking app that helps you stay in touch with your emotions',
-    tokenSymbol: 'VIBE',
-    tokenAddress: '0x1234567890abcdef1234567890abcdef12345678',
-    marketCap: 125000,
-    price: 0.0125,
-    creatorAddress: '0xabcdef1234567890abcdef1234567890abcdef12',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
@@ -38,11 +28,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-2',
     name: 'Pixel Dreams',
     description: 'Generate AI art with a retro pixel aesthetic',
-    tokenSymbol: 'PIXEL',
-    tokenAddress: '0x2345678901bcdef02345678901bcdef023456789',
-    marketCap: 89000,
-    price: 0.0089,
-    creatorAddress: '0xbcdef12345678901bcdef12345678901bcdef123',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600&auto=format&fit=crop',
@@ -51,11 +36,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-3',
     name: 'Flow State',
     description: 'Productivity timer with ambient sounds and focus modes',
-    tokenSymbol: 'FLOW',
-    tokenAddress: '0x3456789012cdef013456789012cdef0134567890',
-    marketCap: 256000,
-    price: 0.0256,
-    creatorAddress: '0xcdef123456789012cdef123456789012cdef1234',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=600&auto=format&fit=crop',
@@ -64,11 +44,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-4',
     name: 'Crypto Cats',
     description: 'Collect and trade unique digital feline companions',
-    tokenSymbol: 'MEOW',
-    tokenAddress: '0x4567890123def0124567890123def01245678901',
-    marketCap: 512000,
-    price: 0.0512,
-    creatorAddress: '0xdef1234567890123def1234567890123def12345',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1634152962476-4b8a00e1915c?q=80&w=600&auto=format&fit=crop',
@@ -77,11 +52,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-5',
     name: 'Beat Maker',
     description: 'Create and share music beats in your browser',
-    tokenSymbol: 'BEAT',
-    tokenAddress: '0x5678901234ef01235678901234ef012356789012',
-    marketCap: 78000,
-    price: 0.0078,
-    creatorAddress: '0xef12345678901234ef12345678901234ef123456',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1558655146-d09347e92766?q=80&w=600&auto=format&fit=crop',
@@ -90,11 +60,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-6',
     name: 'Space Explorer',
     description: 'Interactive 3D journey through our solar system',
-    tokenSymbol: 'SPACE',
-    tokenAddress: '0x6789012345f012346789012345f0123467890123',
-    marketCap: 345000,
-    price: 0.0345,
-    creatorAddress: '0xf123456789012345f123456789012345f1234567',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1600607686527-6fb886090705?q=80&w=600&auto=format&fit=crop',
@@ -103,11 +68,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-7',
     name: 'Zen Garden',
     description: 'Digital meditation space with interactive zen elements',
-    tokenSymbol: 'ZEN',
-    tokenAddress: '0x7890123456012345789012345601234578901234',
-    marketCap: 167000,
-    price: 0.0167,
-    creatorAddress: '0x0123456789123456012345678912345601234567',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600&auto=format&fit=crop',
@@ -116,11 +76,6 @@ const DEMO_APPS: DiscoveredApp[] = [
     id: 'demo-8',
     name: 'Recipe Remix',
     description: 'AI-powered recipe generator with dietary customization',
-    tokenSymbol: 'CHEF',
-    tokenAddress: '0x8901234567123456890123456712345689012345',
-    marketCap: 98000,
-    price: 0.0098,
-    creatorAddress: '0x1234567890234567123456789023456712345678',
     deploymentUrl: '#',
     createdAt: new Date().toISOString(),
     thumbnail: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=80&w=600&auto=format&fit=crop',
@@ -156,7 +111,7 @@ function AnimatedTitle({ text }: { text: string }) {
 export function DiscoverPage() {
   const [apps, setApps] = useState<DiscoveredApp[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [sortBy, setSortBy] = useState<'recent' | 'marketCap' | 'trending'>('recent')
+  const [sortBy, setSortBy] = useState<'recent' | 'trending'>('recent')
   const [key, setKey] = useState(0)
 
   useEffect(() => {
@@ -195,10 +150,6 @@ export function DiscoverPage() {
     height: randomHeights[i % randomHeights.length],
     title: app.name,
     description: app.description,
-    tokenSymbol: app.tokenSymbol,
-    tokenAddress: app.tokenAddress,
-    marketCap: app.marketCap,
-    creatorAddress: app.creatorAddress,
     deploymentUrl: app.deploymentUrl,
   }))
 
@@ -232,7 +183,6 @@ export function DiscoverPage() {
               className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
             >
               <option value="recent">Recent</option>
-              <option value="marketCap">Market Cap</option>
               <option value="trending">Trending</option>
             </select>
           </div>
