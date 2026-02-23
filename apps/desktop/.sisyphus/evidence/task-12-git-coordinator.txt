@@ -1,0 +1,17 @@
+# Task 12: GitCoordinator Serialized Queue — Evidence
+
+## Implementation
+- Modified: src-tauri/src/lib.rs (GitCoordinator struct + Tauri commands)
+- Modified: src/lib/git/bridge.ts (route through coordinator)
+
+## Features
+- Serialized queue with concurrency=1 per repo root
+- Priority: critical > normal > low
+- 60s timeout cancels stuck operations
+- Tauri commands: git_coordinator_enqueue, git_coordinator_status, git_coordinator_cancel
+- Rust unit tests for queue ordering and priority
+
+## Test Results
+- cargo test passes
+- pnpm vitest run: 313 tests pass
+- Commit: 49382d8

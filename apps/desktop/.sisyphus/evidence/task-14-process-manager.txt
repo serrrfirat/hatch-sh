@@ -1,0 +1,19 @@
+# Task 14: Concurrent Agent Process Manager — Evidence
+
+## Implementation
+- Created: src/lib/agents/processManager.ts (AgentProcessManager class)
+- Created: src/lib/agents/__tests__/processManager.test.ts (6 tests)
+- Modified: src-tauri/src/lib.rs (agent_spawn, agent_kill, agent_list, agent_status)
+- Modified: src/hooks/useChat.ts (workspace routing)
+
+## Features
+- MAX_CONCURRENT_AGENTS = 3, MAX_AGENTS_HARD_CAP = 5
+- spawn(workspaceId, agentType, worktreePath)
+- kill(workspaceId), list(), getStatus(workspaceId)
+- One-to-one workspace→process mapping
+- Crash detection and index.lock cleanup
+- Tauri commands: agent_spawn, agent_kill, agent_list, agent_status
+
+## Test Results
+- 6 new tests pass (319 total)
+- Commit: 8ca0f70

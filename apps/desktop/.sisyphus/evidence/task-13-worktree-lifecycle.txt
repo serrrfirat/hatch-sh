@@ -1,0 +1,20 @@
+# Task 13: Worktree Lifecycle Management — Evidence
+
+## Implementation
+- Modified: src-tauri/src/lib.rs (WorktreeLifecycleManager + Tauri commands)
+- Modified: src/stores/repositoryStore.ts (use lifecycle manager)
+- Modified: src/lib/git/bridge.ts (worktreeCreate, worktreeRemove, etc.)
+
+## Features
+- Worktrees locked on creation (git worktree lock --reason active-agent)
+- Worktrees unlocked and removed cleanly on archive
+- App startup runs repair + prune
+- Duplicate branch rejection
+- Crash recovery cleans up .git/index.lock
+- Health status: healthy, orphaned, locked, corrupted
+- Tauri commands: worktree_create, worktree_remove, worktree_repair, worktree_list
+
+## Test Results
+- cargo test passes
+- pnpm vitest run: 313 tests pass
+- Commit: 8f8bc61

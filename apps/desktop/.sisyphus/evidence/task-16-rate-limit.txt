@@ -1,0 +1,24 @@
+# Task 16: Rate Limit Awareness + Resource Monitoring — Evidence
+
+## Implementation
+- Created: src/components/layout/RateLimitMeter.tsx
+- Created: src/components/layout/__tests__/RateLimitMeter.test.ts (35 tests)
+- Modified: src/components/layout/Layout.tsx (RateLimitMeter after AgentDashboard)
+
+## Pure Functions
+- estimateRateUsage(agentCount, messageCount): % of rate limit
+- getRateLimitColor(percentage): green/yellow/red
+- shouldShowWarning(percentage): true when >80%
+- estimateAgentMemoryMB(agentCount): ~300MB per agent
+- shouldShowMemoryWarning(availableMB): true when <1GB
+- formatRateLabel(percentage): "API: ~60% of rate limit"
+
+## Features
+- Only visible when 2+ agents active
+- Warning banner at >80% estimated usage
+- Memory warning before spawning agent if <1GB available
+- Color transitions: green -> yellow -> red
+
+## Test Results
+- 35 new tests pass (376 total)
+- Commit: ccbf60e

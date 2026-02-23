@@ -1,0 +1,18 @@
+# Task 11: Checks Tab v2 — GitHub Actions — Evidence
+
+## Implementation
+- Created: src/lib/github/checks.ts (parseWorkflowRuns, getStatusIcon, buildRerunCommand)
+- Created: src/lib/github/__tests__/checksTab.test.ts (9 tests)
+- Modified: src/components/ide/RightPanel.tsx (full GitHub Actions UI)
+
+## Features
+- Fetches workflow runs via gh run list --branch <branch> --json
+- Status icons: ✅ success, ❌ failure, 🔄 in_progress, ⏸ queued
+- Failed runs show expandable log output
+- Re-run button triggers gh run rerun <id>
+- Auto-refresh every 30s
+- No checks message when no PR/upstream
+
+## Test Results
+- 9 new tests pass (313 total)
+- Commit: f3cd668

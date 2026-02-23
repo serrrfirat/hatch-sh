@@ -1,0 +1,19 @@
+# Task 9: Image Attachments in Chat — Evidence
+
+## Implementation
+- Created: src/components/chat/ImageAttachment.tsx
+- Modified: src/components/chat/ChatInput.tsx (drag-drop zone + attach button)
+- Modified: src/hooks/useChat.ts (image data attachment)
+- Modified: src/stores/chatStore.ts (images field on Message)
+
+## Features
+- Drag-drop images onto composer shows thumbnail preview
+- Click attach button opens file picker
+- Supported: .png, .jpg, .jpeg, .gif, .webp, .svg
+- Images >5MB rejected with error
+- Images saved to workspace .context/ directory
+- Cloud model warning shown when applicable
+
+## Test Results
+- Tests pass (294 total after T9)
+- Commit: 333ee94

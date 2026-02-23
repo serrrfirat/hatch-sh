@@ -1,0 +1,20 @@
+# Task 15: Multi-Agent Dashboard UI — Evidence
+
+## Implementation
+- Created: src/components/layout/AgentDashboard.tsx (309 lines)
+- Created: src/components/layout/__tests__/AgentDashboard.test.ts (22 tests)
+- Modified: src/components/layout/Layout.tsx (AgentDashboard in sidebar)
+
+## Features
+- Shows all active agents: workspace name, branch, agent type, status, elapsed time
+- Streaming indicator: animate-pulse green dot
+- Click agent row switches workspace focus
+- Quick actions: Kill, Restart, Open Chat (hover reveal)
+- Workspace status pills from T3
+- Empty state: "No active agents. Create a workspace to start."
+- Compact mode (icons + workspace names)
+- Collapsible panel
+
+## Test Results
+- 22 new tests pass (341 total)
+- Commit: a1fcb5f

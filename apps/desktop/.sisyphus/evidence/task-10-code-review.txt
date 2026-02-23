@@ -1,0 +1,16 @@
+# Task 10: Code Review Mode via /review — Evidence
+
+## Implementation
+- Created: src/lib/codeReview.ts (buildReviewPrompt pure function)
+- Created: src/lib/__tests__/codeReview.test.ts (10 tests)
+- Modified: src/hooks/useChat.ts (/review interception)
+
+## Features
+- /review collects git diff for current workspace
+- Sends diff + review prompt to agent
+- /review path/to/file.ts scopes to specific file
+- Edge cases: no workspace, getDiff fails, empty diff
+
+## Test Results
+- 10 new tests pass (304 total)
+- Commit: 018ff2a

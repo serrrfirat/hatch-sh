@@ -1,0 +1,17 @@
+# Task 8: File Mentions with Content Injection — Evidence
+
+## Implementation
+- Modified: src/components/chat/MentionPopover.tsx (file content injection)
+- Modified: src/components/chat/ChatInput.tsx (mention handling)
+- Created: src/lib/__tests__/fileMentionContent.test.ts
+
+## Features
+- @ mention triggers file autocomplete
+- File content injected as code block: [File: path]\n```ext\ncontent\n```
+- Files >50KB show warning
+- Supported: .ts, .tsx, .js, .jsx, .json, .md, .css, .html, .py, .rs
+- Binary files excluded from content injection
+
+## Test Results
+- 33 new tests pass
+- Commit: 43e9c3f

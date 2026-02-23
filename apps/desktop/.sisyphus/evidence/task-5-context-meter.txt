@@ -1,0 +1,20 @@
+# Task 5: Context Usage Meter — Evidence
+
+## Implementation
+- File: src/components/chat/ContextMeter.tsx (130 lines)
+- File: src/components/chat/__tests__/ContextMeter.test.ts (181 lines, 21 tests)
+- Modified: src/components/chat/ChatArea.tsx (ContextMeter in header)
+
+## Pure Functions
+- calculateContextSize(messages): sums JSON.stringify(msg).length for all messages
+- getContextColor(percentage): green (<50%), yellow (50-80%), red (>=80%)
+
+## Test Results
+- 21 tests pass covering: byte calculation, color thresholds, tooltip breakdown, warning indicator
+- Commit: ef17c0c
+
+## Acceptance Criteria
+- [x] Context meter visible in chat area
+- [x] Shows estimated byte usage vs 100KB limit
+- [x] Color changes at 50% and 80% thresholds
+- [x] Hover tooltip shows message breakdown

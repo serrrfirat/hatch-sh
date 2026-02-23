@@ -1,0 +1,18 @@
+# Task 17: Parallel Workspace Chat Routing — Evidence
+
+## Implementation
+- Modified: src/stores/chatStore.ts (activeStreamingWorkspaces, loadingByWorkspace, workspace-scoped actions)
+- Modified: src/hooks/useChat.ts (workspaceId parameter, background notifications)
+- Created: src/stores/__tests__/chatRouting.test.ts (3 tests)
+
+## Features
+- Messages route to correct workspace agent by workspaceId
+- Background agents continue streaming when not focused
+- activeStreamingWorkspaces: Set<string> tracks concurrent streaming
+- loadingByWorkspace: Record<string, boolean> per-workspace loading state
+- Desktop notifications via Notification API on background completion
+- No message cross-contamination between workspaces
+
+## Test Results
+- 3 new tests pass (379 total)
+- Commit: f44ff99
