@@ -71,11 +71,16 @@ vi.mock('../chatStore', () => ({
   },
 }))
 
-vi.stubGlobal('localStorage', {
+const mockStorage = {
   getItem: vi.fn(() => null),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-})
+  setItem: vi.fn(() => {}),
+  removeItem: vi.fn(() => {}),
+  clear: vi.fn(() => {}),
+  key: vi.fn(() => null),
+  length: 0,
+}
+
+vi.stubGlobal('localStorage', mockStorage)
 
 describe('repositoryStore', () => {
   beforeEach(() => {
@@ -251,6 +256,7 @@ describe('repositoryStore', () => {
         clone_url: 'https://github.com/user/test-repo.git',
         local_path: '/path/to/repo',
         default_branch: 'main',
+        is_private: false,
       }
 
       useRepositoryStore.setState({ repositories: [repo] })
