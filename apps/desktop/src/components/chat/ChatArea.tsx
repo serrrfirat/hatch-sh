@@ -3,6 +3,7 @@ import { useChat } from '../../hooks/useChat'
 import { MessageBubble } from './MessageBubble'
 import { ChatInput } from './ChatInput'
 import { ChatSearch } from './ChatSearch'
+import { ContextMeter } from './ContextMeter'
 import { WelcomeScreen } from './WelcomeScreen'
 import { WorkspaceInitScreen } from './WorkspaceInitScreen'
 import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsStore'
@@ -142,6 +143,7 @@ export function ChatArea() {
           onClose={handleSearchClose}
         />
       )}
+      <ContextMeter />
       {/* Activity log container */}
       <div
         className="flex-1 overflow-y-auto px-4 md:px-6"
