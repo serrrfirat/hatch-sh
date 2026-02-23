@@ -18,7 +18,7 @@ import {
 } from '../lib/agents/streamUtils'
 import { extractCodeBlocks } from '../lib/codeExtractor'
 import { writeCodeBlocksToWorkspace } from '../lib/fileWriter'
-import { readProjectMemory } from '../lib/projectMemory'
+// readProjectMemory is available for future system prompt enrichment
 import { windowMessages, getDroppedMessages } from '../lib/chatWindow'
 import { summarizeDroppedMessages } from '../lib/chatSummarizer'
 
@@ -125,7 +125,7 @@ export function useChat() {
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamingMessageIdRef = useRef<string | null>(null)
   const shouldStopRef = useRef(false)
-  const projectMemoryLoadedRef = useRef<Set<string>>(new Set())
+  // projectMemoryLoadedRef: reserved for future per-workspace memory dedup
   const summaryCacheRef = useRef<{ droppedIds: string; summary: string }>({ droppedIds: '', summary: '' })
 
   /**
@@ -369,20 +369,8 @@ export function useChat() {
     [currentProjectId, updateMessage]
   )
 
-  const buildSystemPrompt = async (workspacePath?: string): Promise<string> => {
-    let prompt = SYSTEM_PROMPT
-    if (workspacePath) {
-      try {
-        const memory = await readProjectMemory(workspacePath)
-        if (memory) {
-          prompt = `${SYSTEM_PROMPT}\n\n## Project Context\n${memory}`
-        }
-      } catch (error) {
-        console.error('Failed to load project memory:', error)
-      }
-    }
-    return prompt
-  }
+  // buildSystemPrompt: reserved for future system prompt enrichment with project memory
+  // Uses readProjectMemory(workspacePath) to load .hatch/context.md
 
   const sendMessage = useCallback(
     async (content: string) => {
