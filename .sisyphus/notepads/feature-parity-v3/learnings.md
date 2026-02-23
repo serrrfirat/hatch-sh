@@ -228,3 +228,77 @@ Successfully created a slash command parser module with 4 built-in commands (/cl
 - ✓ 29 test files pass
 - ✓ Duration: 1.84s
 - ✓ No LSP errors
+
+## Task 2: Type Safety and LSP Error Resolution
+
+### Summary
+Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. Fixed 9 LSP errors, removed unused variables, and added missing selector. All 203 tests pass. Zero TypeScript compilation errors.
+
+### Issues Fixed
+
+#### 1. Missing selectCurrentMessages Selector
+- **Problem**: useChat.ts imported `selectCurrentMessages` from chatStore but it wasn't exported
+- **Solution**: Added selector function to chatStore.ts:
+  ```typescript
+  export const selectCurrentMessages = (state: ChatState): Message[] => {
+    if (!state.currentWorkspaceId) return []
+    return state.messagesByWorkspace[state.currentWorkspaceId] || []
+  }
+  ```
+- **Why**: Zustand selectors enable reactive subscriptions to specific state slices
+
+#### 2. Implicit Any Parameters in useChat.ts
+- **Problem**: Three locations had implicit `any` types in callback parameters:
+  - Line 359: `onRetry: (attempt, delayMs, error) => {}`
+  - Line 473: `currentMessages.find((m) => ...)`
+  - Line 481: `currentMessages.find((m) => ...)`
+  - Line 533: `currentMessages.find((m) => ...)`
+- **Solution**: Added explicit type annotations:
+  - `onRetry: (_attempt: number, _delayMs: number, _error: unknown) => {}`
+  - `find((m: Message) => ...)`
+- **Why**: Explicit types prevent accidental type errors and improve IDE autocomplete
+
+#### 3. Unused Variable in MentionPopover.tsx
+- **Problem**: Line 361 declared `pluginKeys` but never used it
+- **Solution**: Removed the unused variable declaration
+- **Why**: Dead code increases maintenance burden and confuses readers
+
+### Key Learnings
+
+1. **Zustand Selector Pattern**: When using Zustand with TypeScript, always create explicit selector functions for complex state slices. This enables:
+   - Reactive subscriptions (only re-render when selected state changes)
+   - Type safety (selector return type is inferred)
+   - Reusability across components
+
+2. **Callback Parameter Types**: Never rely on implicit type inference for callback parameters. Always annotate:
+   - Unused parameters should be prefixed with `_` (e.g., `_attempt`)
+   - This signals intent and prevents accidental usage
+
+3. **Find Method Typing**: Array.find() with arrow functions needs explicit parameter types when strict mode is enabled:
+   - `array.find((item: Type) => ...)` not `array.find((item) => ...)`
+
+4. **WebGL Type Assertions**: The `as any` assertions in Plasma.tsx (lines 193, 195) are acceptable because:
+   - WebGL uniform types are complex and not fully typed in OGL library
+   - These are isolated to a single component
+   - The alternative (casting to `WebGLUniformLocation | null`) doesn't improve safety
+
+### Files Modified
+- `apps/desktop/src/stores/chatStore.ts` — Added selectCurrentMessages selector
+- `apps/desktop/src/hooks/useChat.ts` — Fixed implicit any parameters (4 locations)
+- `apps/desktop/src/components/chat/MentionPopover.tsx` — Removed unused pluginKeys variable
+
+### Verification
+- ✓ `pnpm exec tsc --noEmit` — 0 errors
+- ✓ `pnpm vitest run` — 203 tests pass (170 existing + 33 from T6)
+- ✓ `grep -rn 'as any' src/` — Only 2 acceptable WebGL assertions remain
+- ✓ Evidence files created:
+  - `.sisyphus/evidence/task-2-tsc-check.txt` — Empty (no errors)
+  - `.sisyphus/evidence/task-2-type-safety.txt` — Only WebGL assertions
+
+### Commit
+- `354cca6` — "fix: resolve type safety issues and LSP errors"
+
+### Notes
+- No behavior changes — only type safety improvements
+- All existing tests continue to pass
+- Ready for Wave 1C (T4, T5) which depend on clean TypeScript
