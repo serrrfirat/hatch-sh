@@ -301,7 +301,7 @@ export function Layout() {
           </>
         ) : currentPage === 'design' ? (
           <ErrorBoundary sectionName="Design">
-            <div className="flex-1 bg-neutral-950 overflow-hidden">
+            <div className="flex-1 min-h-0 bg-neutral-950 overflow-hidden">
               <DesignPage />
             </div>
           </ErrorBoundary>

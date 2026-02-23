@@ -1397,7 +1397,6 @@ async fn webview_navigate(app: tauri::AppHandle, webview_label: String, directio
 // =============================================================================
 // File Tree Commands
 // =============================================================================
-
 /// Read a directory tree recursively for the file tree sidebar.
 /// Delegates to the existing list_directory_files logic from git.rs.
 /// Skips hidden files (starting with '.'), node_modules, target, .git.
@@ -1409,15 +1408,165 @@ async fn read_directory_tree(path: String) -> Result<Vec<git::FileEntry>, String
 }
 
 // =============================================================================
+// Design Page Proxy (strips X-Frame-Options for iframe embedding)
+// =============================================================================
+/// Headers that block iframe embedding — stripped by the proxy
+const BLOCKED_HEADERS: &[&str] = &[
+    "x-frame-options",
+    "content-security-policy",
+    "x-content-type-options",
+];
+/// Transport headers that don't apply after reqwest decompresses the body
+const TRANSPORT_HEADERS: &[&str] = &[
+    "content-encoding",
+    "transfer-encoding",
+    "content-length",
+];
+fn should_rewrite_content(content_type: &str) -> bool {
+    let ct = content_type.to_lowercase();
+    ct.starts_with("text/") || ct.contains("javascript") || ct.contains("json")
+}
+/// JavaScript injected into proxied HTML to intercept dynamically-created iframes
+/// and rewrite their src from p.superdesign.dev to our proxy.
+const PROXY_REWRITE_SCRIPT: &str = r#"<script>
+(function(){
+  var P='https://p.superdesign.dev',R='hatch-proxy://localhost/__p';
+  function rw(u){if(!u)return u;if(u.indexOf(P)===0)return R+u.substring(P.length);if(u.indexOf('//p.superdesign.dev')===0)return R+u.substring('//p.superdesign.dev'.length);return u;}
+  var d=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,'src');
+  if(d&&d.set){Object.defineProperty(HTMLIFrameElement.prototype,'src',{get:d.get,set:function(v){d.set.call(this,rw(v));},configurable:true});}
+  var sa=Element.prototype.setAttribute;
+  Element.prototype.setAttribute=function(n,v){if(n==='src'&&this.tagName==='IFRAME')return sa.call(this,n,rw(v));return sa.call(this,n,v);};
+  new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(node){
+    if(node.nodeType!==1)return;
+    var frames=node.tagName==='IFRAME'?[node]:Array.prototype.slice.call(node.querySelectorAll?node.querySelectorAll('iframe[src]'):[]);
+    frames.forEach(function(f){var s=f.getAttribute('src');if(s){var r=rw(s);if(r!==s)f.setAttribute('src',r);}});
+  });});}).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>"#;
+
+fn rewrite_proxy_urls(raw_body: Vec<u8>) -> Vec<u8> {
+    String::from_utf8(raw_body)
+        .map(|text| {
+            text.replace("https://p.superdesign.dev", "hatch-proxy://localhost/__p")
+                .replace("http://p.superdesign.dev", "hatch-proxy://localhost/__p")
+                .replace("//p.superdesign.dev", "//localhost/__p")
+                .into_bytes()
+        })
+        .unwrap_or_else(|e| e.into_bytes())
+}
+fn inject_rewrite_script(body: Vec<u8>) -> Vec<u8> {
+    if let Ok(html) = String::from_utf8(body) {
+        if let Some(pos) = html.find("<head") {
+            if let Some(close) = html[pos..].find('>') {
+                let inject_at = pos + close + 1;
+                let mut result = String::with_capacity(html.len() + PROXY_REWRITE_SCRIPT.len());
+                result.push_str(&html[..inject_at]);
+                result.push_str(PROXY_REWRITE_SCRIPT);
+                result.push_str(&html[inject_at..]);
+                return result.into_bytes();
+            }
+        }
+        html.into_bytes()
+    } else {
+        Vec::new()
+    }
+}
+async fn proxy_fetch(client: &reqwest::Client, url: &str) -> http::Response<Vec<u8>> {
+    match client.get(url).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let mut headers: Vec<(String, String)> = Vec::new();
+            for (name, value) in resp.headers() {
+                let name_lower = name.as_str().to_lowercase();
+                if BLOCKED_HEADERS.contains(&name_lower.as_str()) {
+                    continue;
+                }
+                if TRANSPORT_HEADERS.contains(&name_lower.as_str()) {
+                    continue;
+                }
+                if let Ok(v) = value.to_str() {
+                    headers.push((name.as_str().to_string(), v.to_string()));
+                }
+            }
+            let raw_body = resp.bytes().await.unwrap_or_default().to_vec();
+            let content_type = headers.iter()
+                .find(|(n, _)| n.eq_ignore_ascii_case("content-type"))
+                .map(|(_, v)| v.as_str())
+                .unwrap_or("");
+            let is_html = content_type.contains("text/html");
+            let body = if should_rewrite_content(content_type) {
+                let rewritten = rewrite_proxy_urls(raw_body);
+                if is_html {
+                    inject_rewrite_script(rewritten)
+                } else {
+                    rewritten
+                }
+            } else {
+                raw_body
+            };
+            let mut builder = http::Response::builder()
+                .status(status)
+                .header("access-control-allow-origin", "*");
+            for (name, value) in &headers {
+                builder = builder.header(name.as_str(), value.as_str());
+            }
+            builder.body(body).unwrap_or_else(|_| {
+                http::Response::builder()
+                    .status(500)
+                    .header("content-type", "text/plain")
+                    .body(b"Failed to build proxy response".to_vec())
+                    .unwrap()
+            })
+        }
+        Err(e) => {
+            http::Response::builder()
+                .status(502)
+                .header("content-type", "text/plain")
+                .body(format!("Proxy error: {}", e).into_bytes())
+                .unwrap()
+        }
+    }
+}
+// =============================================================================
 // Application Entry Point
 // =============================================================================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Shared HTTP client for the design page proxy (reqwest::Client uses Arc internally)
+    let proxy_client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .register_asynchronous_uri_scheme_protocol("hatch-proxy", move |_ctx, request, responder| {
+            let client = proxy_client.clone();
+            let uri = request.uri().clone();
+            let path = uri.path().to_string();
+            let query = uri.query().map(|q| q.to_string());
+            let (host, effective_path) = if let Some(rest) = path.strip_prefix("/__p") {
+                let ep = if rest.is_empty() || rest == "/" {
+                    "/".to_string()
+                } else {
+                    rest.to_string()
+                };
+                ("p.superdesign.dev", ep)
+            } else {
+                ("app.superdesign.dev", path)
+            };
+
+            let target_url = match query {
+                Some(ref q) => format!("https://{}{}?{}", host, effective_path, q),
+                None => format!("https://{}{}", host, effective_path),
+            };
+            tauri::async_runtime::spawn(async move {
+                let response = proxy_fetch(&client, &target_url).await;
+                responder.respond(response);
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             // Generic agent commands
             check_agent,
