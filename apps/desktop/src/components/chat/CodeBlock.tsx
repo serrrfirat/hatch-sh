@@ -43,7 +43,6 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err)
     }
   }
 

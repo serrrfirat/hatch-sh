@@ -179,10 +179,8 @@ export function MentionPopover({
     try {
       // Get home directory for global agents
       const home = await homeDir()
-      console.log('[MentionPopover] Home directory for agents:', home)
 
       if (!home) {
-        console.error('[MentionPopover] homeDir() returned null/undefined')
         setAgents([])
         return
       }
@@ -190,7 +188,6 @@ export function MentionPopover({
       // Ensure path has trailing slash
       const homePath = home.endsWith('/') ? home : `${home}/`
       const globalAgentsPath = `${homePath}.claude/agents`
-      console.log('[MentionPopover] Global agents path:', globalAgentsPath)
 
       // Try to load global agents
       try {
@@ -255,7 +252,6 @@ export function MentionPopover({
 
       setAgents(agentItems)
     } catch (error) {
-      console.error('Failed to load agents:', error)
       setAgents([])
     }
   }, [currentWorkspace?.localPath])
@@ -299,7 +295,6 @@ export function MentionPopover({
       // Limit to 100 items for performance
       setFiles(fileItems.slice(0, 100))
     } catch (error) {
-      console.error('Failed to load files:', error)
       setFiles([])
     } finally {
       setIsLoadingFiles(false)
@@ -314,10 +309,8 @@ export function MentionPopover({
     try {
       // Get home directory for global skills
       const home = await homeDir()
-      console.log('[MentionPopover] Home directory for skills:', home)
 
       if (!home) {
-        console.error('[MentionPopover] homeDir() returned null/undefined for skills')
         setSkills([])
         return
       }
@@ -326,8 +319,6 @@ export function MentionPopover({
       const homePath = home.endsWith('/') ? home : `${home}/`
       const globalSkillsPath = `${homePath}.claude/skills`
 
-      console.log('[MentionPopover] Loading skills from:', globalSkillsPath)
-
       // Try to load global skills
       try {
         const globalFiles = await invoke<FileEntry[]>('list_directory_files', {
@@ -335,9 +326,6 @@ export function MentionPopover({
           maxDepth: 1,
           showHidden: false,
         })
-
-        console.log('[MentionPopover] Raw files from Tauri:', globalFiles)
-        console.log('[MentionPopover] Number of files:', globalFiles.length)
 
         for (const file of globalFiles) {
           // Skills can be directories (containing SKILL.md) or .md files directly
@@ -358,37 +346,30 @@ export function MentionPopover({
             })
           }
         }
-        console.log('[MentionPopover] Skill items after global:', skillItems.length)
       } catch (err) {
-        console.error('[MentionPopover] Error loading global skills:', err)
         // Global skills directory may not exist
       }
 
       // Try to load skills from installed plugins
       try {
         const pluginsJsonPath = `${homePath}.claude/plugins/installed_plugins.json`
-        console.log('[MentionPopover] Checking for plugins at:', pluginsJsonPath)
 
         // Use the read_file Tauri command instead of FS plugin (avoids scope issues)
         const fileResult = await invoke<FileContent>('read_file', { filePath: pluginsJsonPath })
-        console.log('[MentionPopover] Plugins JSON loaded, length:', fileResult.content.length)
 
         const pluginsData: InstalledPluginsFile = JSON.parse(fileResult.content)
         const pluginKeys = Object.keys(pluginsData.plugins)
-        console.log('[MentionPopover] Found installed plugins:', pluginKeys.length, pluginKeys.slice(0, 5))
 
         // Iterate through all installed plugins
         for (const [pluginKey, installations] of Object.entries(pluginsData.plugins)) {
           // Get the first (usually only) installation
           const installation = installations[0]
           if (!installation?.installPath) {
-            console.log('[MentionPopover] Skipping plugin without installPath:', pluginKey)
             continue
           }
 
           // Check for skills directory in the plugin
           const pluginSkillsPath = `${installation.installPath}/skills`
-          console.log('[MentionPopover] Checking plugin skills at:', pluginSkillsPath)
 
           try {
             const skillDirs = await invoke<FileEntry[]>('list_directory_files', {
@@ -396,8 +377,6 @@ export function MentionPopover({
               maxDepth: 1,
               showHidden: false,
             })
-
-            console.log('[MentionPopover] Found skills in plugin', pluginKey, ':', skillDirs.length)
 
             // Extract plugin name from the key (format: "plugin-name@marketplace")
             const pluginName = pluginKey.split('@')[0]
@@ -419,12 +398,9 @@ export function MentionPopover({
             }
           } catch (pluginErr) {
             // Plugin may not have a skills directory - this is normal
-            console.log('[MentionPopover] No skills dir for:', pluginKey)
           }
         }
-        console.log('[MentionPopover] Skill items after plugins:', skillItems.length)
       } catch (err) {
-        console.error('[MentionPopover] Error loading plugin skills:', err)
         // Plugins file may not exist or couldn't be read
       }
 
@@ -465,11 +441,8 @@ export function MentionPopover({
           // Project skills directory may not exist
         }
       }
-
-      console.log('[MentionPopover] Final skills to set:', skillItems.length, skillItems.map(s => s.name))
       setSkills(skillItems)
     } catch (error) {
-      console.error('Failed to load skills:', error)
       setSkills([])
     }
   }, [currentWorkspace?.localPath])

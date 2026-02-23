@@ -222,7 +222,6 @@ export function MarketplacePage() {
       // Try to load from cache first
       const cachedLoaded = loadFromCache()
       if (cachedLoaded) {
-        console.log('Loaded skills from cache')
         setIsLoading(false)
         // Optionally refresh in background
         fetchSkillsInBackground()
@@ -290,11 +289,9 @@ export function MarketplacePage() {
           setSkills(DEMO_SKILLS, { hasMore: false, total: DEMO_SKILLS.length })
         }
       } else {
-        console.error('Failed to fetch skills:', response.status)
         setSkills(DEMO_SKILLS, { hasMore: false, total: DEMO_SKILLS.length })
       }
     } catch (error) {
-      console.error('Failed to fetch skills:', error)
       setSkills(DEMO_SKILLS, { hasMore: false, total: DEMO_SKILLS.length })
     } finally {
       setIsLoading(false)
@@ -320,7 +317,6 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
-      console.error('Background refresh failed:', error)
     }
   }
 
@@ -345,7 +341,6 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
-      console.error('Failed to load more skills:', error)
     } finally {
       setIsLoadingMore(false)
       isFetchingRef.current = false
@@ -372,7 +367,6 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
-      console.error('Semantic search failed:', error)
     } finally {
       setIsSearching(false)
     }
@@ -425,7 +419,6 @@ export function MarketplacePage() {
           })
         }
       } catch (error) {
-        console.error('Installation failed:', error)
         finishInstalling(skill.id, false)
         setToast({
           type: 'error',
@@ -456,7 +449,6 @@ export function MarketplacePage() {
       )
       setSuggestions(suggestedSkills.slice(0, 3))
     } catch (error) {
-      console.error('Analysis failed:', error)
     } finally {
       setIsAnalyzing(false)
     }

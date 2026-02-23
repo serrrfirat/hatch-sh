@@ -211,7 +211,6 @@ export const Plasma: React.FC<PlasmaProps> = ({
           containerRef.current.removeChild(canvas);
         }
       } catch (err) {
-        console.warn('Plasma cleanup failed:', err);
       }
     };
   }, [color, speed, direction, scale, opacity, mouseInteractive]);

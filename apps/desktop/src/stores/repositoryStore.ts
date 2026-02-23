@@ -11,6 +11,8 @@ import { DEFAULT_AGENT_ID, isValidAgentId } from '../lib/agents/registry'
 import { generateWorkspaceName } from '../lib/pokemon'
 import { useSettingsStore } from './settingsStore'
 
+export type WorkspaceStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
+
 export interface Workspace {
   id: string
   repositoryId: string
@@ -31,6 +33,8 @@ export interface Workspace {
   // Plan reference from Idea Maze
   sourcePlan?: PlanContent
   sourcePlanId?: string
+  workspaceStatus: WorkspaceStatus
+
 }
 
 export interface Notification {
@@ -84,6 +88,7 @@ interface RepositoryState {
   createWorkspace: (repositoryId: string) => Promise<Workspace>
   setCurrentWorkspace: (workspace: Workspace | null) => void
   updateWorkspaceStatus: (workspaceId: string, status: Workspace['status']) => void
+  updateWorkspaceWorkflowStatus: (workspaceId: string, workspaceStatus: WorkspaceStatus) => void
   updateWorkspaceStats: (workspaceId: string, additions: number, deletions: number) => void
   updateWorkspaceAgent: (workspaceId: string, agentId: AgentId) => void
   removeWorkspace: (workspaceId: string) => Promise<void>
@@ -166,7 +171,6 @@ export const useRepositoryStore = create<RepositoryState>()(
           await githubBridge.signOut()
           set({ githubAuth: null })
         } catch (error) {
-          console.error('Sign out error:', error)
         }
       },
 
@@ -276,6 +280,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           lastActive: new Date(),
           agentId: defaultAgentId,
           isInitializing: true,
+          workspaceStatus: 'backlog' as const,
         }
 
         // Add to store immediately so it shows in the sidebar
@@ -301,6 +306,7 @@ export const useRepositoryStore = create<RepositoryState>()(
             lastActive: new Date(),
             agentId: defaultAgentId,
             isInitializing: false,
+            workspaceStatus: 'backlog' as const,
           }
 
           // Update the workspace with the real data
@@ -350,6 +356,18 @@ export const useRepositoryStore = create<RepositoryState>()(
         }))
       },
 
+      updateWorkspaceWorkflowStatus: (workspaceId, workspaceStatus) => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId ? { ...w, workspaceStatus, lastActive: new Date() } : w
+          ),
+          currentWorkspace:
+            state.currentWorkspace?.id === workspaceId
+              ? { ...state.currentWorkspace, workspaceStatus, lastActive: new Date() }
+              : state.currentWorkspace,
+        }))
+      },
+
       updateWorkspaceStats: (workspaceId, additions, deletions) => {
         set((state) => ({
           workspaces: state.workspaces.map((w) =>
@@ -386,7 +404,6 @@ export const useRepositoryStore = create<RepositoryState>()(
               workspace.localPath      // Worktree path to remove
             )
           } catch (error) {
-            console.error('Failed to delete workspace:', error)
             // Continue with removing from state even if git delete fails
           }
         }

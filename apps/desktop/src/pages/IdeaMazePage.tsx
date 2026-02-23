@@ -97,7 +97,6 @@ export function IdeaMazePage() {
       setBuildModalOpen(false)
       setBuildPlanContent(null)
     } catch (error) {
-      console.error('Failed to create workspace:', error)
     } finally {
       setIsCreatingWorkspace(false)
     }

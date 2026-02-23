@@ -334,7 +334,6 @@ export function ProjectTree() {
       const workspace = await createWorkspace(repositoryId)
       setCurrentWorkspace(workspace)
     } catch (error) {
-      console.error('Failed to create workspace:', error)
     }
   }
 

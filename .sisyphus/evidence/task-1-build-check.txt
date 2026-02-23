@@ -1,0 +1,18 @@
+
+> hatch-sh@ build:desktop /Users/firatsertgoz/Documents/hatch-sh
+> cd apps/desktop && pnpm tauri build
+
+
+> desktop@0.1.1 tauri /Users/firatsertgoz/Documents/hatch-sh/apps/desktop
+> tauri "build"
+
+
+> desktop@0.1.1 build /Users/firatsertgoz/Documents/hatch-sh/apps/desktop
+> tsc && vite build
+
+error TS6053: File '/Users/firatsertgoz/Documents/hatch-sh/apps/desktop/src/stores/__tests__/repositoryStore.status.test.ts' not found.
+  The file is in the program because:
+    Matched by include pattern 'src' in '/Users/firatsertgoz/Documents/hatch-sh/apps/desktop/tsconfig.json'
+ ELIFECYCLE  Command failed with exit code 2.
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Command failed with exit code 1.

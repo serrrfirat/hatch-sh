@@ -213,7 +213,6 @@ export function useChat() {
             status: 'completed',
           })
         } else if (event.type === 'error') {
-          console.error(`${config.name} error:`, event.content)
         }
       }
 
@@ -307,7 +306,6 @@ export function useChat() {
 
               const parsed = safeParseJsonLine(rawData, 'cloud-api')
               if (parsed.errorEvent) {
-                console.warn('[cloud-api] Ignoring malformed stream payload')
                 continue
               }
 
@@ -359,7 +357,6 @@ export function useChat() {
           baseDelayMs: 1000,
           shouldRetry: isRetryableCloudError,
           onRetry: (attempt, delayMs, error) => {
-            console.warn(`[cloud-api] stream retry ${attempt} in ${delayMs}ms`, error)
           },
         }
       )
@@ -384,7 +381,6 @@ export function useChat() {
       // For cloud models, require project selection
       // For local agents, allow chat without project (standalone mode)
       if (!isLocal && !currentProjectId) {
-        console.error('No project selected')
         addMessage({
           role: 'assistant',
           content: 'Please select a project before sending messages with cloud models.',
@@ -466,7 +462,6 @@ export function useChat() {
               updateMessageMetadata(assistantMessageId, { writtenFiles: manifest })
             }
           } catch (error) {
-            console.error('Failed to persist generated files:', error)
           }
         }
 
@@ -505,7 +500,6 @@ export function useChat() {
           `Sorry, an error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`,
           false
         )
-        console.error('Chat error:', error)
       } finally {
         setLoading(false)
         streamingMessageIdRef.current = null

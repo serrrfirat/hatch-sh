@@ -55,10 +55,7 @@ export async function initializeStorage(): Promise<void> {
     if (!(await exists(imagesPath))) {
       await mkdir(imagesPath, { recursive: true })
     }
-
-    console.log('[IdeaMaze Storage] Initialized at:', ideaMazePath)
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to initialize:', error)
     throw error
   }
 }
@@ -120,10 +117,7 @@ export async function saveMoodboard(moodboard: Moodboard): Promise<void> {
     if (verifyContent !== jsonContent) {
       throw new Error('Save verification failed: content mismatch after write')
     }
-
-    console.log('[IdeaMaze Storage] Saved and verified moodboard:', moodboard.id)
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to save moodboard:', error)
     throw error
   }
 }
@@ -155,7 +149,6 @@ export async function loadMoodboard(id: string): Promise<Moodboard | null> {
                 return { ...content, url: dataUrl } as ImageContent
               } catch {
                 // If image can't be loaded, keep the path (will show broken image)
-                console.warn('[IdeaMaze Storage] Failed to load image:', content.url)
                 return content
               }
             }
@@ -172,11 +165,8 @@ export async function loadMoodboard(id: string): Promise<Moodboard | null> {
       createdAt: new Date(stored.createdAt),
       updatedAt: new Date(stored.updatedAt),
     }
-
-    console.log('[IdeaMaze Storage] Loaded moodboard:', id)
     return moodboard
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to load moodboard:', error)
     return null
   }
 }
@@ -204,11 +194,8 @@ export async function loadAllMoodboards(): Promise<Moodboard[]> {
         }
       }
     }
-
-    console.log('[IdeaMaze Storage] Loaded', moodboards.length, 'moodboards')
     return moodboards
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to load moodboards:', error)
     return []
   }
 }
@@ -223,14 +210,12 @@ export async function deleteMoodboard(id: string): Promise<void> {
 
     if (await exists(filePath)) {
       await remove(filePath)
-      console.log('[IdeaMaze Storage] Deleted moodboard:', id)
     }
 
     // Note: We don't delete associated images here to avoid orphaning
     // images that might be used by other moodboards or for undo functionality.
     // Consider implementing a garbage collection mechanism for orphaned images.
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to delete moodboard:', error)
     throw error
   }
 }
@@ -264,11 +249,9 @@ async function saveImage(dataUrl: string, imageId: string): Promise<string> {
     }
 
     await writeFile(filePath, bytes)
-    console.log('[IdeaMaze Storage] Saved image:', fileName)
 
     return filePath
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to save image:', error)
     throw error
   }
 }
@@ -305,7 +288,6 @@ async function loadImage(filePath: string): Promise<string> {
 
     return `data:${mimeType};base64,${base64}`
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to load image:', error)
     throw error
   }
 }
@@ -353,7 +335,6 @@ export async function importMoodboard(jsonString: string): Promise<Moodboard> {
 
     return moodboard
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to import moodboard:', error)
     throw new Error('Invalid moodboard file format')
   }
 }
@@ -368,7 +349,6 @@ export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
     const stored = localStorage.getItem(localStorageKey)
 
     if (!stored) {
-      console.log('[IdeaMaze Storage] No localStorage data to migrate')
       return []
     }
 
@@ -376,11 +356,8 @@ export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
     const moodboards = data.state?.moodboards || []
 
     if (moodboards.length === 0) {
-      console.log('[IdeaMaze Storage] No moodboards to migrate')
       return []
     }
-
-    console.log('[IdeaMaze Storage] Migrating', moodboards.length, 'moodboards from localStorage')
 
     const migratedMoodboards: Moodboard[] = []
 
@@ -398,12 +375,8 @@ export async function migrateFromLocalStorage(): Promise<Moodboard[]> {
 
     // Clear localStorage after successful migration
     localStorage.removeItem(localStorageKey)
-    console.log('[IdeaMaze Storage] Cleared localStorage after migration')
-
-    console.log('[IdeaMaze Storage] Migration complete')
     return migratedMoodboards
   } catch (error) {
-    console.error('[IdeaMaze Storage] Migration failed:', error)
     return []
   }
 }
@@ -427,7 +400,6 @@ export async function saveImageForAIContext(dataUrl: string, imageId: string): P
     // Extract the base64 data and mime type
     const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/)
     if (!matches) {
-      console.warn('[IdeaMaze Storage] Invalid data URL format for AI context')
       return null
     }
 
@@ -444,11 +416,9 @@ export async function saveImageForAIContext(dataUrl: string, imageId: string): P
     }
 
     await writeFile(filePath, bytes)
-    console.log('[IdeaMaze Storage] Saved image for AI context:', fileName)
 
     return filePath
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to save image for AI context:', error)
     return null
   }
 }
@@ -484,7 +454,6 @@ export async function getStorageStats(): Promise<{
       totalSizeEstimate: 'Unknown', // Would need to sum file sizes
     }
   } catch (error) {
-    console.error('[IdeaMaze Storage] Failed to get stats:', error)
     return { moodboardCount: 0, imageCount: 0, totalSizeEstimate: 'Error' }
   }
 }

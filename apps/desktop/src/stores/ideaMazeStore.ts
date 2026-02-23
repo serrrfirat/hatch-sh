@@ -267,9 +267,9 @@ function debouncedSave(moodboard: Moodboard | null) {
         isSaving = true
         await saveMoodboard(moodboard)
         pendingMoodboard = null
-        console.log('[IdeaMaze Store] Auto-saved moodboard:', moodboard.id)
+        // Auto-saved moodboard
       } catch (error) {
-        console.error('[IdeaMaze Store] Failed to auto-save:', error)
+        // Failed to auto-save
         // Keep pendingMoodboard so it can be retried
       } finally {
         isSaving = false
@@ -287,12 +287,12 @@ export async function flushPendingSave(): Promise<void> {
   if (pendingMoodboard && !isSaving) {
     try {
       isSaving = true
-      console.log('[IdeaMaze Store] Flushing pending save:', pendingMoodboard.id)
+      // Flushing pending save
       await saveMoodboard(pendingMoodboard)
       pendingMoodboard = null
-      console.log('[IdeaMaze Store] Flush save complete')
+      // Flush save complete
     } catch (error) {
-      console.error('[IdeaMaze Store] Flush save failed:', error)
+      // Flush save failed
     } finally {
       isSaving = false
     }
@@ -362,9 +362,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           ...resetHistory(initialMoodboard),
         })
 
-        console.log('[IdeaMaze Store] Initialized with', moodboards.length, 'moodboards')
+        // Initialized with moodboards
       } catch (error) {
-        console.error('[IdeaMaze Store] Initialization failed:', error)
+        // Initialization failed
         set({
           storageError: error instanceof Error ? error.message : 'Failed to initialize storage',
           isLoading: false,
@@ -385,9 +385,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         ...resetHistory(moodboard),
       }))
       // Save immediately for new moodboards
-      saveMoodboard(moodboard).catch((err) =>
-        console.error('[IdeaMaze Store] Failed to save new moodboard:', err)
-      )
+      saveMoodboard(moodboard).catch(() => {
+        // Failed to save new moodboard
+      })
     },
 
     loadMoodboard: (id) => {
@@ -414,9 +414,9 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         }
       })
       // Delete from file system
-      deleteMoodboardFromStorage(id).catch((err) =>
-        console.error('[IdeaMaze Store] Failed to delete moodboard from storage:', err)
-      )
+      deleteMoodboardFromStorage(id).catch(() => {
+        // Failed to delete moodboard from storage
+      })
     },
 
     updateMoodboardName: (id, name) => {
@@ -1290,7 +1290,7 @@ if (typeof window !== 'undefined') {
         })
       }
     } catch (e) {
-      console.warn('[IdeaMaze Store] Failed to load UI preferences:', e)
+      // Failed to load UI preferences
     }
   }
 
@@ -1302,7 +1302,7 @@ if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs))
         } catch (e) {
-          console.warn('[IdeaMaze Store] Failed to save UI preferences:', e)
+          // Failed to save UI preferences
         }
       }
     }

@@ -59,7 +59,6 @@ export function safeParseJsonLine(line: string, source: string): JsonParseResult
 
     return { value: firstPass }
   } catch {
-    console.warn(`[${source}] Malformed JSON line:`, line)
     return {
       value: null,
       errorEvent: {

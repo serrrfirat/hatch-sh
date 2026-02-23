@@ -309,7 +309,6 @@ function FilesPanel() {
         await createWorkspace(repo.id)
       }
     } catch (e) {
-      console.error('Failed to open folder:', e)
     }
   }
 

@@ -289,7 +289,6 @@ export const useSettingsStore = create<SettingsState>()(
             return [];
           }
         } catch (error) {
-          console.error(`Failed to fetch models for ${agent}:`, error);
           set({ isLoadingModels: false });
           return [];
         }

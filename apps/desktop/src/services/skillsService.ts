@@ -198,7 +198,6 @@ async function fetchAllFilesFromGitHub(
           : item.path
         files.push({ name: relativePath, content })
       } catch (error) {
-        console.warn(`Failed to fetch ${item.path}:`, error)
       }
     } else if (item.type === 'dir') {
       // Recursively fetch directory contents

@@ -66,7 +66,6 @@ function setCachedSkills(skills: Skill[], complete: boolean): void {
     localStorage.setItem(CACHE_KEY, JSON.stringify(data))
   } catch (e) {
     // Storage quota exceeded or other error, ignore
-    console.warn('Failed to cache skills:', e)
   }
 }
 

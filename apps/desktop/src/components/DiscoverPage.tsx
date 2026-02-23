@@ -134,7 +134,6 @@ export function DiscoverPage() {
         setKey(prev => prev + 1)
       }
     } catch (error) {
-      console.error('Failed to fetch apps:', error)
       // Fallback to demo apps on error
       setApps(DEMO_APPS)
       setKey(prev => prev + 1)

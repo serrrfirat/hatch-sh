@@ -312,7 +312,6 @@ export const cursorAdapter: AgentAdapter = {
       }
 
       // If we still have nothing, return a friendly error instead of raw JSON
-      console.error('[cursor] Failed to parse response, raw output:', stdout.substring(0, 500))
       return 'Sorry, I encountered an issue processing the response. Please try again.'
     } catch (error) {
       onStream?.({

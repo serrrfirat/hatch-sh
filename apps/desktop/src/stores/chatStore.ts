@@ -86,7 +86,6 @@ export const useChatStore = create<ChatState>()(
         const { currentWorkspaceId } = get()
 
         if (!currentWorkspaceId) {
-          console.warn('No workspace selected, cannot add message')
           return id
         }
 

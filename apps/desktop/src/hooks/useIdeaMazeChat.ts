@@ -273,7 +273,6 @@ function parseJsonFromResponse<T>(response: string): T[] {
     try {
       return JSON.parse(codeBlockMatch[1].trim())
     } catch {
-      console.error('Failed to parse JSON from code block')
     }
   }
 
@@ -282,7 +281,6 @@ function parseJsonFromResponse<T>(response: string): T[] {
     const parsed = JSON.parse(response)
     return Array.isArray(parsed) ? parsed : [parsed]
   } catch {
-    console.error('Failed to parse JSON from response')
   }
 
   return []
@@ -311,7 +309,6 @@ function parsePlanFromResponse(response: string): {
         }
       }
     } catch {
-      console.error('Failed to parse plan from code block')
     }
   }
   return null
@@ -338,7 +335,6 @@ function parseQuestionFromResponse(response: string): {
         }
       }
     } catch {
-      console.error('Failed to parse question from code block')
     }
   }
   return null
@@ -512,7 +508,6 @@ export function useIdeaMazeChat() {
         }
       )
     } catch (error) {
-      console.error('Failed to send message:', error)
       updateChatMessage(
         moodboardId,
         assistantMsgId,
@@ -794,7 +789,6 @@ export function useIdeaMazeChat() {
         }
       )
     } catch (error) {
-      console.error('Failed to start interview:', error)
       updateChatMessage(
         moodboardId,
         assistantMsgId,
@@ -899,7 +893,6 @@ export function useIdeaMazeChat() {
         }
       )
     } catch (error) {
-      console.error('Failed to start moodboard interview:', error)
       updateChatMessage(
         moodboardId,
         assistantMsgId,

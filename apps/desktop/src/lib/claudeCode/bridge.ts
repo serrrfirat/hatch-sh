@@ -232,31 +232,24 @@ export async function sendToClaudeCodeStreaming(
       const payload = event.payload
 
       // Debug logging
-      console.log('[claude-stream] Received event:', payload.type, 'session:', payload.session_id?.slice(0, 8), 'expected:', sessionId.slice(0, 8))
 
       // Only process events for our session
       if (payload.session_id !== sessionId) return
 
       if (payload.type === 'line' && payload.data) {
-        console.log('[claude-stream] Raw line:', payload.data.slice(0, 300))
         // Parse the JSON line from stream-json output
         try {
           const jsonEvent = JSON.parse(payload.data)
-          console.log('[claude-stream] Parsed event type:', jsonEvent.type)
 
           // Handle assistant message with content blocks
           if (jsonEvent.type === 'assistant' && jsonEvent.message?.content) {
-            console.log('[claude-stream] Assistant message with', jsonEvent.message.content.length, 'content blocks')
             for (const block of jsonEvent.message.content) {
-              console.log('[claude-stream] Content block type:', block.type)
               if (block.type === 'text') {
                 fullResponse += block.text
                 onStream?.({ type: 'text', content: block.text })
               } else if (block.type === 'thinking') {
-                console.log('[claude-stream] THINKING block found, length:', block.thinking?.length)
                 onStream?.({ type: 'thinking', content: block.thinking })
               } else if (block.type === 'tool_use') {
-                console.log('[claude-stream] TOOL_USE block found:', block.name, block.id)
                 onStream?.({
                   type: 'tool_use',
                   toolName: block.name,
@@ -279,9 +272,7 @@ export async function sendToClaudeCodeStreaming(
           // Handle content block start (for tool use)
           else if (jsonEvent.type === 'content_block_start' && jsonEvent.content_block) {
             const block = jsonEvent.content_block
-            console.log('[claude-stream] content_block_start:', block.type)
             if (block.type === 'tool_use') {
-              console.log('[claude-stream] content_block_start TOOL_USE:', block.name, block.id)
               onStream?.({
                 type: 'tool_use',
                 toolName: block.name,
@@ -289,13 +280,11 @@ export async function sendToClaudeCodeStreaming(
                 toolInput: block.input || {},
               })
             } else if (block.type === 'thinking') {
-              console.log('[claude-stream] content_block_start THINKING')
               onStream?.({ type: 'thinking', content: block.thinking || '' })
             }
           }
           // Handle tool result
           else if (jsonEvent.type === 'tool_result') {
-            console.log('[claude-stream] tool_result event:', jsonEvent.tool_use_id)
             onStream?.({
               type: 'tool_result',
               toolId: jsonEvent.tool_use_id,
@@ -306,17 +295,13 @@ export async function sendToClaudeCodeStreaming(
           }
           // Handle final result
           else if (jsonEvent.type === 'result' && jsonEvent.result) {
-            console.log('[claude-stream] Final result event, length:', jsonEvent.result?.length)
             fullResponse = jsonEvent.result
             onStream?.({ type: 'text', content: jsonEvent.result })
           }
           // Handle user message (contains tool results)
           else if (jsonEvent.type === 'user' && jsonEvent.message?.content) {
-            console.log('[claude-stream] User message with', jsonEvent.message.content.length, 'content blocks')
             for (const block of jsonEvent.message.content) {
-              console.log('[claude-stream] User block type:', block.type)
               if (block.type === 'tool_result') {
-                console.log('[claude-stream] user message TOOL_RESULT:', block.tool_use_id)
                 onStream?.({
                   type: 'tool_result',
                   toolId: block.tool_use_id,

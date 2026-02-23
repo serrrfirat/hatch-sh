@@ -575,7 +575,6 @@ function SecretField({
       setVisible(false);
       onSaved();
     } catch (err) {
-      console.error(`Failed to save ${keychainKey}:`, err);
     } finally {
       setSaving(false);
     }
@@ -587,7 +586,6 @@ function SecretField({
       setValue("");
       onSaved();
     } catch (err) {
-      console.error(`Failed to clear ${keychainKey}:`, err);
     }
   };
 

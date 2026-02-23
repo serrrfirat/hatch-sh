@@ -174,7 +174,6 @@ function parseOpencodeOutput(line: string): StreamEvent | null {
 
   // Debug event (from our Rust code)
   if (data.type === 'debug') {
-    console.log('[opencode] Debug:', data.command || data)
     return null // Don't show debug events to user
   }
 
@@ -236,7 +235,6 @@ export const opencodeAdapter: AgentAdapter = {
             }
           }
         } else if (payload.type === 'error' && payload.data) {
-          console.error('[opencode-stream] error:', payload.data)
           onStream?.({ type: 'error', content: payload.data })
         } else if (payload.type === 'done') {
           for (const line of stdoutBuffer.flush()) {

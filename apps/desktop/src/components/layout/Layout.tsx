@@ -40,7 +40,9 @@ export function Layout() {
     if (legacyKey) {
       keychainSet('anthropic_api_key', legacyKey)
         .then(() => useSettingsStore.getState().clearApiKey())
-        .catch((err) => console.error('Keychain migration failed:', err))
+        .catch(() => {
+          // Keychain migration failed
+        })
     }
   }, [])
 
@@ -79,7 +81,6 @@ export function Layout() {
         direction: 'back'
       })
     } catch (err) {
-      console.error('Failed to navigate back:', err)
     }
   }, [currentPage])
 
@@ -92,7 +93,6 @@ export function Layout() {
         direction: 'forward'
       })
     } catch (err) {
-      console.error('Failed to navigate forward:', err)
     }
   }, [currentPage])
 
