@@ -83,3 +83,44 @@ Successfully removed all console.log, console.warn, and console.error statements
 - Build fails due to pre-existing TypeScript errors in test files and repositoryStore.ts (unrelated to this task)
 - All console statements successfully removed from production code
 - No logic changes made - only removed debug logging statements
+
+## Task 7: GitCoordinator Types and Interfaces
+
+### Summary
+Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with comprehensive TypeScript interfaces for the GitCoordinator system. Includes types for git operation queueing, worktree lifecycle management, and agent process management.
+
+### Files Created
+1. `apps/desktop/src/lib/git/coordinator/types.ts` - Core type definitions (8.5 KB)
+2. `apps/desktop/src/lib/git/coordinator/index.ts` - Re-export module
+3. `apps/desktop/src/lib/git/coordinator/__tests__/types.test.ts` - Type compilation tests
+
+### Type Definitions
+- **GitOperation**: Single queued git operation with priority, status, timestamps
+- **GitCoordinator**: Main interface for operation queueing and coordination
+- **WorktreeInfo**: Worktree metadata including health status
+- **WorktreeLifecycleManager**: Interface for worktree creation, locking, repair, pruning
+- **AgentProcess**: Agent process tied to workspace with status tracking
+- **AgentProcessManager**: Interface for spawning, killing, and managing agent processes
+
+### Key Design Decisions
+1. **Serialized Queue**: GitCoordinator ensures one operation per repo root at a time (concurrency=1)
+2. **Health Status**: WorktreeHealthStatus tracks 'healthy', 'orphaned', 'locked', 'corrupted'
+3. **Process Tracking**: AgentProcess includes workspace binding, worktree path, and resource estimation
+4. **Omit Pattern**: enqueue() uses `Omit<GitOperation, 'id' | 'status' | 'enqueuedAt'>` to auto-generate fields
+
+### Testing
+- 5 test cases covering all interfaces
+- Mock implementations satisfy each interface contract
+- All tests pass: ✓ 5 passed (1ms)
+
+### Verification
+- TypeScript compilation: 0 errors in coordinator types
+- Evidence file: `.sisyphus/evidence/task-7-types-check.txt`
+- Commit: `c36f28f` - "feat(git): add GitCoordinator types and interfaces"
+
+### Notes
+- No implementation code (T12 will implement GitCoordinator)
+- No Rust code (Tauri commands will be added in T12)
+- No new npm dependencies
+- Follows type definition style from `apps/desktop/src/lib/agents/types.ts`
+- JSDoc comments are necessary for public API documentation
