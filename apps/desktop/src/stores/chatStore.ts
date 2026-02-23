@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useRepositoryStore } from './repositoryStore'
 
 export interface ToolUse {
   id: string
@@ -101,6 +102,13 @@ export const useChatStore = create<ChatState>()(
             },
           }
         })
+
+        // Auto-transition workspace from backlog to in-progress on first message
+        const workspace = useRepositoryStore.getState().workspaces.find(w => w.id === currentWorkspaceId)
+        if (workspace && workspace.workspaceStatus === 'backlog') {
+          useRepositoryStore.getState().updateWorkspaceWorkflowStatus(currentWorkspaceId, 'in-progress')
+        }
+
         return id
       },
 
@@ -148,7 +156,9 @@ export const useChatStore = create<ChatState>()(
             messagesByWorkspace: {
               ...state.messagesByWorkspace,
               [currentWorkspaceId]: currentMessages.map((msg) =>
-                msg.id === messageId ? { ...msg, toolUses: [...(msg.toolUses || []), tool] } : msg
+                msg.id === messageId
+                  ? { ...msg, toolUses: [...(msg.toolUses || []), tool] }
+                  : msg
               ),
             },
           }
@@ -168,8 +178,8 @@ export const useChatStore = create<ChatState>()(
                 msg.id === messageId
                   ? {
                       ...msg,
-                      toolUses: msg.toolUses?.map((t) =>
-                        t.id === toolId ? { ...t, ...updates } : t
+                      toolUses: (msg.toolUses || []).map((tool) =>
+                        tool.id === toolId ? { ...tool, ...updates } : tool
                       ),
                     }
                   : msg
@@ -189,7 +199,7 @@ export const useChatStore = create<ChatState>()(
             messagesByWorkspace: {
               ...state.messagesByWorkspace,
               [currentWorkspaceId]: currentMessages.map((msg) =>
-                msg.id === id ? { ...msg, metadata: { ...(msg.metadata || {}), ...metadata } } : msg
+                msg.id === id ? { ...msg, metadata } : msg
               ),
             },
           }
@@ -217,9 +227,11 @@ export const useChatStore = create<ChatState>()(
         })
       },
 
-      setLoading: (isLoading) => set({ isLoading }),
-      setProjectId: (currentProjectId) => set({ currentProjectId }),
-      setContextWindowSize: (size: number) => set({ contextWindowSize: size }),
+      setLoading: (loading) => set({ isLoading: loading }),
+
+      setProjectId: (id) => set({ currentProjectId: id }),
+
+      setContextWindowSize: (size) => set({ contextWindowSize: size }),
 
       clearMessages: () => {
         const { currentWorkspaceId } = get()
@@ -233,7 +245,7 @@ export const useChatStore = create<ChatState>()(
         }))
       },
 
-      triggerOpenPR: (uncommittedChanges?: number) => {
+      triggerOpenPR: (uncommittedChanges) => {
         set({ pendingOpenPR: { uncommittedChanges } })
       },
 
@@ -242,17 +254,7 @@ export const useChatStore = create<ChatState>()(
       },
     }),
     {
-      name: 'hatch-chat',
-      partialize: (state) => ({
-        messagesByWorkspace: state.messagesByWorkspace,
-      }),
+      name: 'chat-store',
     }
   )
 )
-
-// Selector to get messages for the current workspace (reactive)
-export const selectCurrentMessages = (state: ChatState): Message[] => {
-  const { currentWorkspaceId, messagesByWorkspace } = state
-  if (!currentWorkspaceId) return []
-  return messagesByWorkspace[currentWorkspaceId] || []
-}

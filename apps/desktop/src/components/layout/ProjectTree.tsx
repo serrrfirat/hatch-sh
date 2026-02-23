@@ -31,6 +31,18 @@ interface WorkspaceItemProps {
 
 function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: WorkspaceItemProps) {
   const [isHovered, setIsHovered] = useState(false)
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
+  const { updateWorkspaceWorkflowStatus } = useRepositoryStore()
+
+  const statusConfig = {
+    'backlog': { label: 'Backlog', className: 'bg-gray-600 text-gray-200' },
+    'in-progress': { label: 'In Progress', className: 'bg-blue-600 text-white' },
+    'in-review': { label: 'Review', className: 'bg-yellow-500 text-black' },
+    'done': { label: 'Done', className: 'bg-green-600 text-white' },
+  } as const
+
+  const currentStatus = workspace.workspaceStatus || 'backlog'
+  const statusOptions: Array<keyof typeof statusConfig> = ['backlog', 'in-progress', 'in-review', 'done']
 
   return (
     <motion.div
@@ -90,6 +102,49 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
                 )}
               </span>
             )}
+            {/* Status pill */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setStatusDropdownOpen(!statusDropdownOpen)
+                }}
+                className={`text-xs px-2 py-1 rounded font-medium transition-colors cursor-pointer ${statusConfig[currentStatus].className}`}
+              >
+                {statusConfig[currentStatus].label}
+              </button>
+              <AnimatePresence>
+                {statusDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setStatusDropdownOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="absolute left-0 top-full mt-1 w-32 bg-neutral-900 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden"
+                    >
+                      {statusOptions.map((status) => (
+                        <button
+                          key={status}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            updateWorkspaceWorkflowStatus(workspace.id, status)
+                            setStatusDropdownOpen(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                            currentStatus === status
+                              ? 'bg-white/10 text-white font-medium'
+                              : 'text-neutral-400 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          {statusConfig[status].label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-neutral-500">
             {workspace.isInitializing ? (

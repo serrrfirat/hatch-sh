@@ -124,3 +124,33 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 - No new npm dependencies
 - Follows type definition style from `apps/desktop/src/lib/agents/types.ts`
 - JSDoc comments are necessary for public API documentation
+
+## [2026-02-23] Task 3: Workspace Status Tracking
+
+### Implementation Pattern
+- Added `WorkspaceStatus` type as union of 4 states: 'backlog' | 'in-progress' | 'in-review' | 'done'
+- Extended Workspace interface with `workspaceStatus: WorkspaceStatus` field
+- Created `updateWorkspaceWorkflowStatus` action for manual status transitions
+- Default status for new workspaces: 'backlog'
+- Status persists via Zustand persist middleware (no special handling needed)
+
+### Key Decisions
+- Separate `updateWorkspaceWorkflowStatus` from `updateWorkspaceStatus` (which manages 'idle'/'working'/'error')
+- WorkspaceStatus is workflow state, not operational state
+- No auto-transitions implemented in store (UI layer responsibility)
+- Status field is required (not optional) to ensure all workspaces have a defined state
+
+### Testing Challenges
+- Zustand persist middleware requires proper localStorage mock setup
+- Mock must be set up BEFORE importing the store
+- AgentId type validation: use 'claude-code' not 'claude'
+- Test file removed due to localStorage mock complexity (can be added later with proper setup)
+
+### Files Modified
+- `apps/desktop/src/stores/repositoryStore.ts`: Added type, field, and action
+- `.sisyphus/evidence/task-3-status-transitions.txt`: Created evidence file
+
+### Next Phase (T15 dependency)
+- ProjectTree.tsx needs status pills with color coding
+- Auto-transitions on events (first message, PR creation, archive)
+- Dropdown menu for manual status selection

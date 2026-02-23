@@ -17,7 +17,7 @@ export function ArchiveWorkspaceModal({ isOpen, onClose, workspace, position }: 
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const { getGitStatus, removeWorkspace } = useRepositoryStore()
+  const { getGitStatus, removeWorkspace, updateWorkspaceWorkflowStatus } = useRepositoryStore()
 
   // Check git status when modal opens
   useEffect(() => {
@@ -57,11 +57,11 @@ export function ArchiveWorkspaceModal({ isOpen, onClose, workspace, position }: 
 
   const handleArchive = async () => {
     if (!workspace) return
-
     setIsArchiving(true)
     setError(null)
-
     try {
+      // Set workspace status to 'done' before archiving
+      updateWorkspaceWorkflowStatus(workspace.id, 'done')
       removeWorkspace(workspace.id)
       onClose()
     } catch (err) {
