@@ -1,0 +1,31 @@
+Task: T18 Integration Testing - All Features Working Together
+Date: 2026-02-23
+
+Baseline verification (before changes):
+- Command: pnpm vitest run
+- Result: 39 files passed, 379 tests passed
+
+New integration suite:
+- File: apps/desktop/testing/integration/feature-parity.test.ts
+- Tests added: 10
+- Scenarios covered:
+  1) Workspace status lifecycle (backlog -> in-progress -> done + archive remove)
+  2) Slash command /clear isolation between workspaces
+  3) Context meter size growth with added messages
+  4) Chat search matching in workspace thread
+  5) File mention content injection formatting
+  6) Image attachment validation (type and size limits)
+  7) Rate limit estimation with multiple agents/messages
+  8) Agent process manager spawn/kill/max-cap lifecycle
+  9) GitCoordinator command priority mapping (critical/low/normal)
+  10) Worktree lifecycle create/list-locked/remove sequence
+
+Post-change verification:
+- Command: pnpm vitest run testing/integration/feature-parity.test.ts
+- Result: 1 file passed, 10 tests passed
+- Command: pnpm vitest run
+- Result: 40 files passed, 389 tests passed
+
+Static analysis:
+- lsp_diagnostics apps/desktop/testing/integration/feature-parity.test.ts
+- Result: no diagnostics

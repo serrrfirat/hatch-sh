@@ -775,3 +775,23 @@ Created `RateLimitMeter` component with TDD (35 tests first, then implementation
 
 - Added `apps/desktop/src/stores/__tests__/chatRouting.test.ts` with TDD-first failing tests, then implementation.
 - Full suite passes: `pnpm vitest run` -> 379 tests.
+
+## Task 18: Integration Testing — Feature Parity (T1-T17)
+
+### Summary
+
+- Added a single Vitest integration suite at `apps/desktop/testing/integration/feature-parity.test.ts` covering 10 cross-feature scenarios in one flow-oriented file.
+- Kept changes test-only; no implementation files modified.
+
+### Key Patterns
+
+- Use `// @vitest-environment jsdom` and `vi.mock('zustand/middleware', ...)` together when importing persisted Zustand stores in integration tests.
+- For store-driven integration behavior, reset singleton Zustand stores in `beforeEach` with explicit state snapshots to prevent cross-test leakage.
+- For Rust/Tauri-backed features in Vitest, mock `@tauri-apps/api/core` `invoke` and assert command payloads (`request.command`, `request.priority`) to validate queue/lifecycle logic without E2E runtime.
+- Workspace archive flow is represented by status update to `done` plus workspace removal (modal behavior), not a store-only implicit transition.
+
+### Verification
+
+- Baseline before changes: 379 tests passing.
+- After integration suite: 389 tests passing.
+- LSP diagnostics: clean on `apps/desktop/testing/integration/feature-parity.test.ts`.
