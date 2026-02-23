@@ -21,6 +21,7 @@ import { writeCodeBlocksToWorkspace } from '../lib/fileWriter'
 // readProjectMemory is available for future system prompt enrichment
 import { windowMessages, getDroppedMessages } from '../lib/chatWindow'
 import { summarizeDroppedMessages } from '../lib/chatSummarizer'
+import { saveImageToWorkspace, type ImageAttachmentData } from '../lib/imageAttachment'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 
@@ -370,8 +371,8 @@ export function useChat() {
   // Uses readProjectMemory(workspacePath) to load .hatch/context.md
 
   const sendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim()) return
+    async (content: string, images?: ImageAttachmentData[]) => {
+      if (!content.trim() && (!images || images.length === 0)) return
 
       // Get the workspace's selected agent
       const agentId = workspaceAgentId
@@ -412,7 +413,25 @@ export function useChat() {
       }
 
       // Add user message
-      addMessage({ role: 'user', content })
+      addMessage({ role: 'user', content, images })
+
+
+      // Save images to workspace .context/ directory via Tauri FS
+      if (images && images.length > 0 && currentWorkspace?.localPath) {
+        Promise.all(
+          images.map((img) => saveImageToWorkspace(img, currentWorkspace.localPath))
+        ).catch(() => {
+          // Silently ignore save failures — images are still in base64 in the message
+        })
+      }
+
+      // Warn about cloud models and local images
+      if (!isLocal && images && images.length > 0) {
+        addMessage({
+          role: 'assistant',
+          content: '⚠️ Cloud models cannot access local images directly. Images are being sent as base64 data.',
+        })
+      }
 
       // Create placeholder for assistant response
       const assistantMessageId = addMessage({

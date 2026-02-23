@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useRepositoryStore } from './repositoryStore'
 
+import type { ImageAttachmentData } from '../lib/imageAttachment'
+
 export interface ToolUse {
   id: string
   name: string
@@ -32,6 +34,7 @@ export interface Message {
   /** Start time for timing */
   startTime?: number
   metadata?: MessageMetadata
+  images?: ImageAttachmentData[]
 }
 
 // Pending PR request info

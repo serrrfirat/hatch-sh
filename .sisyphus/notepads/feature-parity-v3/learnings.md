@@ -488,3 +488,42 @@ Extended the existing MentionPopover and ChatInput components to inject file con
 ### Evidence
 - 271 tests pass (238 existing + 33 new), 32 test files
 - Zero LSP errors across all 3 changed/created files
+
+
+## Task 9: Image Attachments in Chat
+
+### Summary
+Added image attachment support to the chat composer with drag-drop, file picker, thumbnail previews, inline display in sent messages, Tauri FS saving to workspace `.context/` directory, and cloud model warning.
+
+### Files Created
+1. `apps/desktop/src/lib/imageAttachment.ts` — Pure functions + types: `isImageFile`, `isImageTooLarge`, `imageToBase64`, `saveImageToWorkspace`, `ImageAttachmentData` interface
+2. `apps/desktop/src/lib/__tests__/imageAttachment.test.ts` — 23 unit tests
+3. `apps/desktop/src/components/chat/ImageAttachment.tsx` — 4 components: ImageThumbnail, ImagePreviewBar, InlineImage, MessageImages
+
+### Files Modified
+1. `apps/desktop/src/stores/chatStore.ts` — Added `images?: ImageAttachmentData[]` to Message interface
+2. `apps/desktop/src/components/chat/ChatInput.tsx` — Full rewrite with drag-drop, file picker, image previews, updated onSend signature
+3. `apps/desktop/src/hooks/useChat.ts` — sendMessage accepts images, passes to addMessage, saves to .context/ via Tauri FS, cloud model warning
+4. `apps/desktop/src/components/chat/MessageBubble.tsx` — Renders MessageImages in user bubbles
+
+### Key Design Decisions
+1. **Dynamic imports for Tauri FS**: `saveImageToWorkspace` uses `await import('@tauri-apps/plugin-fs')` to avoid breaking tests in Node environment
+2. **Fire-and-forget saving**: Image saving to `.context/` is non-blocking (Promise.all without await) — failure doesn't block message sending
+3. **Cloud model warning**: When images are sent with a non-local agent, an assistant message warns about local image limitations
+4. **5MB limit**: `MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024` — files exactly at limit are NOT too large
+5. **Supported formats**: .png, .jpg, .jpeg, .gif, .webp, .svg
+6. **No compression**: Images sent as-is per spec constraint
+7. **MockFileReader**: Tests use a custom MockFileReader class since Node environment lacks FileReader API
+
+### Testing Strategy
+- 23 pure function tests covering:
+  - `isImageFile`: 8 tests (supported extensions, unsupported, case-insensitive, paths with dirs)
+  - `isImageTooLarge`: 5 tests (under/over/at 5MB limit, zero bytes, constant value)
+  - `imageToBase64`: 3 tests (with MockFileReader for Node env)
+  - `SUPPORTED_IMAGE_EXTENSIONS`: 1 test
+  - `ImageAttachmentData` type: 2 tests
+
+### Evidence
+- 294 tests pass (271 existing + 23 new), 33 test files
+- Zero LSP errors across all changed files
+- Duration: 1.76s

@@ -7,6 +7,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { ToolUseBlock } from './ToolUseBlock'
 import { ChangedFilesPills } from './ChangedFilesPills'
 import type { Message } from '../../stores/chatStore'
+import { MessageImages } from './ImageAttachment'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { Components } from 'react-markdown'
 
@@ -247,6 +248,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         className="py-3 flex justify-end"
       >
         <div className="max-w-[80%] bg-neutral-800 rounded-2xl rounded-br-sm px-4 py-3">
+          {message.images && message.images.length > 0 && (
+            <MessageImages images={message.images} />
+          )}
           <p className="text-sm font-normal text-white leading-relaxed">
             {message.content}
           </p>
