@@ -4,6 +4,7 @@ import { cn } from '@hatch/ui'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentPicker } from './AgentPicker'
 import { MentionPopover, type MentionItem } from './MentionPopover'
+import { buildMentionContent } from '../../lib/fileMentionContent'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -77,6 +78,7 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   const [showMentionPopover, setShowMentionPopover] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionStartIndex, setMentionStartIndex] = useState(-1)
+  const [fileAttachments, setFileAttachments] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const {
@@ -96,21 +98,20 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
 
   const handleSend = () => {
     if (message.trim() && !isLoading && !showMentionPopover) {
-      onSend(message.trim())
+      const contentPrefix = fileAttachments.join('')
+      onSend(contentPrefix + message.trim())
       setMessage('')
+      setFileAttachments([])
     }
   }
-
   // Detect @ mentions in the input
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     const cursorPos = e.target.selectionStart || 0
     setMessage(value)
-
     // Find the last @ before cursor that isn't followed by a space
     const textBeforeCursor = value.slice(0, cursorPos)
     const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1)
       // Check if there's a space after @ (mention completed) or if @ is at the end
@@ -121,7 +122,6 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
         return
       }
     }
-
     setShowMentionPopover(false)
     setMentionQuery('')
     setMentionStartIndex(-1)
@@ -130,13 +130,20 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   // Handle mention selection
   const handleMentionSelect = useCallback((item: MentionItem) => {
     if (mentionStartIndex === -1) return
-
-    // Build the mention text based on type
     let mentionText = ''
     switch (item.type) {
-      case 'files':
-        mentionText = `@${item.path} `
+      case 'files': {
+        if (item.fileContent !== undefined && item.fileSize !== undefined && item.path) {
+          const result = buildMentionContent(item.path, item.fileContent, item.fileSize)
+          if (result.type === 'content') {
+            setFileAttachments((prev) => [...prev, result.text])
+          }
+          mentionText = `@${item.path} `
+        } else {
+          mentionText = `@${item.path} `
+        }
         break
+      }
       case 'skills':
         mentionText = `${item.name} `
         break
@@ -144,18 +151,13 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
         mentionText = `@${item.name} `
         break
     }
-
-    // Replace the @query with the selected mention
     const beforeMention = message.slice(0, mentionStartIndex)
-    const afterMention = message.slice(mentionStartIndex + mentionQuery.length + 1) // +1 for @
+    const afterMention = message.slice(mentionStartIndex + mentionQuery.length + 1)
     const newMessage = beforeMention + mentionText + afterMention
-
     setMessage(newMessage)
     setShowMentionPopover(false)
     setMentionQuery('')
     setMentionStartIndex(-1)
-
-    // Focus back on textarea and move cursor after mention
     setTimeout(() => {
       if (textareaRef.current) {
         const newCursorPos = beforeMention.length + mentionText.length

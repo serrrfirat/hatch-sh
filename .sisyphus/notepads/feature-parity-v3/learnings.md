@@ -302,3 +302,189 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
 - No behavior changes — only type safety improvements
 - All existing tests continue to pass
 - Ready for Wave 1C (T4, T5) which depend on clean TypeScript
+
+## Task 4: Chat Search with Cmd+F
+
+### Summary
+Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortcut. Created ChatSearch component, integrated into ChatArea.tsx, and added 14 comprehensive unit tests. All 255 tests passing (241 existing + 14 new).
+
+### Implementation Details
+
+#### File: `apps/desktop/src/components/chat/ChatSearch.tsx`
+- Pure functional component with clear props interface
+- Props: query, matchCount, currentMatchIndex, onQueryChange, onNext, onPrevious, onClose
+- Auto-focuses input on mount using useRef + useEffect
+- Handles Escape key internally for dismissal
+- Displays match count in "X of Y" format
+- Prev/Next buttons disabled when no matches
+- Dark theme styling with Tailwind CSS
+
+#### File: `apps/desktop/src/components/chat/ChatArea.tsx` (modified)
+- Added search state: isSearchOpen, searchQuery, currentMatchIndex
+- Added Cmd+F / Ctrl+F keyboard handler (useEffect with cleanup)
+- Added searchMatches computation (useMemo with debouncing)
+- Added search navigation handlers (next, previous, close)
+- Conditionally render ChatSearch component above message list
+
+#### File: `apps/desktop/src/components/chat/__tests__/ChatSearch.test.ts`
+- 14 comprehensive test cases organized in 3 describe blocks
+- Tests cover:
+  - Search logic: empty query, whitespace, case-insensitive, partial matches, indices, special chars, empty list, empty content
+  - Navigation: forward cycling, backward cycling, single match
+  - Match count display: correct count, zero matches, 1-indexed display
+
+### Key Design Decisions
+
+1. **Keyboard Shortcut Pattern**: Use `(e.metaKey || e.ctrlKey) && e.key === 'f'` for Cmd+F / Ctrl+F
+   - Always call `e.preventDefault()` to prevent browser default search
+   - Attach listener in useEffect with cleanup function
+   - Empty dependency array for one-time setup
+
+2. **Search Logic with useMemo**: Debounce via dependency array [searchQuery, messages]
+   - Simple case-insensitive substring matching: `toLowerCase().includes()`
+   - Return array of match objects with messageId and messageIndex
+   - O(n) complexity acceptable for message lists
+
+3. **Navigation State Management**: Track currentMatchIndex as 0-based internally
+   - Display as 1-based to users: `currentMatchIndex + 1`
+   - Use modulo arithmetic for cycling: `(prev + 1) % length` and `(prev - 1 + length) % length`
+   - Handle edge case of 0 matches by disabling buttons
+
+4. **Component Composition**: Parent (ChatArea) manages state, child (ChatSearch) is pure presentation
+   - Conditional rendering in parent based on isSearchOpen state
+   - All callbacks passed as props
+   - No interference with existing keyboard handlers
+
+### Testing Strategy
+
+- **Unit Tests**: Extract search logic into pure functions for testing
+- **Edge Cases**: Empty query, whitespace, empty messages, special characters
+- **Navigation**: Cycling forward/backward, single match edge case
+- **Match Count**: Correct count, zero matches, 1-indexed display
+- **No Component Rendering**: Logic-focused tests only
+
+### Integration Notes
+
+- ChatArea.tsx manages all search state
+- ChatSearch.tsx is pure presentation component
+- No interference with T5 (context meter) implementation
+- Search bar positioned above message list
+- Escape key closes search and resets state
+- No text highlighting in messages (basic search only)
+
+### Performance Considerations
+
+- useMemo prevents unnecessary recomputation
+- Simple O(n) search acceptable for typical message lists
+- No regex compilation overhead
+- No DOM manipulation for highlighting
+- Keyboard handler cleanup prevents memory leaks
+
+### Tailwind Styling Pattern
+
+- Container: `bg-gray-900` with `border-b border-white/[0.06]`
+- Input: `bg-gray-800` with `text-white placeholder-white/30`
+- Icons: `text-white/40` for magnifying glass, `text-white/60` for buttons
+- Buttons: `hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors`
+- Match count: `text-white/50` for subtle appearance
+
+### Evidence
+- `.sisyphus/evidence/task-4-chat-search.txt` — Complete implementation summary
+- Commit: `3698682` — "feat(chat): add chat search with Cmd+F"
+
+### Test Results
+- ✓ 255 tests pass (241 existing + 14 new)
+- ✓ 36 test files pass
+- ✓ Duration: 4.12s
+- ✓ No LSP errors
+- ✓ No TypeScript compilation errors
+
+### Key Learnings
+
+1. **Keyboard Shortcut Handling**: Always use `(e.metaKey || e.ctrlKey)` for cross-platform Cmd/Ctrl detection
+2. **useMemo for Debouncing**: Dependency array acts as debounce mechanism without setTimeout
+3. **Modulo Arithmetic**: Essential for circular navigation in lists
+4. **Pure Function Testing**: Extract logic from components for easier unit testing
+5. **Conditional Component Rendering**: Render search bar only when needed to avoid unnecessary DOM nodes
+6. **Escape Key Handling**: Can be handled in child component or parent, but child is cleaner for encapsulation
+
+## Task 5: Context Usage Meter Component
+
+### Summary
+Created ContextMeter component with TDD. 21 tests written first (RED), then implementation (GREEN). Component renders a progress bar showing estimated context byte usage vs 100KB limit with color-coded thresholds and hover tooltip breakdown.
+
+### Files Created
+1. `apps/desktop/src/components/chat/ContextMeter.tsx` — Component + pure functions
+2. `apps/desktop/src/components/chat/__tests__/ContextMeter.test.ts` — 21 unit tests
+
+### Files Modified
+- `apps/desktop/src/components/chat/ChatArea.tsx` — Added ContextMeter import and render after ChatSearch
+
+### Key Design Decisions
+1. **Pure functions exported for testability**: `calculateContextSize`, `getContextColor`, `formatBytes`
+2. **MessageLike interface**: Avoids tight coupling to store's Message type while accepting it
+3. **totalBytes tracked independently**: System messages contribute to total but not user/assistant buckets
+4. **Color thresholds**: green (<50%), yellow (50-80%), red (>=80%)
+5. **Byte estimation**: `JSON.stringify(message).length` per message — simple, no token counting
+6. **100KB limit**: `DEFAULT_CONTEXT_LIMIT = 102400` as constant
+
+### Testing Strategy
+- Pure function tests only (no jsdom, no React rendering)
+- Covers: empty arrays, role grouping, toolUses tracking, long content, thinking field, all color thresholds, formatBytes rounding
+- 21 tests across 5 describe blocks
+
+### Tailwind Styling
+- Container: `border-b border-white/[0.06]` with `px-4 py-1.5`
+- Progress bar: `h-1.5 bg-white/[0.06] rounded-full` with max-w-[120px]
+- Colors: emerald-500/70 (green), amber-500/70 (yellow), red-500/80 (red)
+- Text: `text-[10px] font-mono` for compact display
+- Tooltip: `bg-gray-800 border border-white/[0.1] rounded-md shadow-xl`
+
+### Evidence
+- Commit: `ef17c0c` — "feat(chat): add context usage meter"
+- 238 tests pass (217 existing + 21 new), 31 test files
+- Zero LSP errors across all changed files
+
+
+## Task 8: File Mentions (@) Completion with Content Injection
+
+### Summary
+Extended the existing MentionPopover and ChatInput components to inject file content (not just path) into the chat message context when a user selects a file via @ mention. Created pure utility functions with 33 unit tests. All 271 tests pass (238 existing + 33 new).
+
+### Files Created
+1. `apps/desktop/src/lib/fileMentionContent.ts` — Pure functions for file mention content injection
+2. `apps/desktop/src/lib/__tests__/fileMentionContent.test.ts` — 33 test cases
+
+### Files Modified
+1. `apps/desktop/src/components/chat/MentionPopover.tsx` — Extended MentionItem interface with `fileContent?: string` and `fileSize?: number`, added `handleItemSelect` callback that reads file content via `invoke<FileContent>('read_file', ...)` for text files
+2. `apps/desktop/src/components/chat/ChatInput.tsx` — Added `fileAttachments` state array, `buildMentionContent` integration in `handleMentionSelect`, content prepending on send
+
+### Key Design Decisions
+1. **Pure functions for testability**: `isTextFile`, `isBinaryFile`, `isFileTooLarge`, `getLanguageForExtension`, `formatFileContentBlock`, `buildMentionContent` — all pure, no side effects
+2. **MentionContentResult union type**: `'content' | 'too-large' | 'binary' | 'unsupported'` — clear discrimination for handling each case
+3. **Content format**: `\n\n[File: path/to/file.ts]\n```ts\n{content}\n` `` ` — readable code block with language tag
+4. **50KB limit**: `MAX_FILE_SIZE_BYTES = 51200` — files at exactly 50KB are NOT too large (strict >)
+5. **Reused existing pattern**: `invoke<FileContent>('read_file', { filePath })` already existed in MentionPopover for plugin files
+6. **fileAttachments state**: Accumulated content blocks in ChatInput, prepended to message on send, cleared after send
+
+### Structural Issues Encountered
+- Complex multi-edit operations on ChatInput.tsx caused structural corruption:
+  - Missing closing brace for `handleSend` function
+  - Missing `let mentionText = ''` declaration before switch
+  - Missing `setMessage(newMessage)` call
+  - Missing `setTimeout(() => {` wrapper for cursor positioning
+  - Missing `if (lastAtIndex !== -1) {` guard in handleChange
+- **Lesson**: After complex edits, always re-read the full function and verify structural integrity before running tests
+
+### Testing Strategy
+- 33 pure function tests covering:
+  - `isTextFile`: supported extensions, unsupported, no extension, dotfiles, case-insensitive
+  - `isBinaryFile`: image, font, archive, video, audio extensions
+  - `isFileTooLarge`: under/over/at limit, custom limit
+  - `getLanguageForExtension`: all 10 supported extensions, unknown
+  - `formatFileContentBlock`: code block format, trailing whitespace trimming
+  - `buildMentionContent`: content injection, too-large warning, binary exclusion, unsupported fallback
+
+### Evidence
+- 271 tests pass (238 existing + 33 new), 32 test files
+- Zero LSP errors across all 3 changed/created files

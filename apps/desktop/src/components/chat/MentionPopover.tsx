@@ -4,6 +4,7 @@ import { cn } from '@hatch/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
 import { useRepositoryStore } from '../../stores/repositoryStore'
+import { isTextFile, isBinaryFile } from '../../lib/fileMentionContent'
 
 // Response from the read_file Tauri command
 interface FileContent {
@@ -45,6 +46,8 @@ interface MentionItem {
   type: TabType
   path?: string
   isDirectory?: boolean
+  fileContent?: string
+  fileSize?: number
 }
 
 interface MentionPopoverProps {
@@ -171,6 +174,25 @@ export function MentionPopover({
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
   const { currentWorkspace } = useRepositoryStore()
+
+  const handleItemSelect = useCallback(async (item: MentionItem) => {
+    if (item.type === 'files' && item.path && !item.isDirectory) {
+      if (!isBinaryFile(item.path) && isTextFile(item.path)) {
+        try {
+          const fileResult = await invoke<FileContent>('read_file', { filePath: item.path })
+          onSelect({
+            ...item,
+            fileContent: fileResult.content,
+            fileSize: fileResult.size,
+          })
+          return
+        } catch {
+          // Fall through to select without content
+        }
+      }
+    }
+    onSelect(item)
+  }, [onSelect])
 
   // Load subagents from ~/.claude/agents/ (global) and .claude/agents/ (project)
   const loadAgents = useCallback(async () => {
@@ -514,7 +536,7 @@ export function MentionPopover({
         case 'Enter':
           e.preventDefault()
           if (filteredItems[selectedIndex]) {
-            onSelect(filteredItems[selectedIndex])
+            handleItemSelect(filteredItems[selectedIndex])
           }
           break
         case 'Escape':
@@ -594,7 +616,7 @@ export function MentionPopover({
                     key={item.id}
                     item={item}
                     isSelected={index === selectedIndex}
-                    onClick={() => onSelect(item)}
+                    onClick={() => handleItemSelect(item)}
                   />
                 ))}
                 {filteredItems.length > 8 && (
