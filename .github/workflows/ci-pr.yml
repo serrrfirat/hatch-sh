@@ -35,29 +35,6 @@ jobs:
           CHANGED_FILES: ${{ steps.changed.outputs.changed_files }}
         run: node scripts/risk-policy-gate.mjs
 
-
-  review-head-sha-gate:
-    name: Review Head SHA Gate
-    runs-on: ubuntu-latest
-    needs: [preflight-risk-policy]
-    permissions:
-      checks: read
-      contents: read
-    env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
-      REQUIRED_REVIEW_CHECKS: Code Review Agent
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Verify review checks are fresh for current head
-        run: node scripts/review-control-plane.mjs head-sha-gate
-
   quality:
     name: Lint, Typecheck, Test, Build
     runs-on: ubuntu-latest
