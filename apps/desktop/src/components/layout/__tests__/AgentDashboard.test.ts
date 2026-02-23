@@ -5,7 +5,6 @@ import {
   getAgentStatusLabel,
   getAgentStatusColor,
   buildAgentRow,
-  type AgentRowData,
 } from '../AgentDashboard'
 import type { ManagedAgentProcess } from '../../../lib/agents/processManager'
 import type { Workspace, WorkspaceStatus } from '../../../stores/repositoryStore'
