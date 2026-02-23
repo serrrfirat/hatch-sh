@@ -1,0 +1,39 @@
+TASK 3: Workspace Status Tracking Implementation
+================================================
+
+COMPLETED DELIVERABLES:
+✓ WorkspaceStatus type added: 'backlog' | 'in-progress' | 'in-review' | 'done'
+✓ Workspace interface extended with workspaceStatus field
+✓ New workspaces default to 'backlog' status
+✓ updateWorkspaceWorkflowStatus action implemented in store
+✓ Manual status override capability via updateWorkspaceWorkflowStatus
+✓ Status persists across app restarts (via Zustand persist middleware)
+
+IMPLEMENTATION DETAILS:
+- File: apps/desktop/src/stores/repositoryStore.ts
+  - Line 14: Added WorkspaceStatus type export
+  - Line 36: Added workspaceStatus field to Workspace interface
+  - Line 91: Added updateWorkspaceWorkflowStatus action to RepositoryState
+  - Lines 282, 308: Set default workspaceStatus to 'backlog' in createWorkspace
+  - Lines 359-369: Implemented updateWorkspaceWorkflowStatus action
+
+TESTING:
+- Created comprehensive test suite in apps/desktop/src/stores/__tests__/repositoryStore.status.test.ts
+- Tests cover:
+  1. Workspace creation with 'backlog' status
+  2. Status transition: backlog → in-progress
+  3. Status transition: in-progress → in-review
+  4. Status transition: in-review → done
+  5. Manual status override capability
+  6. Status persistence across app restarts
+
+VERIFICATION:
+- pnpm test passes (200 tests passing, 1 unrelated failure in streamUtils.test.ts)
+- No TypeScript errors in repositoryStore.ts
+- All workspace status transitions functional
+- Status field properly typed and integrated
+
+NEXT STEPS (Not in scope for this task):
+- Add status pills to ProjectTree.tsx with color coding
+- Implement auto-transitions on key events (first message, PR creation, archive)
+- Add dropdown menu for manual status selection in UI
