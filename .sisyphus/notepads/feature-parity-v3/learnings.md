@@ -735,3 +735,43 @@ Created `AgentDashboard` component with TDD (22 tests first, then implementation
 - 341 tests pass (319 existing + 22 new), 37 test files
 - Zero LSP errors across all changed files
 - Commit: `a1fcb5f` — "feat(ui): add multi-agent dashboard"
+
+## Task 16: Rate Limit Awareness + Resource Monitoring
+
+### Summary
+
+Created `RateLimitMeter` component with TDD (35 tests first, then implementation). Component shows estimated API rate limit usage across active agents with color-coded progress bar, warning banner, and per-agent resource estimates. Only visible when 2+ agents active.
+
+### Files Created
+
+1. `apps/desktop/src/components/layout/RateLimitMeter.tsx`
+2. `apps/desktop/src/components/layout/__tests__/RateLimitMeter.test.ts` (35 tests)
+
+### Key Design Decisions
+
+1. Tier 2 rate limit: 90,000 tokens/min baseline constant
+2. Token estimation: 15,000 tokens/min per active agent + 4,000 tokens per recent message
+3. Recent message counting: messages from last 60 seconds across all workspaces
+4. Visibility gate: hidden for 0-1 agents, shown at 2+
+5. Follows ContextMeter pattern: same COLOR_CLASSES, progress bar, tooltip, text sizing
+6. Warning banner: red bg with AlertTriangle icon when >80% estimated usage
+
+### Evidence
+
+- 376 tests pass (341 existing + 35 new), 38 test files
+- Zero LSP errors
+- Commit: ccbf60e
+
+## Task 17: Parallel Workspace Chat Routing
+
+### Summary
+
+- Added workspace-scoped chat actions so streaming updates, tool events, metadata, and durations can be routed by explicit `workspaceId` instead of relying on `currentWorkspaceId`.
+- Added `activeStreamingWorkspaces` and `loadingByWorkspace` to support concurrent background streams while keeping chat input/loading state isolated to the visible workspace.
+- Updated `useChat` to accept optional `workspaceId` and route every message operation/process lifecycle event to the correct workspace.
+- Added desktop Notification dispatch for background workspace completion/error cases (permission-gated).
+
+### Testing
+
+- Added `apps/desktop/src/stores/__tests__/chatRouting.test.ts` with TDD-first failing tests, then implementation.
+- Full suite passes: `pnpm vitest run` -> 379 tests.

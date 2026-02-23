@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import {
   useChatStore,
-  selectCurrentMessages,
+  selectMessagesForWorkspace,
   type Message,
   type ToolUse,
 } from '../stores/chatStore'
@@ -103,12 +103,20 @@ function buildPRContext(
   return context
 }
 
-export function useChat() {
+export function useChat(workspaceId?: string) {
+  const { currentWorkspace, workspaces } = useRepositoryStore()
+  const selectedWorkspace = workspaceId
+    ? (workspaces.find((workspace) => workspace.id === workspaceId) ?? null)
+    : currentWorkspace
+  const resolvedWorkspaceId = selectedWorkspace?.id ?? null
+
   // Use selector for reactive messages (per-workspace)
-  const messages = useChatStore(selectCurrentMessages)
+  const messages = useChatStore((state) => selectMessagesForWorkspace(state, resolvedWorkspaceId))
+  const isLoading = useChatStore((state) =>
+    resolvedWorkspaceId ? Boolean(state.loadingByWorkspace[resolvedWorkspaceId]) : state.isLoading
+  )
 
   const {
-    isLoading,
     currentProjectId,
     addMessage,
     updateMessage,
@@ -123,12 +131,11 @@ export function useChat() {
   const settingsState = useSettingsStore()
   const { agentStatuses, agentModels } = settingsState
 
-  // Get current workspace and its selected agent
-  const { currentWorkspace } = useRepositoryStore()
-  const workspaceAgentId = currentWorkspace?.agentId || 'claude-code'
+  const workspaceAgentId = selectedWorkspace?.agentId || 'claude-code'
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamingMessageIdRef = useRef<string | null>(null)
+  const streamingWorkspaceIdRef = useRef<string | null>(null)
   const shouldStopRef = useRef(false)
   // projectMemoryLoadedRef: reserved for future per-workspace memory dedup
   const summaryCacheRef = useRef<{ droppedIds: string; summary: string }>({
@@ -152,7 +159,13 @@ export function useChat() {
    * Send message via a local CLI agent (Claude Code, Opencode, Cursor)
    */
   const sendLocalAgentMessage = useCallback(
-    async (agentId: LocalAgentId, content: string, assistantMessageId: string) => {
+    async (
+      agentId: LocalAgentId,
+      content: string,
+      assistantMessageId: string,
+      targetWorkspaceId: string | null,
+      targetWorkspacePath?: string
+    ) => {
       const status = agentStatuses[agentId]
       const config = getConfig(agentId)
 
@@ -168,7 +181,7 @@ export function useChat() {
 
       shouldStopRef.current = false
 
-      const currentMessages = selectCurrentMessages(useChatStore.getState())
+      const currentMessages = selectMessagesForWorkspace(useChatStore.getState(), targetWorkspaceId)
       const filteredMessages = currentMessages.filter((m: Message) => m.id !== assistantMessageId)
       const { contextWindowSize } = useChatStore.getState()
       const messagesToSend = windowMessages(filteredMessages, contextWindowSize)
@@ -203,10 +216,10 @@ export function useChat() {
 
         if (event.type === 'text' && event.content) {
           fullContent += event.content
-          updateMessage(assistantMessageId, fullContent, true)
+          updateMessage(assistantMessageId, fullContent, true, targetWorkspaceId || undefined)
         } else if (event.type === 'thinking' && event.content) {
           thinkingContent += event.content
-          updateMessageThinking(assistantMessageId, thinkingContent)
+          updateMessageThinking(assistantMessageId, thinkingContent, targetWorkspaceId || undefined)
         } else if (event.type === 'tool_use' && event.toolName && event.toolId) {
           // Add tool use to the message
           const tool: ToolUse = {
@@ -215,14 +228,19 @@ export function useChat() {
             input: event.toolInput || {},
             status: 'running',
           }
-          addToolUse(assistantMessageId, tool)
+          addToolUse(assistantMessageId, tool, targetWorkspaceId || undefined)
           toolUseMap.set(event.toolId, event.toolId)
         } else if (event.type === 'tool_result' && event.toolId) {
           // Update tool use with result
-          updateToolUse(assistantMessageId, event.toolId, {
-            result: event.toolResult,
-            status: 'completed',
-          })
+          updateToolUse(
+            assistantMessageId,
+            event.toolId,
+            {
+              result: event.toolResult,
+              status: 'completed',
+            },
+            targetWorkspaceId || undefined
+          )
         } else if (event.type === 'error') {
         }
       }
@@ -240,13 +258,11 @@ export function useChat() {
               : undefined
 
         // Get workspace path for agent working directory
-        const workspaceState = useRepositoryStore.getState()
-        const workspace = workspaceState.currentWorkspace
-        const workingDirectory = workspace?.localPath
+        const workingDirectory = targetWorkspacePath
 
-        if (workspace && workingDirectory) {
-          await agentProcessManager.spawn(workspace.id, agentId, workingDirectory)
-          agentProcessManager.markStreaming(workspace.id)
+        if (targetWorkspaceId && workingDirectory) {
+          await agentProcessManager.spawn(targetWorkspaceId, agentId, workingDirectory)
+          agentProcessManager.markStreaming(targetWorkspaceId)
         }
 
         fullContent = await adapter.sendMessage(formattedMessages, {
@@ -256,13 +272,12 @@ export function useChat() {
           workingDirectory,
         })
 
-        if (workspace) {
-          agentProcessManager.markIdle(workspace.id)
+        if (targetWorkspaceId) {
+          agentProcessManager.markIdle(targetWorkspaceId)
         }
       } catch (error) {
-        const workspaceId = useRepositoryStore.getState().currentWorkspace?.id
-        if (workspaceId) {
-          const processStatus = await agentProcessManager.getStatus(workspaceId)
+        if (targetWorkspaceId) {
+          const processStatus = await agentProcessManager.getStatus(targetWorkspaceId)
           if (processStatus?.crashed) {
             throw new Error(
               `Agent process crashed${
@@ -272,7 +287,7 @@ export function useChat() {
               }. Restart is available for this workspace.`
             )
           }
-          agentProcessManager.markIdle(workspaceId)
+          agentProcessManager.markIdle(targetWorkspaceId)
         }
 
         if (shouldStopRef.current) {
@@ -292,7 +307,12 @@ export function useChat() {
    * Uses the hatch.sh API with model selection
    */
   const sendCloudModelMessage = useCallback(
-    async (modelId: AgentId, content: string, assistantMessageId: string) => {
+    async (
+      modelId: AgentId,
+      content: string,
+      assistantMessageId: string,
+      targetWorkspaceId: string | null
+    ) => {
       let fullContent = ''
 
       await retryWithExponentialBackoff(
@@ -353,7 +373,7 @@ export function useChat() {
 
               if (typeof data.text === 'string' && data.text.length > 0) {
                 fullContent += data.text
-                updateMessage(assistantMessageId, fullContent, true)
+                updateMessage(assistantMessageId, fullContent, true, targetWorkspaceId || undefined)
               }
 
               if (data.done === true) {
@@ -377,7 +397,7 @@ export function useChat() {
             const data = parsed.value as Record<string, unknown>
             if (typeof data.text === 'string' && data.text.length > 0) {
               fullContent += data.text
-              updateMessage(assistantMessageId, fullContent, true)
+              updateMessage(assistantMessageId, fullContent, true, targetWorkspaceId || undefined)
             }
             if (data.done === true) {
               streamComplete = true
@@ -401,6 +421,22 @@ export function useChat() {
     [currentProjectId, updateMessage]
   )
 
+  const notifyBackgroundWorkspace = useCallback((targetWorkspaceId: string, body: string) => {
+    const repositoryState = useRepositoryStore.getState()
+    if (repositoryState.currentWorkspace?.id === targetWorkspaceId) {
+      return
+    }
+
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+      return
+    }
+
+    const workspace = repositoryState.workspaces.find((item) => item.id === targetWorkspaceId)
+    const title = workspace ? `Agent update: ${workspace.branchName}` : 'Agent update'
+
+    new Notification(title, { body })
+  }, [])
+
   // buildSystemPrompt: reserved for future system prompt enrichment with project memory
   // Uses readProjectMemory(workspacePath) to load .hatch/context.md
 
@@ -408,32 +444,42 @@ export function useChat() {
     async (content: string, images?: ImageAttachmentData[]) => {
       if (!content.trim() && (!images || images.length === 0)) return
 
+      const targetWorkspace = selectedWorkspace
+      const targetWorkspaceId = targetWorkspace?.id ?? null
+      const targetWorkspacePath = targetWorkspace?.localPath
+
       // Intercept /review slash command
       let agentContent = content
       const slashResult = parseSlashCommand(content, { isStreaming: isLoading })
       if (slashResult?.type === 'review') {
-        if (!currentWorkspace?.localPath) {
-          addMessage({
-            role: 'assistant',
-            content: 'No workspace selected. Please select a workspace to review changes.',
-          })
+        if (!targetWorkspacePath) {
+          addMessage(
+            {
+              role: 'assistant',
+              content: 'No workspace selected. Please select a workspace to review changes.',
+            },
+            targetWorkspaceId || undefined
+          )
           return
         }
         let diff: string
         try {
-          diff = await getDiff(currentWorkspace.localPath)
+          diff = await getDiff(targetWorkspacePath)
         } catch {
-          addMessage({ role: 'user', content })
-          addMessage({
-            role: 'assistant',
-            content: 'Failed to get git diff. Make sure the workspace is a git repository.',
-          })
+          addMessage({ role: 'user', content }, targetWorkspaceId || undefined)
+          addMessage(
+            {
+              role: 'assistant',
+              content: 'Failed to get git diff. Make sure the workspace is a git repository.',
+            },
+            targetWorkspaceId || undefined
+          )
           return
         }
         const reviewPrompt = buildReviewPrompt(diff, slashResult.scope)
         if (!diff.trim()) {
-          addMessage({ role: 'user', content })
-          addMessage({ role: 'assistant', content: reviewPrompt })
+          addMessage({ role: 'user', content }, targetWorkspaceId || undefined)
+          addMessage({ role: 'assistant', content: reviewPrompt }, targetWorkspaceId || undefined)
           return
         }
         agentContent = reviewPrompt
@@ -459,54 +505,70 @@ export function useChat() {
         const status = getAgentStatus(settingsState, agentId)
 
         if (!status?.installed) {
-          addMessage({
-            role: 'assistant',
-            content: `${config.name} is not installed. Please install it from ${config.installUrl} and then click 'Check Connection' in settings.`,
-          })
+          addMessage(
+            {
+              role: 'assistant',
+              content: `${config.name} is not installed. Please install it from ${config.installUrl} and then click 'Check Connection' in settings.`,
+            },
+            targetWorkspaceId || undefined
+          )
         } else if (!status?.authenticated) {
-          addMessage({
-            role: 'assistant',
-            content: `${config.name} is not authenticated. Please run "${config.authCommand}" in your terminal, then click "Check Connection" in settings.`,
-          })
+          addMessage(
+            {
+              role: 'assistant',
+              content: `${config.name} is not authenticated. Please run "${config.authCommand}" in your terminal, then click "Check Connection" in settings.`,
+            },
+            targetWorkspaceId || undefined
+          )
         } else {
-          addMessage({
-            role: 'assistant',
-            content: `Please connect to ${config.name} in settings to continue.`,
-          })
+          addMessage(
+            {
+              role: 'assistant',
+              content: `Please connect to ${config.name} in settings to continue.`,
+            },
+            targetWorkspaceId || undefined
+          )
         }
         return
       }
 
       // Add user message
-      addMessage({ role: 'user', content, images })
+      addMessage({ role: 'user', content, images }, targetWorkspaceId || undefined)
 
       // Save images to workspace .context/ directory via Tauri FS
-      if (images && images.length > 0 && currentWorkspace?.localPath) {
-        Promise.all(
-          images.map((img) => saveImageToWorkspace(img, currentWorkspace.localPath))
-        ).catch(() => {
-          // Silently ignore save failures — images are still in base64 in the message
-        })
+      if (images && images.length > 0 && targetWorkspacePath) {
+        Promise.all(images.map((img) => saveImageToWorkspace(img, targetWorkspacePath))).catch(
+          () => {
+            // Silently ignore save failures — images are still in base64 in the message
+          }
+        )
       }
 
       // Warn about cloud models and local images
       if (!isLocal && images && images.length > 0) {
-        addMessage({
-          role: 'assistant',
-          content:
-            '⚠️ Cloud models cannot access local images directly. Images are being sent as base64 data.',
-        })
+        addMessage(
+          {
+            role: 'assistant',
+            content:
+              '⚠️ Cloud models cannot access local images directly. Images are being sent as base64 data.',
+          },
+          targetWorkspaceId || undefined
+        )
       }
 
       // Create placeholder for assistant response
-      const assistantMessageId = addMessage({
-        role: 'assistant',
-        content: '',
-        isStreaming: true,
-      })
+      const assistantMessageId = addMessage(
+        {
+          role: 'assistant',
+          content: '',
+          isStreaming: true,
+        },
+        targetWorkspaceId || undefined
+      )
       streamingMessageIdRef.current = assistantMessageId
+      streamingWorkspaceIdRef.current = targetWorkspaceId
 
-      setLoading(true)
+      setLoading(true, targetWorkspaceId || undefined)
 
       // IMPORTANT: Allow React to flush state updates and render the UI
       // before starting the potentially blocking async operation.
@@ -521,46 +583,72 @@ export function useChat() {
           fullContent = await sendLocalAgentMessage(
             agentId as LocalAgentId,
             agentContent,
-            assistantMessageId
+            assistantMessageId,
+            targetWorkspaceId,
+            targetWorkspacePath
           )
         } else {
           // Send via cloud API with model selection
-          fullContent = await sendCloudModelMessage(agentId, agentContent, assistantMessageId)
+          fullContent = await sendCloudModelMessage(
+            agentId,
+            agentContent,
+            assistantMessageId,
+            targetWorkspaceId
+          )
         }
 
         // Mark streaming as complete and set duration
-        updateMessage(assistantMessageId, fullContent, false)
+        updateMessage(assistantMessageId, fullContent, false, targetWorkspaceId || undefined)
 
         const codeBlocks = extractCodeBlocks(fullContent)
-        if (codeBlocks.length > 0 && currentWorkspace?.localPath) {
+        if (codeBlocks.length > 0 && targetWorkspacePath) {
           try {
             const manifest = await writeCodeBlocksToWorkspace(
               codeBlocks.map((block) => ({
                 filePath: block.filePath,
                 content: block.content,
               })),
-              currentWorkspace.localPath
+              targetWorkspacePath
             )
 
             if (manifest.length > 0) {
-              updateMessageMetadata(assistantMessageId, { writtenFiles: manifest })
+              updateMessageMetadata(
+                assistantMessageId,
+                { writtenFiles: manifest },
+                targetWorkspaceId || undefined
+              )
             }
           } catch (error) {}
         }
 
-        setMessageDuration(assistantMessageId)
+        setMessageDuration(assistantMessageId, targetWorkspaceId || undefined)
+
+        if (targetWorkspaceId) {
+          notifyBackgroundWorkspace(targetWorkspaceId, 'Response completed successfully.')
+        }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Keep the partial content but mark as not streaming
-          const currentMessages = selectCurrentMessages(useChatStore.getState())
+          const currentMessages = selectMessagesForWorkspace(
+            useChatStore.getState(),
+            targetWorkspaceId
+          )
           const streamingMsg = currentMessages.find((m: Message) => m.id === assistantMessageId)
           if (streamingMsg) {
-            updateMessage(assistantMessageId, streamingMsg.content || 'Generation stopped.', false)
+            updateMessage(
+              assistantMessageId,
+              streamingMsg.content || 'Generation stopped.',
+              false,
+              targetWorkspaceId || undefined
+            )
           }
           return
         }
 
-        const currentMessages = selectCurrentMessages(useChatStore.getState())
+        const currentMessages = selectMessagesForWorkspace(
+          useChatStore.getState(),
+          targetWorkspaceId
+        )
         const streamingMsg = currentMessages.find((m: Message) => m.id === assistantMessageId)
         const partialContent = streamingMsg?.content?.trim() || ''
 
@@ -572,20 +660,31 @@ export function useChat() {
           updateMessage(
             assistantMessageId,
             appendStreamInterruptedNotice(streamingMsg?.content || partialContent),
-            false
+            false,
+            targetWorkspaceId || undefined
           )
-          setMessageDuration(assistantMessageId)
+          setMessageDuration(assistantMessageId, targetWorkspaceId || undefined)
+
+          if (targetWorkspaceId) {
+            notifyBackgroundWorkspace(targetWorkspaceId, 'Response interrupted before completion.')
+          }
           return
         }
 
         updateMessage(
           assistantMessageId,
           `Sorry, an error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          false
+          false,
+          targetWorkspaceId || undefined
         )
+
+        if (targetWorkspaceId) {
+          notifyBackgroundWorkspace(targetWorkspaceId, 'Agent response failed.')
+        }
       } finally {
-        setLoading(false)
+        setLoading(false, targetWorkspaceId || undefined)
         streamingMessageIdRef.current = null
+        streamingWorkspaceIdRef.current = null
       }
     },
     [
@@ -599,8 +698,9 @@ export function useChat() {
       setLoading,
       sendLocalAgentMessage,
       sendCloudModelMessage,
-      currentWorkspace?.localPath,
+      selectedWorkspace,
       updateMessageMetadata,
+      notifyBackgroundWorkspace,
     ]
   )
 
@@ -613,7 +713,8 @@ export function useChat() {
 
     // Update the streaming message to mark it as complete
     if (streamingMessageIdRef.current) {
-      const currentMessages = selectCurrentMessages(useChatStore.getState())
+      const targetWorkspaceId = streamingWorkspaceIdRef.current
+      const currentMessages = selectMessagesForWorkspace(useChatStore.getState(), targetWorkspaceId)
       const streamingMsg = currentMessages.find(
         (m: Message) => m.id === streamingMessageIdRef.current
       )
@@ -621,13 +722,15 @@ export function useChat() {
         updateMessage(
           streamingMessageIdRef.current,
           streamingMsg.content || 'Generation stopped.',
-          false
+          false,
+          targetWorkspaceId || undefined
         )
       }
       streamingMessageIdRef.current = null
+      streamingWorkspaceIdRef.current = null
     }
 
-    setLoading(false)
+    setLoading(false, streamingWorkspaceIdRef.current || undefined)
   }, [setLoading, updateMessage])
 
   /**
@@ -636,24 +739,27 @@ export function useChat() {
    */
   const sendOpenPRMessage = useCallback(
     async (uncommittedChanges?: number) => {
-      if (!currentWorkspace) {
-        addMessage({
-          role: 'assistant',
-          content: 'No workspace selected. Please select a workspace first.',
-        })
+      if (!selectedWorkspace) {
+        addMessage(
+          {
+            role: 'assistant',
+            content: 'No workspace selected. Please select a workspace first.',
+          },
+          resolvedWorkspaceId || undefined
+        )
         return
       }
 
       const repo = useRepositoryStore
         .getState()
-        .repositories.find((r) => r.id === currentWorkspace.repositoryId)
+        .repositories.find((r) => r.id === selectedWorkspace.repositoryId)
       const targetBranch = repo?.default_branch || 'master'
 
       // Build the PR context
       const context = buildPRContext(
         {
-          branchName: currentWorkspace.branchName,
-          localPath: currentWorkspace.localPath,
+          branchName: selectedWorkspace.branchName,
+          localPath: selectedWorkspace.localPath,
           uncommittedChanges,
         },
         targetBranch
@@ -665,7 +771,7 @@ export function useChat() {
       // Send the PR creation prompt with context
       await sendMessage(promptWithBranch + context)
     },
-    [currentWorkspace, addMessage, sendMessage]
+    [selectedWorkspace, addMessage, sendMessage, resolvedWorkspaceId]
   )
 
   return {
