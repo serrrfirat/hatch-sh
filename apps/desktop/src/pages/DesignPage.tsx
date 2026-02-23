@@ -30,6 +30,17 @@ export function DesignPage() {
     hideNativeWebview()
   }, [hideNativeWebview])
 
+  // Timeout: if the iframe hasn't loaded within 5s (e.g. non-Tauri browser),
+  // show error state instead of blocking the UI with an infinite overlay.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading && !error) {
+        setError('Superdesign proxy is not available. This feature requires the desktop app.')
+      }
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [isLoading, error])
+
   const handleLoad = () => {
     setIsLoading(false)
   }
@@ -44,7 +55,7 @@ export function DesignPage() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-[#0a0a0a]">
+    <div className="relative h-full min-h-0 flex flex-col bg-[#0a0a0a]">
       {isLoading && !error && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0a0a0a]">
           <div className="flex flex-col items-center gap-3">
