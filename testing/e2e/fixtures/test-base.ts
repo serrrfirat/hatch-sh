@@ -19,12 +19,21 @@ export const test = base.extend<{
   settingsPage: SettingsPage
   repositoryOnboarding: RepositoryOnboarding
 }>({
-  // Auto-clear storage before each test
+  // Auto-clear storage before each test, then mark onboarding complete
+  // so the app renders the main shell instead of the OnboardingWizard.
   page: async ({ page }, use) => {
     await page.goto('/')
     await page.evaluate(() => {
       localStorage.clear()
       sessionStorage.clear()
+
+      // The Layout component gates on hasCompletedOnboarding from the
+      // Zustand "hatch-settings" persisted store AND a standalone
+      // localStorage key. Both must be set to bypass onboarding.
+      const settingsKey = 'hatch-settings'
+      const persisted = { state: { hasCompletedOnboarding: true }, version: 0 }
+      localStorage.setItem(settingsKey, JSON.stringify(persisted))
+      localStorage.setItem('hatch-onboarding-done', '1')
     })
     await page.reload()
     await use(page)
