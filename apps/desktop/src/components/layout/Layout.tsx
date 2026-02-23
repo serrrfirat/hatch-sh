@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
-import { ProjectTree } from './ProjectTree'
+
 import { SettingsPage } from '../SettingsPanel'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
@@ -287,18 +287,11 @@ export function Layout() {
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
         {currentPage === 'byoa' ? (
-          <>
-            <ErrorBoundary sectionName="Project Sidebar">
-              <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
-                <ProjectTree />
-              </aside>
-            </ErrorBoundary>
-            <ErrorBoundary sectionName="Build">
-              <div className="flex-1 bg-neutral-950 overflow-hidden">
-                <Outlet />
-              </div>
-            </ErrorBoundary>
-          </>
+          <ErrorBoundary sectionName="Build">
+            <div className="flex-1 bg-neutral-950 overflow-hidden">
+              <Outlet />
+            </div>
+          </ErrorBoundary>
         ) : currentPage === 'design' ? (
           <ErrorBoundary sectionName="Design">
             <div className="flex-1 min-h-0 bg-neutral-950 overflow-hidden">
