@@ -49,3 +49,24 @@ export async function signOut(): Promise<void> {
 export async function validateToken(): Promise<GitHubUser> {
   return invoke<GitHubUser>('github_validate_token')
 }
+
+
+/**
+ * Detect if an error indicates an expired or invalid GitHub auth token.
+ * Checks for common patterns from gh CLI, git, and GitHub API responses.
+ */
+export function isAuthExpiredError(error: unknown): boolean {
+  if (error == null) return false
+
+  const message = error instanceof Error ? error.message : String(error)
+  if (!message) return false
+
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('401') ||
+    lower.includes('bad credentials') ||
+    lower.includes('token expired') || lower.includes('token has expired') ||
+    lower.includes('authentication failed') ||
+    lower.includes('not authenticated')
+  )
+}

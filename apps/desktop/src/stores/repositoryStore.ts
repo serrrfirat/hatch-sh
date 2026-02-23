@@ -33,6 +33,15 @@ export interface Workspace {
   sourcePlanId?: string
 }
 
+export interface Notification {
+  id: string
+  message: string
+  action?: string
+  actionLabel?: string
+  type: 'error' | 'warning' | 'success' | 'info'
+  timestamp: Date
+}
+
 interface RepositoryState {
   // GitHub auth
   githubAuth: GitHubAuthState | null
@@ -51,6 +60,12 @@ interface RepositoryState {
   // Loading states
   isCloning: boolean
   cloneProgress: string | null
+
+  // Notifications
+  notifications: Notification[]
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void
+  removeNotification: (id: string) => void
+  clearNotifications: () => void
 
   // Actions - Auth
   checkGhInstalled: () => Promise<void>
@@ -95,6 +110,8 @@ export const useRepositoryStore = create<RepositoryState>()(
       currentWorkspace: null,
       isCloning: false,
       cloneProgress: null,
+      notifications: [],
+
 
       // Auth actions
       checkGhInstalled: async () => {
@@ -104,6 +121,24 @@ export const useRepositoryStore = create<RepositoryState>()(
         } catch {
           set({ isGhInstalled: false })
         }
+      },
+
+      // Notification actions
+      addNotification: (notification) => {
+        const id = `${Date.now()}-${Math.random()}`
+        set((state) => ({
+          notifications: [...state.notifications, { ...notification, id, timestamp: new Date() }],
+        }))
+      },
+
+      removeNotification: (id) => {
+        set((state) => ({
+          notifications: state.notifications.filter((n) => n.id !== id),
+        }))
+      },
+
+      clearNotifications: () => {
+        set({ notifications: [] })
       },
 
       checkGitHubAuth: async () => {
@@ -141,17 +176,18 @@ export const useRepositoryStore = create<RepositoryState>()(
         try {
           const repoName = gitBridge.extractRepoName(url)
           const repo = await gitBridge.cloneRepo(url, repoName)
-
           set((state) => ({
             repositories: [...state.repositories, repo],
             currentRepository: repo,
             isCloning: false,
             cloneProgress: null,
           }))
-
           return repo
         } catch (error) {
           set({ isCloning: false, cloneProgress: null })
+          if (githubBridge.isAuthExpiredError(error)) {
+            useSettingsStore.getState().setAuthExpired(true)
+          }
           throw error
         }
       },
@@ -417,6 +453,9 @@ export const useRepositoryStore = create<RepositoryState>()(
           get().updateWorkspaceStatus(workspaceId, 'idle')
         } catch (error) {
           get().updateWorkspaceStatus(workspaceId, 'error')
+          if (githubBridge.isAuthExpiredError(error)) {
+            useSettingsStore.getState().setAuthExpired(true)
+          }
           throw error
         }
       },
@@ -500,6 +539,7 @@ export const useRepositoryStore = create<RepositoryState>()(
             : state.currentWorkspace,
         }))
       },
+
     }),
     {
       name: 'hatch-repositories',

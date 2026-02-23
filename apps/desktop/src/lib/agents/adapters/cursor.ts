@@ -18,6 +18,7 @@ import type {
   StreamEvent,
   SendMessageOptions,
 } from '../types'
+import { createLineBuffer, safeParseJsonLine } from '../streamUtils'
 
 const config: AgentConfig = {
   id: 'cursor',
@@ -32,10 +33,7 @@ const config: AgentConfig = {
 /**
  * Build a prompt string from message history for Cursor
  */
-function buildPromptFromMessages(
-  messages: AgentMessage[],
-  systemPrompt?: string
-): string {
+function buildPromptFromMessages(messages: AgentMessage[], systemPrompt?: string): string {
   let contextPrompt = ''
 
   // Add system prompt if provided
@@ -70,115 +68,141 @@ function buildPromptFromMessages(
  * - {"type":"result","subtype":"success",...} - completion
  */
 function parseCursorOutput(line: string): StreamEvent | null {
-  if (!line.trim()) return null
+  const parsed = safeParseJsonLine(line, 'cursor')
+  if (parsed.errorEvent) return parsed.errorEvent
+  if (!parsed.value || typeof parsed.value !== 'object') return null
 
-  try {
-    const data = JSON.parse(line)
+  const data = parsed.value as Record<string, unknown>
 
-    // Handle system init (ignore)
-    if (data.type === 'system') {
-      return null
-    }
-
-    // Handle user message echo (ignore)
-    if (data.type === 'user') {
-      return null
-    }
-
-    // Handle thinking events
-    if (data.type === 'thinking') {
-      if (data.subtype === 'delta' && data.text) {
-        return { type: 'thinking', content: data.text }
-      }
-      // thinking completed - ignore
-      return null
-    }
-
-    // Handle assistant message
-    if (data.type === 'assistant' && data.message) {
-      const content = data.message.content
-      if (Array.isArray(content)) {
-        // Extract text from content array
-        const textParts = content
-          .filter((part: { type: string }) => part.type === 'text')
-          .map((part: { text: string }) => part.text)
-          .join('')
-        if (textParts) {
-          return { type: 'text', content: textParts }
-        }
-      }
-      return null
-    }
-
-    // Handle tool call events
-    if (data.type === 'tool_call') {
-      const callId = data.call_id || String(Date.now())
-      const toolCall = data.tool_call || {}
-
-      if (data.subtype === 'started') {
-        // Extract tool name and input from the tool_call object
-        // Format: { readToolCall: { args: {...} } } or { bashToolCall: { args: {...} } }
-        const toolType = Object.keys(toolCall)[0] || 'unknown'
-        const toolName = toolType.replace('ToolCall', '').replace(/([A-Z])/g, ' $1').trim()
-        const toolData = toolCall[toolType] || {}
-        const toolInput = toolData.args || {}
-
-        return {
-          type: 'tool_use',
-          toolName,
-          toolId: callId,
-          toolInput,
-        }
-      }
-
-      if (data.subtype === 'completed') {
-        // Extract result from the tool_call object
-        const toolType = Object.keys(toolCall)[0] || 'unknown'
-        const toolData = toolCall[toolType] || {}
-        const result = toolData.result
-
-        if (result) {
-          // Handle success/error results
-          const resultContent = result.success || result.error
-          const resultStr = typeof resultContent === 'string'
-            ? resultContent
-            : resultContent?.content || JSON.stringify(resultContent)
-
-          return {
-            type: 'tool_result',
-            toolId: callId,
-            toolResult: resultStr,
-          }
-        }
-        return null
-      }
-    }
-
-    // Handle result/completion
-    if (data.type === 'result') {
-      if (data.subtype === 'error' || data.is_error) {
-        return { type: 'error', content: data.result || 'Cursor agent error' }
-      }
-      // Success result may contain the full response
-      if (data.result && typeof data.result === 'string') {
-        return { type: 'text', content: data.result }
-      }
-      return { type: 'done' }
-    }
-
-    // Handle error events
-    if (data.type === 'error') {
-      return { type: 'error', content: data.message || data.error || 'Error' }
-    }
-
+  // Handle system init (ignore)
+  if (data.type === 'system') {
     return null
-  } catch {
-    // Not JSON, treat as plain text
-    if (line.trim()) {
-      return { type: 'text', content: line + '\n' }
+  }
+
+  // Handle user message echo (ignore)
+  if (data.type === 'user') {
+    return null
+  }
+
+  // Handle thinking events
+  if (data.type === 'thinking') {
+    if (data.subtype === 'delta' && typeof data.text === 'string') {
+      return { type: 'thinking', content: data.text }
+    }
+    // thinking completed - ignore
+    return null
+  }
+
+  // Handle assistant message
+  if (data.type === 'assistant' && data.message && typeof data.message === 'object') {
+    const message = data.message as Record<string, unknown>
+    const content = message.content
+    if (Array.isArray(content)) {
+      // Extract text from content array
+      const textParts = content
+        .filter((part): part is Record<string, unknown> => !!part && typeof part === 'object')
+        .filter((part) => part.type === 'text')
+        .map((part) => (typeof part.text === 'string' ? part.text : ''))
+        .join('')
+      if (textParts) {
+        return { type: 'text', content: textParts }
+      }
     }
     return null
   }
+
+  // Handle tool call events
+  if (data.type === 'tool_call') {
+    const callId = typeof data.call_id === 'string' ? data.call_id : String(Date.now())
+    const toolCall =
+      data.tool_call && typeof data.tool_call === 'object'
+        ? (data.tool_call as Record<string, unknown>)
+        : {}
+
+    if (data.subtype === 'started') {
+      // Extract tool name and input from the tool_call object
+      // Format: { readToolCall: { args: {...} } } or { bashToolCall: { args: {...} } }
+      const toolType = Object.keys(toolCall)[0] ?? 'unknown'
+      const toolName = toolType
+        .replace('ToolCall', '')
+        .replace(/([A-Z])/g, ' $1')
+        .trim()
+      const toolData =
+        toolCall[toolType] && typeof toolCall[toolType] === 'object'
+          ? (toolCall[toolType] as Record<string, unknown>)
+          : {}
+      const toolInput =
+        toolData.args && typeof toolData.args === 'object'
+          ? (toolData.args as Record<string, unknown>)
+          : {}
+
+      return {
+        type: 'tool_use',
+        toolName,
+        toolId: callId,
+        toolInput,
+      }
+    }
+
+    if (data.subtype === 'completed') {
+      // Extract result from the tool_call object
+      const toolType = Object.keys(toolCall)[0] ?? 'unknown'
+      const toolData =
+        toolCall[toolType] && typeof toolCall[toolType] === 'object'
+          ? (toolCall[toolType] as Record<string, unknown>)
+          : {}
+      const result = toolData.result
+
+      if (result) {
+        const resultObj =
+          result && typeof result === 'object' ? (result as Record<string, unknown>) : undefined
+        const resultContent = resultObj?.success ?? resultObj?.error ?? result
+        const resultStr =
+          typeof resultContent === 'string'
+            ? resultContent
+            : resultContent && typeof resultContent === 'object'
+              ? typeof (resultContent as Record<string, unknown>).content === 'string'
+                ? ((resultContent as Record<string, unknown>).content as string)
+                : JSON.stringify(resultContent)
+              : JSON.stringify(resultContent)
+
+        return {
+          type: 'tool_result',
+          toolId: callId,
+          toolResult: resultStr,
+        }
+      }
+      return null
+    }
+  }
+
+  // Handle result/completion
+  if (data.type === 'result') {
+    if (data.subtype === 'error' || data.is_error) {
+      return {
+        type: 'error',
+        content: typeof data.result === 'string' ? data.result : 'Cursor agent error',
+      }
+    }
+    // Success result may contain the full response
+    if (data.result && typeof data.result === 'string') {
+      return { type: 'text', content: data.result }
+    }
+    return { type: 'done' }
+  }
+
+  // Handle error events
+  if (data.type === 'error') {
+    const content =
+      typeof data.message === 'string'
+        ? data.message
+        : typeof data.error === 'string'
+          ? data.error
+          : 'Error'
+    return { type: 'error', content }
+  }
+
+  return null
 }
 
 export const cursorAdapter: AgentAdapter = {
@@ -195,18 +219,12 @@ export const cursorAdapter: AgentAdapter = {
       return {
         installed: false,
         authenticated: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to check Cursor Agent status',
+        error: error instanceof Error ? error.message : 'Failed to check Cursor Agent status',
       }
     }
   },
 
-  async sendMessage(
-    messages: AgentMessage[],
-    options?: SendMessageOptions
-  ): Promise<string> {
+  async sendMessage(messages: AgentMessage[], options?: SendMessageOptions): Promise<string> {
     const { systemPrompt, onStream, model, workingDirectory } = options || {}
     const prompt = buildPromptFromMessages(messages, systemPrompt)
 
@@ -227,73 +245,41 @@ export const cursorAdapter: AgentAdapter = {
       }
 
       // Parse NDJSON output and emit stream events
-      // Cursor outputs multiple JSON objects, possibly on same line or separate lines
       let fullResponse = ''
       const stdout = result.stdout
 
-      // Extract JSON objects using brace matching (handles nested objects)
-      const jsonObjects: string[] = []
-      let braceCount = 0
-      let currentObj = ''
-      let inString = false
-      let escapeNext = false
+      const lineBuffer = createLineBuffer()
+      const chunkSize = 256
 
-      for (const char of stdout) {
-        if (escapeNext) {
-          currentObj += char
-          escapeNext = false
-          continue
-        }
-
-        if (char === '\\' && inString) {
-          currentObj += char
-          escapeNext = true
-          continue
-        }
-
-        if (char === '"' && !escapeNext) {
-          inString = !inString
-        }
-
-        if (!inString) {
-          if (char === '{') {
-            if (braceCount === 0) currentObj = ''
-            braceCount++
-          }
-          if (char === '}') {
-            braceCount--
-            if (braceCount === 0) {
-              currentObj += char
-              jsonObjects.push(currentObj)
-              currentObj = ''
-              continue
-            }
-          }
-        }
-
-        if (braceCount > 0) {
-          currentObj += char
-        }
-      }
-
-      for (const jsonStr of jsonObjects) {
-        try {
-          const event = parseCursorOutput(jsonStr)
+      for (let index = 0; index < stdout.length; index += chunkSize) {
+        const chunk = stdout.slice(index, index + chunkSize)
+        for (const line of lineBuffer.pushChunk(chunk)) {
+          const event = parseCursorOutput(line)
           if (event) {
             onStream?.(event)
             if (event.type === 'text' && event.content) {
               fullResponse += event.content
             }
           }
-        } catch {
-          // Skip invalid JSON
+        }
+      }
+
+      for (const line of lineBuffer.flush()) {
+        const event = parseCursorOutput(line)
+        if (event) {
+          onStream?.(event)
+          if (event.type === 'text' && event.content) {
+            fullResponse += event.content
+          }
         }
       }
 
       // Fallback: if no text was extracted, try to find the result field directly
       if (!fullResponse.trim()) {
         // Look for the final result in the output
-        const resultMatch = stdout.match(/"type"\s*:\s*"result"[^}]*"result"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s)
+        const resultMatch = stdout.match(
+          /"type"\s*:\s*"result"[^}]*"result"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s
+        )
         if (resultMatch && resultMatch[1]) {
           // Unescape the JSON string
           fullResponse = resultMatch[1]
@@ -306,7 +292,9 @@ export const cursorAdapter: AgentAdapter = {
 
       // Last resort: try to find any assistant message content
       if (!fullResponse.trim()) {
-        const assistantMatch = stdout.match(/"type"\s*:\s*"assistant"[^}]*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s)
+        const assistantMatch = stdout.match(
+          /"type"\s*:\s*"assistant"[^}]*"text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s
+        )
         if (assistantMatch && assistantMatch[1]) {
           fullResponse = assistantMatch[1]
             .replace(/\\n/g, '\n')

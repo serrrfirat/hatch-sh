@@ -102,6 +102,7 @@ Hatch uses a machine-readable policy contract at `.github/risk-policy.json`.
 - `risk-policy-gate` runs first in PR CI and classifies change risk tier from changed paths.
 - High-risk paths (desktop runtime, agent harness, CI control plane) require stricter checks.
 - UI-surface changes automatically require the **Browser Evidence** check.
+ The `review-head-sha-gate` job was removed from `ci-pr.yml` (no active review bot configured).
 - Control-plane changes (`.github/workflows/**`, risk policy script/contract) must update one of:
   - `docs/TEST_STRATEGY_DESKTOP.md`
   - `docs/CRITICAL_DESKTOP_FLOWS.md`

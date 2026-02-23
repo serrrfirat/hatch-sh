@@ -9,6 +9,7 @@ import { AtmosphericBackground } from '../components/ideaMaze/AtmosphericBackgro
 import { VerticalToolbar } from '../components/ideaMaze/VerticalToolbar'
 import { IdeaMazeCanvas } from '../components/ideaMaze/IdeaMazeCanvas'
 import { IdeaMazeSidebar } from '../components/ideaMaze/IdeaMazeSidebar'
+import { SaveIndicator } from '../components/ideaMaze/SaveIndicator'
 import { sidebarVariants, COLORS } from '../lib/ideaMaze/animations'
 import type { PlanContent } from '../lib/ideaMaze/types'
 
@@ -28,6 +29,8 @@ export function IdeaMazePage() {
     deleteSelection,
     duplicateSelection,
     addNode,
+    undo,
+    redo,
   } = useIdeaMazeStore()
 
   const { repositories, createWorkspace, setCurrentWorkspace } = useRepositoryStore()
@@ -41,14 +44,17 @@ export function IdeaMazePage() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
 
   // Handle Build This button click
-  const handleBuildPlan = useCallback((planContent: PlanContent) => {
-    setBuildPlanContent(planContent)
-    setBuildModalOpen(true)
-    // Pre-select first repo if available
-    if (repositories.length > 0 && !selectedRepoId) {
-      setSelectedRepoId(repositories[0].id)
-    }
-  }, [repositories, selectedRepoId])
+  const handleBuildPlan = useCallback(
+    (planContent: PlanContent) => {
+      setBuildPlanContent(planContent)
+      setBuildModalOpen(true)
+      // Pre-select first repo if available
+      if (repositories.length > 0 && !selectedRepoId) {
+        setSelectedRepoId(repositories[0].id)
+      }
+    },
+    [repositories, selectedRepoId]
+  )
 
   // Create workspace from plan
   const handleCreateWorkspace = useCallback(async () => {
@@ -95,7 +101,14 @@ export function IdeaMazePage() {
     } finally {
       setIsCreatingWorkspace(false)
     }
-  }, [selectedRepoId, buildPlanContent, createWorkspace, setCurrentWorkspace, setCurrentPage, addChatMessage])
+  }, [
+    selectedRepoId,
+    buildPlanContent,
+    createWorkspace,
+    setCurrentWorkspace,
+    setCurrentPage,
+    addChatMessage,
+  ])
 
   // Initialize storage on mount
   useEffect(() => {
@@ -145,10 +158,7 @@ export function IdeaMazePage() {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Ignore if typing in an input
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
       }
 
@@ -189,6 +199,16 @@ export function IdeaMazePage() {
             selectAll()
           }
           break
+        case 'z':
+          if (isMeta) {
+            e.preventDefault()
+            if (e.shiftKey) {
+              redo()
+            } else {
+              undo()
+            }
+          }
+          break
         case 'd':
           if (isMeta) {
             // Cmd+D - Duplicate
@@ -210,17 +230,14 @@ export function IdeaMazePage() {
           break
       }
     },
-    [setToolMode, selectAll, clearSelection, deleteSelection, duplicateSelection]
+    [setToolMode, selectAll, clearSelection, deleteSelection, duplicateSelection, undo, redo]
   )
 
   // Handle paste - create new node with pasted content
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
       // Ignore if typing in an input
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
       }
 
@@ -237,10 +254,9 @@ export function IdeaMazePage() {
       const centerY = -viewport.y / viewport.zoom + 300
 
       // Create node with pasted text
-      addNode(
-        { x: centerX, y: centerY },
-        [{ type: 'text', id: crypto.randomUUID(), text: text.trim() }]
-      )
+      addNode({ x: centerX, y: centerY }, [
+        { type: 'text', id: crypto.randomUUID(), text: text.trim() },
+      ])
     },
     [currentMoodboard, viewport, addNode]
   )
@@ -257,10 +273,18 @@ export function IdeaMazePage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="h-full w-full flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+      <div
+        className="h-full w-full flex items-center justify-center"
+        style={{ backgroundColor: COLORS.background }}
+      >
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: COLORS.primary }} />
-          <p className="text-sm" style={{ color: COLORS.textMuted }}>Loading Idea Maze...</p>
+          <Loader2
+            className="w-8 h-8 animate-spin mx-auto mb-4"
+            style={{ color: COLORS.primary }}
+          />
+          <p className="text-sm" style={{ color: COLORS.textMuted }}>
+            Loading Idea Maze...
+          </p>
         </div>
       </div>
     )
@@ -269,11 +293,18 @@ export function IdeaMazePage() {
   // Error state
   if (storageError) {
     return (
-      <div className="h-full w-full flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+      <div
+        className="h-full w-full flex items-center justify-center"
+        style={{ backgroundColor: COLORS.background }}
+      >
         <div className="text-center max-w-md p-6">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-          <h2 className="text-lg font-semibold mb-2" style={{ color: COLORS.text }}>Failed to Load</h2>
-          <p className="text-sm mb-4" style={{ color: COLORS.textMuted }}>{storageError}</p>
+          <h2 className="text-lg font-semibold mb-2" style={{ color: COLORS.text }}>
+            Failed to Load
+          </h2>
+          <p className="text-sm mb-4" style={{ color: COLORS.textMuted }}>
+            {storageError}
+          </p>
           <button
             onClick={() => initializeStore()}
             className="flex items-center gap-2 px-4 py-2 rounded-lg mx-auto transition-colors hover:opacity-90"
@@ -290,11 +321,7 @@ export function IdeaMazePage() {
   return (
     <div className="h-full w-full flex relative overflow-hidden">
       {/* Dot Grid Background */}
-      <AtmosphericBackground
-        zoom={viewport.zoom}
-        offsetX={viewport.x}
-        offsetY={viewport.y}
-      />
+      <AtmosphericBackground zoom={viewport.zoom} offsetX={viewport.x} offsetY={viewport.y} />
 
       {/* Left: Vertical Toolbar */}
       <VerticalToolbar />
@@ -302,6 +329,9 @@ export function IdeaMazePage() {
       {/* Center: Canvas */}
       <div className="flex-1 relative">
         <IdeaMazeCanvas onBuildPlan={handleBuildPlan} />
+        <div className="absolute top-4 right-4 z-20">
+          <SaveIndicator />
+        </div>
       </div>
 
       {/* Right: AI Sidebar */}
@@ -382,7 +412,10 @@ export function IdeaMazePage() {
                   {/* Plan summary */}
                   <div
                     className="p-3 rounded-lg"
-                    style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                    style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.2)',
+                    }}
                   >
                     <p className="text-sm" style={{ color: COLORS.text }}>
                       {buildPlanContent.summary}
@@ -394,13 +427,19 @@ export function IdeaMazePage() {
 
                   {/* Repository selector */}
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: COLORS.textMuted }}>
+                    <label
+                      className="block text-xs uppercase tracking-wider mb-2"
+                      style={{ color: COLORS.textMuted }}
+                    >
                       Select Repository
                     </label>
                     {repositories.length === 0 ? (
                       <div
                         className="p-4 rounded-lg text-center"
-                        style={{ backgroundColor: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)' }}
+                        style={{
+                          backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                          border: '1px solid rgba(251, 191, 36, 0.3)',
+                        }}
                       >
                         <FolderGit2 size={24} className="text-amber-400 mx-auto mb-2" />
                         <p className="text-sm text-amber-400">No repositories found</p>
@@ -416,22 +455,28 @@ export function IdeaMazePage() {
                             onClick={() => setSelectedRepoId(repo.id)}
                             className="w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors"
                             style={{
-                              backgroundColor: selectedRepoId === repo.id
-                                ? 'rgba(16, 185, 129, 0.2)'
-                                : `${COLORS.surface}80`,
-                              border: selectedRepoId === repo.id
-                                ? '1px solid rgba(16, 185, 129, 0.4)'
-                                : `1px solid ${COLORS.border}30`,
+                              backgroundColor:
+                                selectedRepoId === repo.id
+                                  ? 'rgba(16, 185, 129, 0.2)'
+                                  : `${COLORS.surface}80`,
+                              border:
+                                selectedRepoId === repo.id
+                                  ? '1px solid rgba(16, 185, 129, 0.4)'
+                                  : `1px solid ${COLORS.border}30`,
                             }}
                           >
                             <FolderGit2
                               size={18}
-                              style={{ color: selectedRepoId === repo.id ? '#10b981' : COLORS.textMuted }}
+                              style={{
+                                color: selectedRepoId === repo.id ? '#10b981' : COLORS.textMuted,
+                              }}
                             />
                             <div className="flex-1 min-w-0">
                               <p
                                 className="text-sm font-medium truncate"
-                                style={{ color: selectedRepoId === repo.id ? '#10b981' : COLORS.text }}
+                                style={{
+                                  color: selectedRepoId === repo.id ? '#10b981' : COLORS.text,
+                                }}
                               >
                                 {repo.name}
                               </p>
@@ -449,7 +494,10 @@ export function IdeaMazePage() {
                 {/* Footer */}
                 <div
                   className="flex justify-end gap-3 px-5 py-4"
-                  style={{ borderTop: `1px solid ${COLORS.border}`, backgroundColor: `${COLORS.surface}40` }}
+                  style={{
+                    borderTop: `1px solid ${COLORS.border}`,
+                    backgroundColor: `${COLORS.surface}40`,
+                  }}
                 >
                   <button
                     onClick={() => setBuildModalOpen(false)}

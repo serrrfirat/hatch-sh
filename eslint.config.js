@@ -17,6 +17,8 @@ export default tseslint.config(
       'packages/config/**/*.js',
       // Ignore scripts (often have different lint requirements)
       'scripts/**',
+      // Ignore git worktrees (local dev only)
+      '.worktrees/**',
     ],
   },
 

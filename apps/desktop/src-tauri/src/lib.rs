@@ -59,6 +59,57 @@ pub struct AvailableModels {
     error: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct ProjectFileInput {
+    path: String,
+    content: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ProjectFileWriteResult {
+    path: String,
+    success: bool,
+    size: usize,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn write_project_files(files: Vec<ProjectFileInput>, base_dir: String) -> Vec<ProjectFileWriteResult> {
+    let mut results = Vec::with_capacity(files.len());
+
+    for file in files {
+        let full_path = PathBuf::from(&base_dir).join(&file.path);
+        let mut write_result = ProjectFileWriteResult {
+            path: file.path.clone(),
+            success: false,
+            size: 0,
+            error: None,
+        };
+
+        if let Some(parent) = full_path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                write_result.error = Some(format!("Failed to create parent directories: {}", error));
+                results.push(write_result);
+                continue;
+            }
+        }
+
+        match std::fs::write(&full_path, file.content.as_bytes()) {
+            Ok(_) => {
+                write_result.success = true;
+                write_result.size = file.content.len();
+            }
+            Err(error) => {
+                write_result.error = Some(format!("Failed to write file: {}", error));
+            }
+        }
+
+        results.push(write_result);
+    }
+
+    results
+}
+
 // =============================================================================
 // Claude Code Implementation
 // =============================================================================
@@ -326,8 +377,30 @@ stderr: "Claude Code not found".to_string(),
     };
 
     let stdout = child.stdout.take().expect("Failed to get stdout");
+    let stderr = child.stderr.take().expect("Failed to get stderr");
     let mut reader = BufReader::new(stdout).lines();
     let mut full_output = String::new();
+
+    let stderr_app = app.clone();
+    let stderr_session_id = session_id.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut full_stderr = String::new();
+
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            if !line.is_empty() {
+                full_stderr.push_str(&line);
+                full_stderr.push('\n');
+                let _ = stderr_app.emit("claude-stream", StreamEvent {
+                    event_type: "stderr".to_string(),
+                    data: line,
+                    session_id: stderr_session_id.clone(),
+                });
+            }
+        }
+
+        full_stderr
+    });
 
     // Stream each line as an event
     while let Ok(Some(line)) = reader.next_line().await {
@@ -351,6 +424,22 @@ stderr: "Claude Code not found".to_string(),
         Err(_) => (false, None),
     };
 
+    let full_stderr = stderr_handle.await.unwrap_or_default();
+
+    if !success {
+        let error_message = if !full_stderr.trim().is_empty() {
+            format!("Claude Code stream interrupted (exit {:?}): {}", exit_code, full_stderr.trim())
+        } else {
+            format!("Claude Code stream interrupted (exit {:?})", exit_code)
+        };
+
+        let _ = app.emit("claude-stream", StreamEvent {
+            event_type: "error".to_string(),
+            data: error_message.clone(),
+            session_id: session_id.clone(),
+        });
+    }
+
     // Emit completion event
     let _ = app.emit("claude-stream", StreamEvent {
         event_type: "done".to_string(),
@@ -361,7 +450,7 @@ stderr: "Claude Code not found".to_string(),
     CommandResult {
         success,
         stdout: full_output,
-        stderr: String::new(),
+        stderr: full_stderr,
         code: exit_code,
     }
 }
@@ -671,6 +760,20 @@ async fn run_opencode_streaming(
         Ok(s) => (s.success(), s.code()),
         Err(_) => (false, None),
     };
+
+    if !success {
+        let error_message = if !full_stderr.trim().is_empty() {
+            format!("Opencode stream interrupted (exit {:?}): {}", exit_code, full_stderr.trim())
+        } else {
+            format!("Opencode stream interrupted (exit {:?})", exit_code)
+        };
+
+        let _ = app.emit("opencode-stream", StreamEvent {
+            event_type: "error".to_string(),
+            data: error_message,
+            session_id: session_id.clone(),
+        });
+    }
 
     // Emit completion event
     let _ = app.emit("opencode-stream", StreamEvent {
@@ -1290,16 +1393,180 @@ async fn webview_navigate(app: tauri::AppHandle, webview_label: String, directio
         .map_err(|e| format!("Failed to execute navigation: {}", e))
 }
 
+
+// =============================================================================
+// File Tree Commands
+// =============================================================================
+/// Read a directory tree recursively for the file tree sidebar.
+/// Delegates to the existing list_directory_files logic from git.rs.
+/// Skips hidden files (starting with '.'), node_modules, target, .git.
+/// Sorts directories first, then files, both alphabetically.
+/// Max depth: 10 levels.
+#[tauri::command]
+async fn read_directory_tree(path: String) -> Result<Vec<git::FileEntry>, String> {
+    list_directory_files(path, Some(10), Some(false)).await
+}
+
+// =============================================================================
+// Design Page Proxy (strips X-Frame-Options for iframe embedding)
+// =============================================================================
+/// Headers that block iframe embedding — stripped by the proxy
+const BLOCKED_HEADERS: &[&str] = &[
+    "x-frame-options",
+    "content-security-policy",
+    "x-content-type-options",
+];
+/// Transport headers that don't apply after reqwest decompresses the body
+const TRANSPORT_HEADERS: &[&str] = &[
+    "content-encoding",
+    "transfer-encoding",
+    "content-length",
+];
+fn should_rewrite_content(content_type: &str) -> bool {
+    let ct = content_type.to_lowercase();
+    ct.starts_with("text/") || ct.contains("javascript") || ct.contains("json")
+}
+/// JavaScript injected into proxied HTML to intercept dynamically-created iframes
+/// and rewrite their src from p.superdesign.dev to our proxy.
+const PROXY_REWRITE_SCRIPT: &str = r#"<script>
+(function(){
+  var P='https://p.superdesign.dev',R='hatch-proxy://localhost/__p';
+  function rw(u){if(!u)return u;if(u.indexOf(P)===0)return R+u.substring(P.length);if(u.indexOf('//p.superdesign.dev')===0)return R+u.substring('//p.superdesign.dev'.length);return u;}
+  var d=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,'src');
+  if(d&&d.set){Object.defineProperty(HTMLIFrameElement.prototype,'src',{get:d.get,set:function(v){d.set.call(this,rw(v));},configurable:true});}
+  var sa=Element.prototype.setAttribute;
+  Element.prototype.setAttribute=function(n,v){if(n==='src'&&this.tagName==='IFRAME')return sa.call(this,n,rw(v));return sa.call(this,n,v);};
+  new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(node){
+    if(node.nodeType!==1)return;
+    var frames=node.tagName==='IFRAME'?[node]:Array.prototype.slice.call(node.querySelectorAll?node.querySelectorAll('iframe[src]'):[]);
+    frames.forEach(function(f){var s=f.getAttribute('src');if(s){var r=rw(s);if(r!==s)f.setAttribute('src',r);}});
+  });});}).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>"#;
+
+fn rewrite_proxy_urls(raw_body: Vec<u8>) -> Vec<u8> {
+    String::from_utf8(raw_body)
+        .map(|text| {
+            text.replace("https://p.superdesign.dev", "hatch-proxy://localhost/__p")
+                .replace("http://p.superdesign.dev", "hatch-proxy://localhost/__p")
+                .replace("//p.superdesign.dev", "//localhost/__p")
+                .into_bytes()
+        })
+        .unwrap_or_else(|e| e.into_bytes())
+}
+fn inject_rewrite_script(body: Vec<u8>) -> Vec<u8> {
+    if let Ok(html) = String::from_utf8(body) {
+        if let Some(pos) = html.find("<head") {
+            if let Some(close) = html[pos..].find('>') {
+                let inject_at = pos + close + 1;
+                let mut result = String::with_capacity(html.len() + PROXY_REWRITE_SCRIPT.len());
+                result.push_str(&html[..inject_at]);
+                result.push_str(PROXY_REWRITE_SCRIPT);
+                result.push_str(&html[inject_at..]);
+                return result.into_bytes();
+            }
+        }
+        html.into_bytes()
+    } else {
+        Vec::new()
+    }
+}
+async fn proxy_fetch(client: &reqwest::Client, url: &str) -> http::Response<Vec<u8>> {
+    match client.get(url).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let mut headers: Vec<(String, String)> = Vec::new();
+            for (name, value) in resp.headers() {
+                let name_lower = name.as_str().to_lowercase();
+                if BLOCKED_HEADERS.contains(&name_lower.as_str()) {
+                    continue;
+                }
+                if TRANSPORT_HEADERS.contains(&name_lower.as_str()) {
+                    continue;
+                }
+                if let Ok(v) = value.to_str() {
+                    headers.push((name.as_str().to_string(), v.to_string()));
+                }
+            }
+            let raw_body = resp.bytes().await.unwrap_or_default().to_vec();
+            let content_type = headers.iter()
+                .find(|(n, _)| n.eq_ignore_ascii_case("content-type"))
+                .map(|(_, v)| v.as_str())
+                .unwrap_or("");
+            let is_html = content_type.contains("text/html");
+            let body = if should_rewrite_content(content_type) {
+                let rewritten = rewrite_proxy_urls(raw_body);
+                if is_html {
+                    inject_rewrite_script(rewritten)
+                } else {
+                    rewritten
+                }
+            } else {
+                raw_body
+            };
+            let mut builder = http::Response::builder()
+                .status(status)
+                .header("access-control-allow-origin", "*");
+            for (name, value) in &headers {
+                builder = builder.header(name.as_str(), value.as_str());
+            }
+            builder.body(body).unwrap_or_else(|_| {
+                http::Response::builder()
+                    .status(500)
+                    .header("content-type", "text/plain")
+                    .body(b"Failed to build proxy response".to_vec())
+                    .unwrap()
+            })
+        }
+        Err(e) => {
+            http::Response::builder()
+                .status(502)
+                .header("content-type", "text/plain")
+                .body(format!("Proxy error: {}", e).into_bytes())
+                .unwrap()
+        }
+    }
+}
 // =============================================================================
 // Application Entry Point
 // =============================================================================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Shared HTTP client for the design page proxy (reqwest::Client uses Arc internally)
+    let proxy_client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .register_asynchronous_uri_scheme_protocol("hatch-proxy", move |_ctx, request, responder| {
+            let client = proxy_client.clone();
+            let uri = request.uri().clone();
+            let path = uri.path().to_string();
+            let query = uri.query().map(|q| q.to_string());
+            let (host, effective_path) = if let Some(rest) = path.strip_prefix("/__p") {
+                let ep = if rest.is_empty() || rest == "/" {
+                    "/".to_string()
+                } else {
+                    rest.to_string()
+                };
+                ("p.superdesign.dev", ep)
+            } else {
+                ("app.superdesign.dev", path)
+            };
+
+            let target_url = match query {
+                Some(ref q) => format!("https://{}{}?{}", host, effective_path, q),
+                None => format!("https://{}{}", host, effective_path),
+            };
+            tauri::async_runtime::spawn(async move {
+                let response = proxy_fetch(&client, &target_url).await;
+                responder.respond(response);
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             // Generic agent commands
             check_agent,
@@ -1348,8 +1615,11 @@ pub fn run() {
             is_skill_installed,
             get_skill_install_path,
             run_shell_command,
+            write_project_files,
             // Webview navigation
-            webview_navigate
+            webview_navigate,
+            // File tree
+            read_directory_tree
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -95,6 +95,9 @@ interface SettingsState {
   /** Current step in the onboarding wizard (0-3) */
   onboardingStep: number;
 
+
+  /** Whether GitHub auth token has expired (detected from 401 errors) */
+  authExpired: boolean;
   /** API URL for the hatch.sh backend */
   apiUrl: string;
 
@@ -155,6 +158,10 @@ interface SettingsState {
   // Legacy setters for backwards compatibility
   setClaudeCodeStatus: (status: AgentStatus | null) => void;
   setIsCheckingClaudeCode: (checking: boolean) => void;
+
+  // Auth expiration actions
+  setAuthExpired: (expired: boolean) => void;
+  clearAuthExpired: () => void;
 }
 
 // Initialize empty status for all local CLI agents
@@ -218,6 +225,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       anthropicApiKey: null,
       apiKeyValidated: false,
+      authExpired: false,
 
       setAgentMode: (mode) => set({ agentMode: mode }),
 
@@ -356,6 +364,10 @@ export const useSettingsStore = create<SettingsState>()(
       setApiKeyValidated: (validated) => set({ apiKeyValidated: validated }),
       clearApiKey: () =>
         set({ anthropicApiKey: null, apiKeyValidated: false }),
+
+      // Auth expiration actions
+      setAuthExpired: (expired) => set({ authExpired: expired }),
+      clearAuthExpired: () => set({ authExpired: false }),
     }),
     {
       name: "hatch-settings",
