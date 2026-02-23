@@ -695,3 +695,43 @@ Added image attachment support to the chat composer with drag-drop, file picker,
 
 - Rust process manager enforces backend-side concurrency limit from managed state initialization (`3`, clamped to hard cap `5`).
 - Frontend manager constructor supports configurable concurrency while always clamping to hard cap `5`.
+
+## Task 15: Multi-Agent Dashboard UI
+
+### Summary
+
+Created `AgentDashboard` component with TDD (22 tests first, then implementation). Component shows all active agents as a collapsible panel in the sidebar, with streaming indicators, status pills, quick actions, and workspace switching.
+
+### Files Created
+
+1. `apps/desktop/src/components/layout/AgentDashboard.tsx` — Dashboard component + pure functions
+2. `apps/desktop/src/components/layout/__tests__/AgentDashboard.test.ts` — 22 unit tests
+
+### Files Modified
+
+- `apps/desktop/src/components/layout/Layout.tsx` — Added AgentDashboard import and render in sidebar
+
+### Key Design Decisions
+
+1. **Pure functions exported for testability**: `formatElapsedTime`, `getAgentStatusLabel`, `getAgentStatusColor`, `buildAgentRow` — all pure, tested without jsdom rendering
+2. **AgentRowData interface**: Combines ManagedAgentProcess + Workspace data into a flat row for rendering
+3. **2-second polling**: `setInterval(refreshProcesses, 2_000)` with cleanup in useEffect
+4. **Collapsible panel**: Toggle header with ChevronUp/ChevronDown, AnimatePresence for animation
+5. **Compact mode**: `compact` prop shows icons + workspace names only for narrow sidebars
+6. **Workspace status pills**: Reused same statusConfig pattern from ProjectTree.tsx
+7. **Quick actions on hover**: Kill, Restart, Open Chat buttons appear on row hover with opacity transition
+8. **Streaming indicator**: `animate-pulse` on green dot when agent status is 'streaming'
+9. **Null workspace fallback**: buildAgentRow gracefully handles orphan processes (workspace deleted)
+
+### Testing Strategy
+
+- 22 pure function tests across 4 describe blocks
+- Tests cover: formatElapsedTime boundaries, all 5 status labels, all 5 status colors, buildAgentRow combinations
+- No component rendering tests needed — all logic in pure functions
+- `// @vitest-environment jsdom` header used for test file
+
+### Evidence
+
+- 341 tests pass (319 existing + 22 new), 37 test files
+- Zero LSP errors across all changed files
+- Commit: `a1fcb5f` — "feat(ui): add multi-agent dashboard"
