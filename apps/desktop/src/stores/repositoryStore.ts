@@ -17,8 +17,8 @@ export interface Workspace {
   id: string
   repositoryId: string
   branchName: string
-  localPath: string        // Path to the worktree (isolated working directory)
-  repoPath: string         // Path to the main repository
+  localPath: string // Path to the worktree (isolated working directory)
+  repoPath: string // Path to the main repository
   status: 'idle' | 'working' | 'error'
   lastActive: Date
   additions?: number
@@ -34,7 +34,6 @@ export interface Workspace {
   sourcePlan?: PlanContent
   sourcePlanId?: string
   workspaceStatus: WorkspaceStatus
-
 }
 
 export interface Notification {
@@ -117,7 +116,6 @@ export const useRepositoryStore = create<RepositoryState>()(
       cloneProgress: null,
       notifications: [],
 
-
       // Auth actions
       checkGhInstalled: async () => {
         try {
@@ -161,7 +159,10 @@ export const useRepositoryStore = create<RepositoryState>()(
           const auth = await githubBridge.login()
           set({ githubAuth: auth, isAuthenticating: false, authError: null })
         } catch (error) {
-          set({ isAuthenticating: false, authError: error instanceof Error ? error.message : 'Login failed' })
+          set({
+            isAuthenticating: false,
+            authError: error instanceof Error ? error.message : 'Login failed',
+          })
           throw error
         }
       },
@@ -170,8 +171,7 @@ export const useRepositoryStore = create<RepositoryState>()(
         try {
           await githubBridge.signOut()
           set({ githubAuth: null })
-        } catch (error) {
-        }
+        } catch (error) {}
       },
 
       // Repository actions
@@ -245,7 +245,8 @@ export const useRepositoryStore = create<RepositoryState>()(
           workspaces: state.workspaces.filter((w) => w.repositoryId !== id),
           currentRepository: state.currentRepository?.id === id ? null : state.currentRepository,
           currentWorkspace:
-            state.currentWorkspace && state.workspaces.find((w) => w.id === state.currentWorkspace?.id)?.repositoryId === id
+            state.currentWorkspace &&
+            state.workspaces.find((w) => w.id === state.currentWorkspace?.id)?.repositoryId === id
               ? null
               : state.currentWorkspace,
         }))
@@ -259,22 +260,23 @@ export const useRepositoryStore = create<RepositoryState>()(
         }
 
         // Get existing workspace names to avoid collisions
-        const existingNames = get().workspaces.map(w => w.id)
+        const existingNames = get().workspaces.map((w) => w.id)
         const workspaceId = generateWorkspaceName(existingNames)
 
         // Get the current global agent mode to use as default for new workspaces
         const globalAgentMode = useSettingsStore.getState().agentMode
         // Use global agent mode if it's a valid agent ID, otherwise fall back to default
-        const defaultAgentId: AgentId = globalAgentMode !== 'cloud' && isValidAgentId(globalAgentMode)
-          ? globalAgentMode
-          : DEFAULT_AGENT_ID
+        const defaultAgentId: AgentId =
+          globalAgentMode !== 'cloud' && isValidAgentId(globalAgentMode)
+            ? globalAgentMode
+            : DEFAULT_AGENT_ID
 
         // Create workspace immediately with isInitializing=true for visual feedback
         const initializingWorkspace: Workspace = {
           id: workspaceId,
           repositoryId,
           branchName: workspaceId, // Temporary, will be updated
-          localPath: '',           // Will be set after worktree creation
+          localPath: '', // Will be set after worktree creation
           repoPath: repo.local_path,
           status: 'idle',
           lastActive: new Date(),
@@ -294,14 +296,14 @@ export const useRepositoryStore = create<RepositoryState>()(
 
         try {
           // Create workspace with isolated worktree
-          const result = await gitBridge.createWorkspaceBranch(repo.local_path, workspaceId)
+          const result = await gitBridge.worktreeCreate(repo.local_path, workspaceId)
 
           const workspace: Workspace = {
             id: workspaceId,
             repositoryId,
             branchName: result.branch_name,
-            localPath: result.worktree_path,  // Use the isolated worktree path
-            repoPath: repo.local_path,         // Keep reference to main repo
+            localPath: result.worktree_path, // Use the isolated worktree path
+            repoPath: repo.local_path, // Keep reference to main repo
             status: 'idle',
             lastActive: new Date(),
             agentId: defaultAgentId,
@@ -311,9 +313,7 @@ export const useRepositoryStore = create<RepositoryState>()(
 
           // Update the workspace with the real data
           set((state) => ({
-            workspaces: state.workspaces.map((w) =>
-              w.id === workspaceId ? workspace : w
-            ),
+            workspaces: state.workspaces.map((w) => (w.id === workspaceId ? workspace : w)),
             currentWorkspace: workspace,
           }))
 
@@ -322,7 +322,8 @@ export const useRepositoryStore = create<RepositoryState>()(
           // Remove the initializing workspace on error
           set((state) => ({
             workspaces: state.workspaces.filter((w) => w.id !== workspaceId),
-            currentWorkspace: state.currentWorkspace?.id === workspaceId ? null : state.currentWorkspace,
+            currentWorkspace:
+              state.currentWorkspace?.id === workspaceId ? null : state.currentWorkspace,
           }))
           useChatStore.getState().setWorkspaceId(null)
           throw error
@@ -382,9 +383,7 @@ export const useRepositoryStore = create<RepositoryState>()(
 
       updateWorkspaceAgent: (workspaceId, agentId) => {
         set((state) => ({
-          workspaces: state.workspaces.map((w) =>
-            w.id === workspaceId ? { ...w, agentId } : w
-          ),
+          workspaces: state.workspaces.map((w) => (w.id === workspaceId ? { ...w, agentId } : w)),
           currentWorkspace:
             state.currentWorkspace?.id === workspaceId
               ? { ...state.currentWorkspace, agentId }
@@ -398,10 +397,10 @@ export const useRepositoryStore = create<RepositoryState>()(
         if (workspace) {
           // Delete the worktree and branch from git
           try {
-            await gitBridge.deleteWorkspaceBranch(
-              workspace.repoPath,      // Main repo path
-              workspace.branchName,
-              workspace.localPath      // Worktree path to remove
+            await gitBridge.worktreeRemove(
+              workspace.repoPath,
+              workspace.localPath,
+              workspace.branchName
             )
           } catch (error) {
             // Continue with removing from state even if git delete fails
@@ -506,13 +505,12 @@ export const useRepositoryStore = create<RepositoryState>()(
         // Update workspace with PR info
         set((state) => ({
           workspaces: state.workspaces.map((w) =>
-            w.id === workspaceId
-              ? { ...w, prNumber, prUrl, prState: 'open' as const }
-              : w
+            w.id === workspaceId ? { ...w, prNumber, prUrl, prState: 'open' as const } : w
           ),
-          currentWorkspace: state.currentWorkspace?.id === workspaceId
-            ? { ...state.currentWorkspace, prNumber, prUrl, prState: 'open' as const }
-            : state.currentWorkspace,
+          currentWorkspace:
+            state.currentWorkspace?.id === workspaceId
+              ? { ...state.currentWorkspace, prNumber, prUrl, prState: 'open' as const }
+              : state.currentWorkspace,
         }))
 
         return prUrl
@@ -547,16 +545,14 @@ export const useRepositoryStore = create<RepositoryState>()(
         // Update workspace state to merged
         set((state) => ({
           workspaces: state.workspaces.map((w) =>
-            w.id === workspaceId
-              ? { ...w, prState: 'merged' as const }
-              : w
+            w.id === workspaceId ? { ...w, prState: 'merged' as const } : w
           ),
-          currentWorkspace: state.currentWorkspace?.id === workspaceId
-            ? { ...state.currentWorkspace, prState: 'merged' as const }
-            : state.currentWorkspace,
+          currentWorkspace:
+            state.currentWorkspace?.id === workspaceId
+              ? { ...state.currentWorkspace, prState: 'merged' as const }
+              : state.currentWorkspace,
         }))
       },
-
     }),
     {
       name: 'hatch-repositories',

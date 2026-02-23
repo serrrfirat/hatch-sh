@@ -38,7 +38,12 @@ vi.mock('../../lib/git/bridge', () => ({
     branch_name: 'workspace-1',
     worktree_path: '/path/to/worktree',
   })),
+  worktreeCreate: vi.fn(async () => ({
+    branch_name: 'workspace-1',
+    worktree_path: '/path/to/worktree',
+  })),
   deleteWorkspaceBranch: vi.fn(async () => undefined),
+  worktreeRemove: vi.fn(async () => undefined),
   getGitStatus: vi.fn(async () => ({
     staged: [],
     modified: [],

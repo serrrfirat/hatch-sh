@@ -641,3 +641,28 @@ Added image attachment support to the chat composer with drag-drop, file picker,
 ### Notes
 
 - `tokio` features had to include `macros`, `sync`, and `time` for `select!`, queue coordination primitives, and timeout support.
+
+## Task 13: Worktree Lifecycle Manager
+
+### Summary
+
+- Added a Rust `WorktreeLifecycleManager` as Tauri managed state with commands `worktree_create`, `worktree_remove`, `worktree_repair`, and `worktree_list`.
+- Added startup repair hook in `run()` setup to run `git worktree repair` + `git worktree prune` across known repos in `~/.hatch/workspaces`.
+- Updated `repositoryStore` to use lifecycle commands (`worktreeCreate` / `worktreeRemove`) instead of direct workspace branch commands.
+
+### Implementation Pattern
+
+- `worktree_create`: rejects duplicate branch use (`workspace/<id>`) by checking `git worktree list --porcelain`, creates worktree via existing branch helper, then locks with reason `active-agent`.
+- `worktree_remove`: removes stale `.git/index.lock`, unlocks worktree, removes worktree, and deletes branch when provided.
+- `worktree_repair`: runs `git worktree repair`, then `git worktree prune`, then clears `.git/index.lock` in listed worktrees.
+- `worktree_list`: parses porcelain output and maps health status to `healthy | orphaned | locked | corrupted`.
+
+### Testing & Verification
+
+- Added Rust async unit test for create/lock/unlock/remove lifecycle with a real temporary git repository and origin remote.
+- `cargo test` passes.
+- `pnpm vitest run` passes with 313/313 tests after updating git bridge mocks to include `worktreeCreate` and `worktreeRemove`.
+
+### Notes
+
+- Rust LSP diagnostics could not run because `rust-analyzer` is unavailable in this environment; compile + tests used for Rust verification.

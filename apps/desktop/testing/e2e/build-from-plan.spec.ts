@@ -16,7 +16,7 @@ vi.mock('zustand/middleware', async () => mockZustandPersist())
 vi.mock('../../src/lib/ideaMaze/storage', () => createIdeaMazeStorageMock())
 vi.mock('../../src/lib/git/bridge', () => ({
   ...createGitBridgeMock(),
-  createWorkspaceBranch: vi.fn().mockResolvedValue({
+  worktreeCreate: vi.fn().mockResolvedValue({
     branch_name: 'ws-plan-build',
     worktree_path: '/tmp/hatch-sh/.worktrees/ws-plan-build',
   }),

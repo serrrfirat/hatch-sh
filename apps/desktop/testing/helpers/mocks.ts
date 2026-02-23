@@ -27,6 +27,10 @@ export function createGitBridgeMock() {
   return {
     createWorkspaceBranch: vi.fn(),
     deleteWorkspaceBranch: vi.fn(),
+    worktreeCreate: vi.fn(),
+    worktreeRemove: vi.fn(),
+    worktreeRepair: vi.fn(),
+    worktreeList: vi.fn(),
     getGitStatus: vi.fn(),
     commitChanges: vi.fn(),
     pushChanges: vi.fn(),
@@ -88,9 +92,13 @@ export function createIdeaMazeStorageMock() {
 export function createKeychainMock() {
   const store = new Map<string, string>()
   return {
-    keychainSet: vi.fn(async (key: string, value: string) => { store.set(key, value) }),
+    keychainSet: vi.fn(async (key: string, value: string) => {
+      store.set(key, value)
+    }),
     keychainGet: vi.fn(async (key: string) => store.get(key) ?? null),
-    keychainDelete: vi.fn(async (key: string) => { store.delete(key) }),
+    keychainDelete: vi.fn(async (key: string) => {
+      store.delete(key)
+    }),
     keychainHas: vi.fn(async (key: string) => store.has(key) && store.get(key) !== ''),
     getServiceCredentials: vi.fn(async () => ({
       anthropicApiKey: store.get('anthropic_api_key') ?? null,
@@ -99,7 +107,13 @@ export function createKeychainMock() {
       herenowApiToken: store.get('herenow_api_token') ?? null,
       railwayApiToken: store.get('railway_api_token') ?? null,
     })),
-    KEYCHAIN_KEYS: ['anthropic_api_key', 'cf_account_id', 'cf_api_token', 'herenow_api_token', 'railway_api_token'],
+    KEYCHAIN_KEYS: [
+      'anthropic_api_key',
+      'cf_account_id',
+      'cf_api_token',
+      'herenow_api_token',
+      'railway_api_token',
+    ],
     _store: store,
   }
 }

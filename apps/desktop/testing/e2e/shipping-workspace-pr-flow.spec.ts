@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockZustandPersist, createGitBridgeMock, createGitHubBridgeMock } from '../helpers'
-import { createDefaultRepositoryState, createDefaultChatState, createTestRepository } from '../helpers'
+import {
+  createDefaultRepositoryState,
+  createDefaultChatState,
+  createTestRepository,
+} from '../helpers'
 
 vi.mock('zustand/middleware', async () => mockZustandPersist())
 vi.mock('../../src/lib/git/bridge', () => createGitBridgeMock())
@@ -22,7 +26,7 @@ describe('shipping workspace -> PR flow', () => {
   })
 
   it('creates workspace, commits, pushes, creates and merges PR', async () => {
-    vi.mocked(gitBridge.createWorkspaceBranch).mockResolvedValue({
+    vi.mocked(gitBridge.worktreeCreate).mockResolvedValue({
       branch_name: 'ws-1',
       worktree_path: '/tmp/hatch-sh/.worktrees/ws-1',
     })
@@ -36,7 +40,9 @@ describe('shipping workspace -> PR flow', () => {
     })
     vi.mocked(gitBridge.commitChanges).mockResolvedValue('abc123')
     vi.mocked(gitBridge.pushChanges).mockResolvedValue()
-    vi.mocked(gitBridge.createPR).mockResolvedValue('https://github.com/serrrfirat/hatch-sh/pull/42')
+    vi.mocked(gitBridge.createPR).mockResolvedValue(
+      'https://github.com/serrrfirat/hatch-sh/pull/42'
+    )
     vi.mocked(gitBridge.mergePullRequest).mockResolvedValue({
       merged: true,
       message: 'merged',
@@ -51,16 +57,16 @@ describe('shipping workspace -> PR flow', () => {
     const status = await useRepositoryStore.getState().getGitStatus(workspace.id)
     expect(status.modified).toContain('b.ts')
 
-    const commitHash = await useRepositoryStore.getState().commitChanges(workspace.id, 'feat: update')
+    const commitHash = await useRepositoryStore
+      .getState()
+      .commitChanges(workspace.id, 'feat: update')
     expect(commitHash).toBe('abc123')
 
     await useRepositoryStore.getState().pushChanges(workspace.id)
 
-    const prUrl = await useRepositoryStore.getState().createPullRequest(
-      workspace.id,
-      'Test PR',
-      'Body'
-    )
+    const prUrl = await useRepositoryStore
+      .getState()
+      .createPullRequest(workspace.id, 'Test PR', 'Body')
     expect(prUrl).toContain('/pull/42')
 
     await useRepositoryStore.getState().mergePullRequest(workspace.id)
@@ -74,11 +80,11 @@ describe('shipping workspace -> PR flow', () => {
   })
 
   it('removeWorkspace cleans up associated chat state', async () => {
-    vi.mocked(gitBridge.createWorkspaceBranch).mockResolvedValue({
+    vi.mocked(gitBridge.worktreeCreate).mockResolvedValue({
       branch_name: 'ws-cleanup',
       worktree_path: '/tmp/hatch-sh/.worktrees/ws-cleanup',
     })
-    vi.mocked(gitBridge.deleteWorkspaceBranch).mockResolvedValue()
+    vi.mocked(gitBridge.worktreeRemove).mockResolvedValue()
 
     const workspace = await useRepositoryStore.getState().createWorkspace('repo-1')
     useRepositoryStore.getState().setCurrentWorkspace(workspace)
@@ -92,7 +98,7 @@ describe('shipping workspace -> PR flow', () => {
   })
 
   it('workspace initializes with correct agent selection', async () => {
-    vi.mocked(gitBridge.createWorkspaceBranch).mockResolvedValue({
+    vi.mocked(gitBridge.worktreeCreate).mockResolvedValue({
       branch_name: 'ws-agent',
       worktree_path: '/tmp/hatch-sh/.worktrees/ws-agent',
     })

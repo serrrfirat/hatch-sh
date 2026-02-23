@@ -55,6 +55,15 @@ export interface WorkspaceResult {
   worktree_path: string
 }
 
+export interface WorktreeLifecycleInfo {
+  path: string
+  branch: string
+  headCommit: string
+  isLocked: boolean
+  lockReason?: string
+  healthStatus: 'healthy' | 'orphaned' | 'locked' | 'corrupted'
+}
+
 export interface WorktreeInfo {
   path: string
   head: string
@@ -164,6 +173,48 @@ export async function createWorkspaceBranch(
     { repoPath, workspaceId },
     'worktree-create'
   )
+}
+
+export async function worktreeCreate(
+  repoPath: string,
+  workspaceId: string
+): Promise<WorkspaceResult> {
+  return invoke<WorkspaceResult>('worktree_create', {
+    request: {
+      repoRoot: repoPath,
+      workspaceId,
+    },
+  })
+}
+
+export async function worktreeRemove(
+  repoPath: string,
+  worktreePath: string,
+  branchName?: string
+): Promise<void> {
+  await invoke<void>('worktree_remove', {
+    request: {
+      repoRoot: repoPath,
+      worktreePath,
+      branchName,
+    },
+  })
+}
+
+export async function worktreeRepair(repoPath: string): Promise<void> {
+  await invoke<void>('worktree_repair', {
+    request: {
+      repoRoot: repoPath,
+    },
+  })
+}
+
+export async function worktreeList(repoPath: string): Promise<WorktreeLifecycleInfo[]> {
+  return invoke<WorktreeLifecycleInfo[]>('worktree_list', {
+    request: {
+      repoRoot: repoPath,
+    },
+  })
 }
 
 /**

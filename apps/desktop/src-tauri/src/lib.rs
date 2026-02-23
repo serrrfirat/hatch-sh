@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -367,6 +367,367 @@ fn queue_insert_by_priority(queue: &mut VecDeque<QueuedGitOperation>, operation:
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum WorktreeHealthStatus {
+    Healthy,
+    Orphaned,
+    Locked,
+    Corrupted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeLifecycleInfo {
+    path: String,
+    branch: String,
+    head_commit: String,
+    is_locked: bool,
+    lock_reason: Option<String>,
+    health_status: WorktreeHealthStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeCreateResult {
+    branch_name: String,
+    worktree_path: String,
+    is_locked: bool,
+    lock_reason: Option<String>,
+    health_status: WorktreeHealthStatus,
+}
+
+#[derive(Debug, Clone)]
+struct ParsedWorktreeEntry {
+    path: String,
+    branch: Option<String>,
+    head: String,
+    is_locked: bool,
+    lock_reason: Option<String>,
+    is_prunable: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeCreateRequest {
+    repo_root: String,
+    workspace_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeRemoveRequest {
+    repo_root: String,
+    worktree_path: String,
+    branch_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeRepoRequest {
+    repo_root: String,
+}
+
+#[derive(Clone, Default)]
+struct WorktreeLifecycleManager {
+    operation_lock: Arc<tokio::sync::Mutex<()>>,
+}
+
+impl WorktreeLifecycleManager {
+    fn new() -> Self {
+        Self {
+            operation_lock: Arc::new(tokio::sync::Mutex::new(())),
+        }
+    }
+
+    async fn create(&self, request: WorktreeCreateRequest) -> Result<WorktreeCreateResult, String> {
+        let _guard = self.operation_lock.lock().await;
+        let branch_name = format!("workspace/{}", request.workspace_id);
+
+        let existing = self.list_internal(&request.repo_root).await?;
+        if existing
+            .iter()
+            .any(|entry| entry.branch.as_deref() == Some(branch_name.as_str()))
+        {
+            return Err(format!(
+                "Branch '{}' is already used by another worktree",
+                branch_name
+            ));
+        }
+
+        let created = git_create_workspace_branch(request.repo_root.clone(), request.workspace_id).await?;
+
+        self.lock_worktree(&request.repo_root, &created.worktree_path, "active-agent")
+            .await?;
+
+        Ok(WorktreeCreateResult {
+            branch_name: created.branch_name,
+            worktree_path: created.worktree_path,
+            is_locked: true,
+            lock_reason: Some("active-agent".to_string()),
+            health_status: WorktreeHealthStatus::Locked,
+        })
+    }
+
+    async fn remove(&self, request: WorktreeRemoveRequest) -> Result<(), String> {
+        let _guard = self.operation_lock.lock().await;
+
+        cleanup_index_lock_for_worktree(&request.worktree_path)?;
+        self.unlock_worktree(&request.repo_root, &request.worktree_path).await?;
+
+        run_git(
+            &request.repo_root,
+            &["worktree", "remove", "--force", &request.worktree_path],
+        )
+        .await?;
+
+        if let Some(branch_name) = &request.branch_name {
+            let _ = run_git(&request.repo_root, &["branch", "-D", branch_name]).await;
+        }
+
+        let _ = run_git(&request.repo_root, &["worktree", "prune"]).await;
+        Ok(())
+    }
+
+    async fn repair(&self, repo_root: &str) -> Result<(), String> {
+        let _guard = self.operation_lock.lock().await;
+        self.repair_internal(repo_root).await
+    }
+
+    async fn list(&self, repo_root: &str) -> Result<Vec<WorktreeLifecycleInfo>, String> {
+        let entries = self.list_internal(repo_root).await?;
+        Ok(entries
+            .into_iter()
+            .map(|entry| {
+                let health_status = derive_worktree_health(&entry);
+                WorktreeLifecycleInfo {
+                    path: entry.path.clone(),
+                    branch: entry.branch.unwrap_or_default(),
+                    head_commit: entry.head,
+                    is_locked: entry.is_locked,
+                    lock_reason: entry.lock_reason,
+                    health_status,
+                }
+            })
+            .collect())
+    }
+
+    async fn repair_all_known_repos(&self) {
+        let repos = discover_known_repositories();
+        for repo in repos {
+            let _ = self.repair(&repo).await;
+        }
+    }
+
+    async fn repair_internal(&self, repo_root: &str) -> Result<(), String> {
+        run_git(repo_root, &["worktree", "repair"]).await?;
+        run_git(repo_root, &["worktree", "prune"]).await?;
+
+        let entries = self.list_internal(repo_root).await?;
+        for entry in entries {
+            let _ = cleanup_index_lock_for_worktree(&entry.path);
+        }
+
+        Ok(())
+    }
+
+    async fn lock_worktree(&self, repo_root: &str, worktree_path: &str, reason: &str) -> Result<(), String> {
+        run_git(
+            repo_root,
+            &["worktree", "lock", "--reason", reason, worktree_path],
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn unlock_worktree(&self, repo_root: &str, worktree_path: &str) -> Result<(), String> {
+        let output = AsyncCommand::new("git")
+            .args(["-C", repo_root, "worktree", "unlock", worktree_path])
+            .output()
+            .await
+            .map_err(|error| format!("Failed to unlock worktree: {}", error))?;
+
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("is not locked") {
+            return Ok(());
+        }
+
+        Err(format!("Failed to unlock worktree: {}", stderr.trim()))
+    }
+
+    async fn list_internal(&self, repo_root: &str) -> Result<Vec<ParsedWorktreeEntry>, String> {
+        let output = run_git(repo_root, &["worktree", "list", "--porcelain"]).await?;
+        Ok(parse_worktree_list_porcelain(&output))
+    }
+}
+
+async fn run_git(repo_root: &str, args: &[&str]) -> Result<String, String> {
+    let output = AsyncCommand::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(args)
+        .output()
+        .await
+        .map_err(|error| format!("Failed to execute git {}: {}", args.join(" "), error))?;
+
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    }
+
+    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+}
+
+fn parse_worktree_list_porcelain(output: &str) -> Vec<ParsedWorktreeEntry> {
+    let mut entries = Vec::new();
+    let mut current: Option<ParsedWorktreeEntry> = None;
+
+    for line in output.lines() {
+        if line.starts_with("worktree ") {
+            if let Some(entry) = current.take() {
+                entries.push(entry);
+            }
+
+            current = Some(ParsedWorktreeEntry {
+                path: line.trim_start_matches("worktree ").to_string(),
+                branch: None,
+                head: String::new(),
+                is_locked: false,
+                lock_reason: None,
+                is_prunable: false,
+            });
+            continue;
+        }
+
+        if let Some(entry) = current.as_mut() {
+            if line.starts_with("branch ") {
+                entry.branch = Some(
+                    line.trim_start_matches("branch ")
+                        .trim_start_matches("refs/heads/")
+                        .to_string(),
+                );
+            } else if line.starts_with("HEAD ") {
+                entry.head = line.trim_start_matches("HEAD ").to_string();
+            } else if line == "prunable" || line.starts_with("prunable ") {
+                entry.is_prunable = true;
+            } else if line == "locked" || line.starts_with("locked ") {
+                entry.is_locked = true;
+                let reason = line.trim_start_matches("locked").trim();
+                if !reason.is_empty() {
+                    entry.lock_reason = Some(reason.to_string());
+                }
+            }
+        }
+    }
+
+    if let Some(entry) = current {
+        entries.push(entry);
+    }
+
+    entries
+}
+
+fn derive_worktree_health(entry: &ParsedWorktreeEntry) -> WorktreeHealthStatus {
+    let worktree_path = Path::new(&entry.path);
+
+    if !worktree_path.exists() || entry.is_prunable {
+        return WorktreeHealthStatus::Orphaned;
+    }
+
+    if !worktree_metadata_is_valid(worktree_path) {
+        return WorktreeHealthStatus::Corrupted;
+    }
+
+    if entry.is_locked {
+        return WorktreeHealthStatus::Locked;
+    }
+
+    WorktreeHealthStatus::Healthy
+}
+
+fn worktree_metadata_is_valid(worktree_path: &Path) -> bool {
+    let git_entry = worktree_path.join(".git");
+    if !git_entry.exists() {
+        return false;
+    }
+
+    if git_entry.is_dir() {
+        return true;
+    }
+
+    let contents = match std::fs::read_to_string(&git_entry) {
+        Ok(contents) => contents,
+        Err(_) => return false,
+    };
+
+    let gitdir_raw = match contents.trim().strip_prefix("gitdir:") {
+        Some(raw) => raw.trim(),
+        None => return false,
+    };
+
+    let gitdir_path = if Path::new(gitdir_raw).is_absolute() {
+        PathBuf::from(gitdir_raw)
+    } else {
+        worktree_path.join(gitdir_raw)
+    };
+
+    gitdir_path.exists()
+}
+
+fn cleanup_index_lock_for_worktree(worktree_path: &str) -> Result<(), String> {
+    let worktree = Path::new(worktree_path);
+    let direct_lock = worktree.join(".git").join("index.lock");
+    if direct_lock.exists() {
+        let _ = std::fs::remove_file(&direct_lock);
+    }
+
+    let git_file = worktree.join(".git");
+    if git_file.is_file() {
+        let contents = std::fs::read_to_string(&git_file)
+            .map_err(|error| format!("Failed to read git metadata for {}: {}", worktree_path, error))?;
+        if let Some(gitdir_raw) = contents.trim().strip_prefix("gitdir:") {
+            let gitdir_raw = gitdir_raw.trim();
+            let gitdir_path = if Path::new(gitdir_raw).is_absolute() {
+                PathBuf::from(gitdir_raw)
+            } else {
+                worktree.join(gitdir_raw)
+            };
+
+            let index_lock = gitdir_path.join("index.lock");
+            if index_lock.exists() {
+                let _ = std::fs::remove_file(index_lock);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn discover_known_repositories() -> Vec<String> {
+    let mut repos = Vec::new();
+    let workspaces_dir = match git::get_workspaces_dir() {
+        Ok(path) => path,
+        Err(_) => return repos,
+    };
+
+    let dir_entries = match std::fs::read_dir(workspaces_dir) {
+        Ok(entries) => entries,
+        Err(_) => return repos,
+    };
+
+    for entry in dir_entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() && path.join(".git").is_dir() {
+            repos.push(path.to_string_lossy().to_string());
+        }
+    }
+
+    repos
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GitCloneRepoParams {
@@ -572,6 +933,38 @@ async fn git_coordinator_cancel(
     request: GitCoordinatorCancelRequest,
 ) -> Result<bool, String> {
     Ok(coordinator.cancel(request.operation_id).await)
+}
+
+#[tauri::command]
+async fn worktree_create(
+    manager: State<'_, WorktreeLifecycleManager>,
+    request: WorktreeCreateRequest,
+) -> Result<WorktreeCreateResult, String> {
+    manager.create(request).await
+}
+
+#[tauri::command]
+async fn worktree_remove(
+    manager: State<'_, WorktreeLifecycleManager>,
+    request: WorktreeRemoveRequest,
+) -> Result<(), String> {
+    manager.remove(request).await
+}
+
+#[tauri::command]
+async fn worktree_repair(
+    manager: State<'_, WorktreeLifecycleManager>,
+    request: WorktreeRepoRequest,
+) -> Result<(), String> {
+    manager.repair(&request.repo_root).await
+}
+
+#[tauri::command]
+async fn worktree_list(
+    manager: State<'_, WorktreeLifecycleManager>,
+    request: WorktreeRepoRequest,
+) -> Result<Vec<WorktreeLifecycleInfo>, String> {
+    manager.list(&request.repo_root).await
 }
 
 #[tauri::command]
@@ -2032,6 +2425,8 @@ async fn proxy_fetch(client: &reqwest::Client, url: &str) -> http::Response<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::process::Command;
 
     fn queued(id: &str, priority: GitOperationPriority) -> QueuedGitOperation {
         let (tx, _rx) = tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
@@ -2086,6 +2481,113 @@ mod tests {
             ]
         );
     }
+
+    fn run_git_sync(repo: &str, args: &[&str]) {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(args)
+            .output()
+            .expect("git command should run in test");
+
+        assert!(
+            output.status.success(),
+            "git command failed: git -C {} {}\nstdout: {}\nstderr: {}",
+            repo,
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn run_git_no_repo(args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .output()
+            .expect("git command should run in test");
+
+        assert!(
+            output.status.success(),
+            "git command failed: git {}\nstdout: {}\nstderr: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[tokio::test]
+    async fn worktree_lifecycle_create_lock_unlock_remove_cycle() {
+        let test_root = std::env::temp_dir().join(format!(
+            "hatch-worktree-lifecycle-{}",
+            unix_timestamp_ms()
+        ));
+        let origin_path = test_root.join("origin.git");
+        let repo_path = test_root.join("repo");
+
+        fs::create_dir_all(&test_root).expect("test root should be created");
+        run_git_no_repo(&["init", "--bare", origin_path.to_str().unwrap_or_default()]);
+        run_git_no_repo(&[
+            "clone",
+            origin_path.to_str().unwrap_or_default(),
+            repo_path.to_str().unwrap_or_default(),
+        ]);
+
+        let repo = repo_path.to_string_lossy().to_string();
+        run_git_sync(&repo, &["config", "user.email", "worktree-test@example.com"]);
+        run_git_sync(&repo, &["config", "user.name", "Worktree Test"]);
+
+        fs::write(repo_path.join("README.md"), "# lifecycle\n").expect("seed file should be written");
+        run_git_sync(&repo, &["add", "README.md"]);
+        run_git_sync(&repo, &["commit", "-m", "seed"]);
+        run_git_sync(&repo, &["branch", "-M", "main"]);
+        run_git_sync(&repo, &["push", "-u", "origin", "main"]);
+
+        let manager = WorktreeLifecycleManager::new();
+        let create_result = manager
+            .create(WorktreeCreateRequest {
+                repo_root: repo.clone(),
+                workspace_id: "alpha".to_string(),
+            })
+            .await
+            .expect("worktree should be created");
+
+        assert_eq!(create_result.branch_name, "workspace/alpha");
+        assert!(Path::new(&create_result.worktree_path).exists());
+        assert!(create_result.is_locked);
+
+        let listed = manager
+            .list(&repo)
+            .await
+            .expect("worktrees should be listed");
+        let entry = listed
+            .iter()
+            .find(|item| item.branch == "workspace/alpha")
+            .expect("created worktree should be listed");
+
+        assert_eq!(entry.branch, "workspace/alpha");
+        assert!(entry.is_locked);
+        assert!(matches!(entry.health_status, WorktreeHealthStatus::Locked));
+
+        manager
+            .remove(WorktreeRemoveRequest {
+                repo_root: repo.clone(),
+                worktree_path: create_result.worktree_path.clone(),
+                branch_name: Some(create_result.branch_name.clone()),
+            })
+            .await
+            .expect("worktree should be removed");
+
+        assert!(!Path::new(&create_result.worktree_path).exists());
+        let branch_query = Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["branch", "--list", "workspace/alpha"])
+            .output()
+            .expect("branch list should run");
+        assert!(String::from_utf8_lossy(&branch_query.stdout).trim().is_empty());
+
+        let _ = fs::remove_dir_all(test_root);
+    }
 }
 // =============================================================================
 // Application Entry Point
@@ -2100,9 +2602,17 @@ pub fn run() {
         .unwrap_or_else(|_| reqwest::Client::new());
     tauri::Builder::default()
         .manage(GitCoordinator::new())
+        .manage(WorktreeLifecycleManager::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            let manager = app.state::<WorktreeLifecycleManager>().inner().clone();
+            tauri::async_runtime::spawn(async move {
+                manager.repair_all_known_repos().await;
+            });
+            Ok(())
+        })
         .register_asynchronous_uri_scheme_protocol("hatch-proxy", move |_ctx, request, responder| {
             let client = proxy_client.clone();
             let uri = request.uri().clone();
@@ -2149,6 +2659,10 @@ pub fn run() {
             git_coordinator_enqueue,
             git_coordinator_status,
             git_coordinator_cancel,
+            worktree_create,
+            worktree_remove,
+            worktree_repair,
+            worktree_list,
             git_clone_repo,
             git_open_local_repo,
             git_create_workspace_branch,
