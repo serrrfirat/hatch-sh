@@ -5,6 +5,7 @@ import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useSettingsStore, type AppPage } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
 import { ProjectTree } from './ProjectTree'
+import { AgentDashboard } from './AgentDashboard'
 import { SettingsPage } from '../SettingsPanel'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
@@ -291,6 +292,7 @@ export function Layout() {
             <ErrorBoundary sectionName="Project Sidebar">
               <aside className="w-72 border-r border-white/10 bg-neutral-900 flex flex-col">
                 <ProjectTree />
+                <AgentDashboard />
               </aside>
             </ErrorBoundary>
             <ErrorBoundary sectionName="Build">
