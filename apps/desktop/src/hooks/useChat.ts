@@ -22,6 +22,9 @@ import { writeCodeBlocksToWorkspace } from '../lib/fileWriter'
 import { windowMessages, getDroppedMessages } from '../lib/chatWindow'
 import { summarizeDroppedMessages } from '../lib/chatSummarizer'
 import { saveImageToWorkspace, type ImageAttachmentData } from '../lib/imageAttachment'
+import { parseSlashCommand } from '../lib/slashCommands'
+import { buildReviewPrompt } from '../lib/codeReview'
+import { getDiff } from '../lib/git/bridge'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 
@@ -374,6 +377,38 @@ export function useChat() {
     async (content: string, images?: ImageAttachmentData[]) => {
       if (!content.trim() && (!images || images.length === 0)) return
 
+
+      // Intercept /review slash command
+      let agentContent = content
+      const slashResult = parseSlashCommand(content, { isStreaming: isLoading })
+      if (slashResult?.type === 'review') {
+        if (!currentWorkspace?.localPath) {
+          addMessage({
+            role: 'assistant',
+            content: 'No workspace selected. Please select a workspace to review changes.',
+          })
+          return
+        }
+        let diff: string
+        try {
+          diff = await getDiff(currentWorkspace.localPath)
+        } catch {
+          addMessage({ role: 'user', content })
+          addMessage({
+            role: 'assistant',
+            content: 'Failed to get git diff. Make sure the workspace is a git repository.',
+          })
+          return
+        }
+        const reviewPrompt = buildReviewPrompt(diff, slashResult.scope)
+        if (!diff.trim()) {
+          addMessage({ role: 'user', content })
+          addMessage({ role: 'assistant', content: reviewPrompt })
+          return
+        }
+        agentContent = reviewPrompt
+      }
+
       // Get the workspace's selected agent
       const agentId = workspaceAgentId
       const config = getConfig(agentId)
@@ -455,12 +490,12 @@ export function useChat() {
           // Send via local CLI agent adapter
           fullContent = await sendLocalAgentMessage(
             agentId as LocalAgentId,
-            content,
+            agentContent,
             assistantMessageId
           )
         } else {
           // Send via cloud API with model selection
-          fullContent = await sendCloudModelMessage(agentId, content, assistantMessageId)
+          fullContent = await sendCloudModelMessage(agentId, agentContent, assistantMessageId)
         }
 
         // Mark streaming as complete and set duration
@@ -527,6 +562,7 @@ export function useChat() {
     [
       currentProjectId,
       workspaceAgentId,
+      isLoading,
       settingsState,
       addMessage,
       updateMessage,
