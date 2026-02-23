@@ -25,6 +25,7 @@ import { saveImageToWorkspace, type ImageAttachmentData } from '../lib/imageAtta
 import { parseSlashCommand } from '../lib/slashCommands'
 import { buildReviewPrompt } from '../lib/codeReview'
 import { getDiff } from '../lib/git/bridge'
+import { agentProcessManager } from '../lib/agents/processManager'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 
@@ -130,7 +131,10 @@ export function useChat() {
   const streamingMessageIdRef = useRef<string | null>(null)
   const shouldStopRef = useRef(false)
   // projectMemoryLoadedRef: reserved for future per-workspace memory dedup
-  const summaryCacheRef = useRef<{ droppedIds: string; summary: string }>({ droppedIds: '', summary: '' })
+  const summaryCacheRef = useRef<{ droppedIds: string; summary: string }>({
+    droppedIds: '',
+    summary: '',
+  })
 
   /**
    * Convert chat messages to agent message format
@@ -174,7 +178,10 @@ export function useChat() {
       if (droppedMessages.length > 0) {
         const droppedIds = droppedMessages.map((m) => m.id).join(',')
         if (droppedIds !== summaryCacheRef.current.droppedIds) {
-          summaryCacheRef.current = { droppedIds, summary: summarizeDroppedMessages(droppedMessages) }
+          summaryCacheRef.current = {
+            droppedIds,
+            summary: summarizeDroppedMessages(droppedMessages),
+          }
         }
         if (summaryCacheRef.current.summary) {
           summaryMessage = { role: 'user', content: summaryCacheRef.current.summary }
@@ -234,7 +241,13 @@ export function useChat() {
 
         // Get workspace path for agent working directory
         const workspaceState = useRepositoryStore.getState()
-        const workingDirectory = workspaceState.currentWorkspace?.localPath
+        const workspace = workspaceState.currentWorkspace
+        const workingDirectory = workspace?.localPath
+
+        if (workspace && workingDirectory) {
+          await agentProcessManager.spawn(workspace.id, agentId, workingDirectory)
+          agentProcessManager.markStreaming(workspace.id)
+        }
 
         fullContent = await adapter.sendMessage(formattedMessages, {
           systemPrompt: SYSTEM_PROMPT,
@@ -242,7 +255,26 @@ export function useChat() {
           model,
           workingDirectory,
         })
+
+        if (workspace) {
+          agentProcessManager.markIdle(workspace.id)
+        }
       } catch (error) {
+        const workspaceId = useRepositoryStore.getState().currentWorkspace?.id
+        if (workspaceId) {
+          const processStatus = await agentProcessManager.getStatus(workspaceId)
+          if (processStatus?.crashed) {
+            throw new Error(
+              `Agent process crashed${
+                processStatus.lastExitCode !== undefined && processStatus.lastExitCode !== null
+                  ? ` (exit ${processStatus.lastExitCode})`
+                  : ''
+              }. Restart is available for this workspace.`
+            )
+          }
+          agentProcessManager.markIdle(workspaceId)
+        }
+
         if (shouldStopRef.current) {
           // User stopped generation
           return fullContent || 'Generation stopped.'
@@ -360,8 +392,7 @@ export function useChat() {
           maxRetries: 3,
           baseDelayMs: 1000,
           shouldRetry: isRetryableCloudError,
-          onRetry: (_attempt: number, _delayMs: number, _error: unknown) => {
-          },
+          onRetry: (_attempt: number, _delayMs: number, _error: unknown) => {},
         }
       )
 
@@ -376,7 +407,6 @@ export function useChat() {
   const sendMessage = useCallback(
     async (content: string, images?: ImageAttachmentData[]) => {
       if (!content.trim() && (!images || images.length === 0)) return
-
 
       // Intercept /review slash command
       let agentContent = content
@@ -450,7 +480,6 @@ export function useChat() {
       // Add user message
       addMessage({ role: 'user', content, images })
 
-
       // Save images to workspace .context/ directory via Tauri FS
       if (images && images.length > 0 && currentWorkspace?.localPath) {
         Promise.all(
@@ -464,7 +493,8 @@ export function useChat() {
       if (!isLocal && images && images.length > 0) {
         addMessage({
           role: 'assistant',
-          content: '⚠️ Cloud models cannot access local images directly. Images are being sent as base64 data.',
+          content:
+            '⚠️ Cloud models cannot access local images directly. Images are being sent as base64 data.',
         })
       }
 
@@ -515,8 +545,7 @@ export function useChat() {
             if (manifest.length > 0) {
               updateMessageMetadata(assistantMessageId, { writtenFiles: manifest })
             }
-          } catch (error) {
-          }
+          } catch (error) {}
         }
 
         setMessageDuration(assistantMessageId)
@@ -585,7 +614,9 @@ export function useChat() {
     // Update the streaming message to mark it as complete
     if (streamingMessageIdRef.current) {
       const currentMessages = selectCurrentMessages(useChatStore.getState())
-      const streamingMsg = currentMessages.find((m: Message) => m.id === streamingMessageIdRef.current)
+      const streamingMsg = currentMessages.find(
+        (m: Message) => m.id === streamingMessageIdRef.current
+      )
       if (streamingMsg) {
         updateMessage(
           streamingMessageIdRef.current,

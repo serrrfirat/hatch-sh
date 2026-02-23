@@ -728,6 +728,256 @@ fn discover_known_repositories() -> Vec<String> {
     repos
 }
 
+const MAX_CONCURRENT_AGENTS: usize = 3;
+const MAX_AGENTS_HARD_CAP: usize = 5;
+const AGENT_START_TIMEOUT_MS: u64 = 30_000;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum AgentRuntimeStatus {
+    Starting,
+    Streaming,
+    Idle,
+    Error,
+    Killed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentProcessInfo {
+    id: String,
+    workspace_id: String,
+    worktree_path: String,
+    agent_type: String,
+    pid: Option<u32>,
+    status: AgentRuntimeStatus,
+    started_at: u64,
+    last_activity_at: Option<u64>,
+    last_exit_code: Option<i32>,
+    crashed: bool,
+    can_restart: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentSpawnRequest {
+    workspace_id: String,
+    agent_type: String,
+    worktree_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentWorkspaceRequest {
+    workspace_id: String,
+}
+
+#[derive(Default)]
+struct AgentProcessState {
+    processes: HashMap<String, AgentProcessEntry>,
+    next_id: u64,
+}
+
+struct AgentProcessEntry {
+    info: AgentProcessInfo,
+    child: Option<Arc<tokio::sync::Mutex<tokio::process::Child>>>,
+}
+
+#[derive(Clone)]
+struct AgentProcessManager {
+    state: Arc<tokio::sync::Mutex<AgentProcessState>>,
+    max_concurrent: usize,
+}
+
+impl AgentProcessManager {
+    fn new(max_concurrent: usize) -> Self {
+        let effective = max_concurrent.max(1).min(MAX_AGENTS_HARD_CAP);
+        Self {
+            state: Arc::new(tokio::sync::Mutex::new(AgentProcessState::default())),
+            max_concurrent: effective,
+        }
+    }
+
+    async fn spawn(&self, request: AgentSpawnRequest) -> Result<AgentProcessInfo, String> {
+        {
+            let state = self.state.lock().await;
+            if let Some(existing) = state.processes.get(&request.workspace_id) {
+                if existing.info.status != AgentRuntimeStatus::Killed {
+                    return Ok(existing.info.clone());
+                }
+            }
+
+            if state.processes.len() >= self.max_concurrent {
+                return Err(format!(
+                    "Maximum concurrent agents reached ({})",
+                    self.max_concurrent
+                ));
+            }
+        }
+
+        if !Path::new(&request.worktree_path).exists() {
+            return Err(format!("Worktree does not exist: {}", request.worktree_path));
+        }
+
+        ensure_agent_available(&request.agent_type).await?;
+
+        let mut command = AsyncCommand::new("sh");
+        command
+            .args(["-lc", "while sleep 30; do :; done"])
+            .current_dir(&request.worktree_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        let child = command
+            .spawn()
+            .map_err(|error| format!("Failed to spawn agent process: {}", error))?;
+
+        let pid = child.id();
+        let child = Arc::new(tokio::sync::Mutex::new(child));
+        let started_at = unix_timestamp_ms();
+
+        let info = {
+            let mut state = self.state.lock().await;
+            state.next_id += 1;
+            let process_info = AgentProcessInfo {
+                id: format!("agent-proc-{}", state.next_id),
+                workspace_id: request.workspace_id.clone(),
+                worktree_path: request.worktree_path.clone(),
+                agent_type: request.agent_type,
+                pid,
+                status: AgentRuntimeStatus::Idle,
+                started_at,
+                last_activity_at: Some(started_at),
+                last_exit_code: None,
+                crashed: false,
+                can_restart: false,
+            };
+
+            state.processes.insert(
+                process_info.workspace_id.clone(),
+                AgentProcessEntry {
+                    info: process_info.clone(),
+                    child: Some(child.clone()),
+                },
+            );
+
+            process_info
+        };
+
+        let manager = self.clone();
+        let workspace_id = request.workspace_id;
+        tauri::async_runtime::spawn(async move {
+            manager.monitor_child_exit(workspace_id, child).await;
+        });
+
+        Ok(info)
+    }
+
+    async fn monitor_child_exit(
+        &self,
+        workspace_id: String,
+        child: Arc<tokio::sync::Mutex<tokio::process::Child>>,
+    ) {
+        let status = {
+            let mut child = child.lock().await;
+            child.wait().await
+        };
+
+        let mut state = self.state.lock().await;
+        if let Some(entry) = state.processes.get_mut(&workspace_id) {
+            if entry.info.status == AgentRuntimeStatus::Killed {
+                return;
+            }
+
+            let (exit_code, success) = match status {
+                Ok(exit) => (exit.code(), exit.success()),
+                Err(_) => (None, false),
+            };
+
+            entry.info.last_exit_code = exit_code;
+            entry.info.last_activity_at = Some(unix_timestamp_ms());
+            entry.info.can_restart = true;
+
+            if !success {
+                entry.info.status = AgentRuntimeStatus::Error;
+                entry.info.crashed = true;
+                let _ = cleanup_index_lock_for_worktree(&entry.info.worktree_path);
+            } else {
+                entry.info.status = AgentRuntimeStatus::Killed;
+                entry.info.crashed = false;
+            }
+
+            entry.child = None;
+        }
+    }
+
+    async fn kill(&self, workspace_id: String) -> Result<(), String> {
+        let mut entry = {
+            let mut state = self.state.lock().await;
+            state.processes.remove(&workspace_id)
+        };
+
+        if let Some(mut process) = entry.take() {
+            if let Some(child) = process.child.take() {
+                let mut child = child.lock().await;
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+            }
+
+            process.info.status = AgentRuntimeStatus::Killed;
+            process.info.crashed = false;
+            process.info.can_restart = false;
+            process.info.last_activity_at = Some(unix_timestamp_ms());
+            return Ok(());
+        }
+
+        Err(format!("No active agent process for workspace {}", workspace_id))
+    }
+
+    async fn list(&self) -> Vec<AgentProcessInfo> {
+        let state = self.state.lock().await;
+        state
+            .processes
+            .values()
+            .map(|entry| entry.info.clone())
+            .collect::<Vec<_>>()
+    }
+
+    async fn status(&self, workspace_id: String) -> Option<AgentProcessInfo> {
+        let mut state = self.state.lock().await;
+        if let Some(entry) = state.processes.get_mut(&workspace_id) {
+            if entry.info.status == AgentRuntimeStatus::Starting {
+                let now = unix_timestamp_ms();
+                if now.saturating_sub(entry.info.started_at) > AGENT_START_TIMEOUT_MS {
+                    entry.info.status = AgentRuntimeStatus::Error;
+                    entry.info.crashed = true;
+                    entry.info.can_restart = true;
+                    entry.info.last_exit_code = None;
+                    let _ = cleanup_index_lock_for_worktree(&entry.info.worktree_path);
+                }
+            }
+            return Some(entry.info.clone());
+        }
+
+        None
+    }
+}
+
+async fn ensure_agent_available(agent_type: &str) -> Result<(), String> {
+    let found = match agent_type {
+        "claude-code" => find_claude_path().await.is_some(),
+        "opencode" => find_opencode_path().await.is_some(),
+        "cursor" => find_cursor_path().await.is_some(),
+        _ => return Err(format!("Unknown agent type: {}", agent_type)),
+    };
+
+    if found {
+        Ok(())
+    } else {
+        Err(format!("Agent executable not found for type: {}", agent_type))
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GitCloneRepoParams {
@@ -965,6 +1215,35 @@ async fn worktree_list(
     request: WorktreeRepoRequest,
 ) -> Result<Vec<WorktreeLifecycleInfo>, String> {
     manager.list(&request.repo_root).await
+}
+
+#[tauri::command]
+async fn agent_spawn(
+    manager: State<'_, AgentProcessManager>,
+    request: AgentSpawnRequest,
+) -> Result<AgentProcessInfo, String> {
+    manager.spawn(request).await
+}
+
+#[tauri::command]
+async fn agent_kill(
+    manager: State<'_, AgentProcessManager>,
+    request: AgentWorkspaceRequest,
+) -> Result<(), String> {
+    manager.kill(request.workspace_id).await
+}
+
+#[tauri::command]
+async fn agent_list(manager: State<'_, AgentProcessManager>) -> Result<Vec<AgentProcessInfo>, String> {
+    Ok(manager.list().await)
+}
+
+#[tauri::command]
+async fn agent_status(
+    manager: State<'_, AgentProcessManager>,
+    request: AgentWorkspaceRequest,
+) -> Result<Option<AgentProcessInfo>, String> {
+    Ok(manager.status(request.workspace_id).await)
 }
 
 #[tauri::command]
@@ -2603,6 +2882,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(GitCoordinator::new())
         .manage(WorktreeLifecycleManager::new())
+        .manage(AgentProcessManager::new(MAX_CONCURRENT_AGENTS))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -2663,6 +2943,10 @@ pub fn run() {
             worktree_remove,
             worktree_repair,
             worktree_list,
+            agent_spawn,
+            agent_kill,
+            agent_list,
+            agent_status,
             git_clone_repo,
             git_open_local_repo,
             git_create_workspace_branch,

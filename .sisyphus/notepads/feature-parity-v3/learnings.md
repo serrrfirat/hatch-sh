@@ -666,3 +666,32 @@ Added image attachment support to the chat composer with drag-drop, file picker,
 ### Notes
 
 - Rust LSP diagnostics could not run because `rust-analyzer` is unavailable in this environment; compile + tests used for Rust verification.
+
+## Task 14: Concurrent Agent Process Manager
+
+### Summary
+
+- Added frontend `AgentProcessManager` in `apps/desktop/src/lib/agents/processManager.ts` with one-process-per-workspace tracking, `MAX_CONCURRENT_AGENTS = 3`, and hard cap enforcement at 5.
+- Added Tauri Rust agent process commands in `apps/desktop/src-tauri/src/lib.rs`: `agent_spawn`, `agent_kill`, `agent_list`, `agent_status` with managed state and child-process monitoring.
+- Wired `useChat` local-agent sends to workspace process routing via `workspaceId` and process lifecycle transitions (`streaming`/`idle`) plus crash-aware error messaging.
+
+### Implementation Pattern
+
+- Frontend process manager keeps a local map keyed by `workspaceId` and delegates spawn/kill/status to Rust Tauri commands.
+- Rust process manager stores process metadata and child handles under a `tokio::sync::Mutex` state map for safe concurrent access.
+- Crash handling occurs in child monitor task: non-success exit marks status `error`, sets `canRestart`, and cleans stale worktree `index.lock`.
+- Startup timeout protection is checked in `agent_status`; stale `starting` entries are marked `error` and lock cleanup is attempted.
+
+### Testing & Verification
+
+- TDD flow used for frontend manager:
+  1. Created failing test file `src/lib/agents/__tests__/processManager.test.ts`.
+  2. Implemented `processManager.ts` to satisfy tests.
+- New tests: 6 passing in `processManager.test.ts`.
+- Full frontend suite: `pnpm vitest run` passed (`319/319`).
+- Rust backend suite: `cargo test` passed.
+
+### Notes
+
+- Rust process manager enforces backend-side concurrency limit from managed state initialization (`3`, clamped to hard cap `5`).
+- Frontend manager constructor supports configurable concurrency while always clamping to hard cap `5`.
