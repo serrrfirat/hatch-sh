@@ -358,7 +358,6 @@ export function MentionPopover({
         const fileResult = await invoke<FileContent>('read_file', { filePath: pluginsJsonPath })
 
         const pluginsData: InstalledPluginsFile = JSON.parse(fileResult.content)
-        const pluginKeys = Object.keys(pluginsData.plugins)
 
         // Iterate through all installed plugins
         for (const [pluginKey, installations] of Object.entries(pluginsData.plugins)) {

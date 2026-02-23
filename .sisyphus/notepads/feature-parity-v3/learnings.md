@@ -154,3 +154,77 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 - ProjectTree.tsx needs status pills with color coding
 - Auto-transitions on events (first message, PR creation, archive)
 - Dropdown menu for manual status selection
+
+## Task 6: Slash Commands Parser
+
+### Summary
+Successfully created a slash command parser module with 4 built-in commands (/clear, /review, /restart, /help) and comprehensive Vitest test suite. All 203 tests pass (170 existing + 33 new).
+
+### Implementation Details
+
+#### File: `apps/desktop/src/lib/slashCommands.ts`
+- **SlashCommandResult**: Union type for all possible command outcomes
+  - `{ type: 'clear' }` — Clear messages
+  - `{ type: 'review'; scope?: string }` — Code review with optional file scope
+  - `{ type: 'restart' }` — Restart agent
+  - `{ type: 'help'; commands: SlashCommandDef[] }` — List commands
+  - `{ type: 'error'; message: string }` — Error response
+  - `null` — Not a slash command
+
+- **parseSlashCommand(input, context)**: Main parser function
+  - Returns null if input doesn't start with `/`
+  - Case-insensitive command matching
+  - Handles `/clear` blocking when `context.isStreaming === true`
+  - Extracts optional arguments (e.g., file path for `/review`)
+  - Returns error for unknown commands
+
+- **isSlashInput(input)**: Autocomplete trigger check
+  - Returns true if input starts with `/` (after trimming)
+
+- **getCommandSuggestions(partial)**: Autocomplete suggestions
+  - Case-insensitive prefix matching
+  - Returns array of matching SlashCommandDef objects
+
+#### File: `apps/desktop/src/lib/__tests__/slashCommands.test.ts`
+- 33 comprehensive test cases organized in 4 describe blocks
+- Tests cover:
+  - Non-command inputs (null returns)
+  - All 4 command types
+  - Streaming context blocking for /clear
+  - Optional arguments (/review with file path)
+  - Case-insensitivity
+  - Whitespace handling
+  - Autocomplete suggestions
+  - Registry validation
+
+### Key Design Decisions
+
+1. **Streaming Context Check**: `/clear` is blocked while agent is streaming to prevent message loss during active responses
+2. **Optional Scope**: `/review` accepts optional file path argument for targeted reviews
+3. **Case-Insensitive**: All commands work in any case (/CLEAR, /Clear, /clear)
+4. **Null for Non-Commands**: Returns null (not error) for regular text to distinguish from actual commands
+5. **Registry Pattern**: SLASH_COMMANDS array serves as single source of truth for command definitions
+
+### Testing Strategy
+
+- **Unit Tests**: Each function tested independently
+- **Edge Cases**: Whitespace, empty strings, multiple spaces between args
+- **Registry Validation**: Ensures all 4 commands have correct properties
+- **Autocomplete**: Tests partial matching and case-insensitivity
+
+### Integration Notes
+
+- **T10 Dependency**: `/review` command type will be consumed by code review mode (T10)
+- **useChat Integration**: T10 will integrate parseSlashCommand into message sending flow
+- **No External Dependencies**: Pure TypeScript, no new npm packages
+- **Type Safety**: Full TypeScript coverage, no `as any` or `@ts-ignore`
+
+### Evidence
+- `.sisyphus/evidence/task-6-slash-commands.txt` — Test results and implementation summary
+- Commit: `a2e687d` — "feat(chat): add slash commands parser with built-in commands"
+
+### Test Results
+- ✓ 203 tests pass (170 existing + 33 new)
+- ✓ 29 test files pass
+- ✓ Duration: 1.84s
+- ✓ No LSP errors

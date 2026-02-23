@@ -1,0 +1,3 @@
+src/components/Plasma.tsx:193:        (program.uniforms.iTime as any).value = pingpongTime;
+src/components/Plasma.tsx:195:        (program.uniforms.iTime as any).value = timeValue;
+src/services/skillsService.ts:245:  // If no SKILL.md found in common locations, check if repo root has any skill files

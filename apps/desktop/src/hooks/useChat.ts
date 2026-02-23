@@ -470,7 +470,7 @@ export function useChat() {
         if (error instanceof Error && error.name === 'AbortError') {
           // Keep the partial content but mark as not streaming
           const currentMessages = selectCurrentMessages(useChatStore.getState())
-          const streamingMsg = currentMessages.find((m) => m.id === assistantMessageId)
+          const streamingMsg = currentMessages.find((m: Message) => m.id === assistantMessageId)
           if (streamingMsg) {
             updateMessage(assistantMessageId, streamingMsg.content || 'Generation stopped.', false)
           }
@@ -478,7 +478,7 @@ export function useChat() {
         }
 
         const currentMessages = selectCurrentMessages(useChatStore.getState())
-        const streamingMsg = currentMessages.find((m) => m.id === assistantMessageId)
+        const streamingMsg = currentMessages.find((m: Message) => m.id === assistantMessageId)
         const partialContent = streamingMsg?.content?.trim() || ''
 
         if (
@@ -530,7 +530,7 @@ export function useChat() {
     // Update the streaming message to mark it as complete
     if (streamingMessageIdRef.current) {
       const currentMessages = selectCurrentMessages(useChatStore.getState())
-      const streamingMsg = currentMessages.find((m) => m.id === streamingMessageIdRef.current)
+      const streamingMsg = currentMessages.find((m: Message) => m.id === streamingMessageIdRef.current)
       if (streamingMsg) {
         updateMessage(
           streamingMessageIdRef.current,
