@@ -57,3 +57,4 @@ test-results/
 *.db
 *.db-journal
 *.db-wal
+worktrees/
