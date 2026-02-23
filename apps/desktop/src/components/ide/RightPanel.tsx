@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn } from '@hatch/ui'
-import { Search, Plus, ChevronRight, ChevronDown, Terminal as TerminalIcon, RefreshCw, Eye, EyeOff, FolderOpen } from 'lucide-react'
+import {
+  Search,
+  Plus,
+  ChevronRight,
+  ChevronDown,
+  Terminal as TerminalIcon,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  FolderOpen,
+} from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { Terminal } from '@xterm/xterm'
@@ -10,7 +20,18 @@ import '@xterm/xterm/css/xterm.css'
 import { PreviewPanel } from '../preview/PreviewPanel'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useEditorStore } from '../../stores/editorStore'
-import { getDiffStats, listDirectoryFiles, type FileChange, type FileEntry } from '../../lib/git/bridge'
+import {
+  getDiffStats,
+  listDirectoryFiles,
+  type FileChange,
+  type FileEntry,
+} from '../../lib/git/bridge'
+import {
+  buildRerunCommand,
+  getStatusIcon,
+  parseWorkflowRuns,
+  type WorkflowRun,
+} from '../../lib/github/checks'
 import { FileIcon } from '../icons/FileIcon'
 
 type TopTab = 'changes' | 'files' | 'checks' | 'preview'
@@ -42,12 +63,8 @@ function FileChangeItem({ file, onClick }: FileChangeItemProps) {
         {fileName}
       </span>
       <div className="flex items-center gap-1 text-xs">
-        {file.additions > 0 && (
-          <span className="text-emerald-400">+{file.additions}</span>
-        )}
-        {file.deletions > 0 && (
-          <span className="text-red-400">-{file.deletions}</span>
-        )}
+        {file.additions > 0 && <span className="text-emerald-400">+{file.additions}</span>}
+        {file.deletions > 0 && <span className="text-red-400">-{file.deletions}</span>}
       </div>
     </button>
   )
@@ -91,7 +108,12 @@ function FileTreeItem({ entry, depth, onToggle, onFileClick, expandedPaths }: Fi
             ) : (
               <span className="w-3" />
             )}
-            <FileIcon filename={entry.name} isDirectory isOpen={isExpanded} className="w-4 h-4 flex-shrink-0" />
+            <FileIcon
+              filename={entry.name}
+              isDirectory
+              isOpen={isExpanded}
+              className="w-4 h-4 flex-shrink-0"
+            />
           </>
         ) : (
           <>
@@ -127,11 +149,14 @@ function ChangesPanel() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const handleFileClick = useCallback((path: string) => {
-    if (currentWorkspace?.localPath) {
-      openDiff(path, currentWorkspace.localPath)
-    }
-  }, [currentWorkspace?.localPath, openDiff])
+  const handleFileClick = useCallback(
+    (path: string) => {
+      if (currentWorkspace?.localPath) {
+        openDiff(path, currentWorkspace.localPath)
+      }
+    },
+    [currentWorkspace?.localPath, openDiff]
+  )
 
   const fetchChanges = useCallback(async () => {
     if (!currentWorkspace?.localPath) {
@@ -175,7 +200,10 @@ function ChangesPanel() {
       <div className="px-3 py-2 border-b border-white/10">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <Search
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500"
+            />
             <input
               type="text"
               placeholder="Search files..."
@@ -240,29 +268,35 @@ function FilesPanel() {
   const [totalFileCount, setTotalFileCount] = useState(0)
   const [hiddenFileCount, setHiddenFileCount] = useState(0)
 
-  const handleFileClick = useCallback((path: string) => {
-    if (currentWorkspace?.localPath) {
-      openFile(path, currentWorkspace.localPath)
-    }
-  }, [currentWorkspace?.localPath, openFile])
+  const handleFileClick = useCallback(
+    (path: string) => {
+      if (currentWorkspace?.localPath) {
+        openFile(path, currentWorkspace.localPath)
+      }
+    },
+    [currentWorkspace?.localPath, openFile]
+  )
 
   // Count files recursively
-  const countFiles = useCallback((entries: FileEntry[], countHidden = false): { total: number; hidden: number } => {
-    let total = 0
-    let hidden = 0
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) {
-        hidden++
+  const countFiles = useCallback(
+    (entries: FileEntry[], countHidden = false): { total: number; hidden: number } => {
+      let total = 0
+      let hidden = 0
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) {
+          hidden++
+        }
+        total++
+        if (entry.children) {
+          const childCounts = countFiles(entry.children, countHidden)
+          total += childCounts.total
+          hidden += childCounts.hidden
+        }
       }
-      total++
-      if (entry.children) {
-        const childCounts = countFiles(entry.children, countHidden)
-        total += childCounts.total
-        hidden += childCounts.hidden
-      }
-    }
-    return { total, hidden }
-  }, [])
+      return { total, hidden }
+    },
+    []
+  )
 
   const fetchFiles = useCallback(async () => {
     if (!currentWorkspace?.localPath) {
@@ -308,8 +342,7 @@ function FilesPanel() {
         // Create a workspace with proper git worktree isolation
         await createWorkspace(repo.id)
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   useEffect(() => {
@@ -359,7 +392,10 @@ function FilesPanel() {
       <div className="px-3 py-2 border-b border-white/10">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <Search
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500"
+            />
             <input
               type="text"
               placeholder="Search files..."
@@ -371,10 +407,10 @@ function FilesPanel() {
           <button
             onClick={() => setShowHidden(!showHidden)}
             className={cn(
-              "p-1.5 rounded hover:bg-white/10 transition-colors",
-              showHidden ? "text-white" : "text-neutral-500"
+              'p-1.5 rounded hover:bg-white/10 transition-colors',
+              showHidden ? 'text-white' : 'text-neutral-500'
             )}
-            title={showHidden ? "Hide hidden files" : "Show hidden files"}
+            title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
           >
             {showHidden ? <Eye size={14} /> : <EyeOff size={14} />}
           </button>
@@ -412,7 +448,11 @@ function FilesPanel() {
                 onClick={() => !file.is_directory && handleFileClick(file.path)}
                 className="w-full flex items-center gap-1.5 px-3 py-1 hover:bg-white/5 transition-colors text-left group"
               >
-                <FileIcon filename={file.name} isDirectory={file.is_directory} className="w-4 h-4 flex-shrink-0" />
+                <FileIcon
+                  filename={file.name}
+                  isDirectory={file.is_directory}
+                  className="w-4 h-4 flex-shrink-0"
+                />
                 <span className="text-sm text-neutral-300 truncate">{file.name}</span>
                 <span className="text-xs text-neutral-600 truncate ml-auto">{file.path}</span>
               </button>
@@ -485,7 +525,10 @@ function FilesPanel() {
       {/* Path info - only show if we have regular file tree */}
       {!(totalFileCount > 0 && totalFileCount === hiddenFileCount) && (
         <div className="px-3 py-2 border-t border-white/10 flex items-center justify-between gap-2">
-          <span className="text-xs text-neutral-500 truncate flex-1" title={currentWorkspace.localPath}>
+          <span
+            className="text-xs text-neutral-500 truncate flex-1"
+            title={currentWorkspace.localPath}
+          >
             {currentWorkspace.localPath}
           </span>
           <button
@@ -497,6 +540,282 @@ function FilesPanel() {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function ChecksPanel() {
+  const { currentWorkspace } = useRepositoryStore()
+  const [runs, setRuns] = useState<WorkflowRun[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasRemoteBranch, setHasRemoteBranch] = useState(false)
+  const [expandedRuns, setExpandedRuns] = useState<Set<number>>(new Set())
+  const [failedLogs, setFailedLogs] = useState<Record<number, string>>({})
+  const [loadingLogs, setLoadingLogs] = useState<Set<number>>(new Set())
+  const [rerunningRuns, setRerunningRuns] = useState<Set<number>>(new Set())
+
+  const runShellCommand = useCallback(
+    async (command: string): Promise<string> => {
+      if (!currentWorkspace?.localPath) {
+        throw new Error('No workspace selected')
+      }
+
+      const result = await invoke<{ success: boolean; message: string; path: string | null }>(
+        'run_shell_command',
+        {
+          command,
+          workingDirectory: currentWorkspace.localPath,
+        }
+      )
+
+      if (!result.success) {
+        throw new Error(result.message || 'Command failed')
+      }
+
+      return result.message
+    },
+    [currentWorkspace?.localPath]
+  )
+
+  const checkRemoteBranch = useCallback(async (): Promise<boolean> => {
+    try {
+      await runShellCommand('git rev-parse --abbrev-ref --symbolic-full-name @{upstream}')
+      return true
+    } catch {
+      return false
+    }
+  }, [runShellCommand])
+
+  const fetchChecks = useCallback(async () => {
+    if (!currentWorkspace?.localPath) {
+      setRuns([])
+      setHasRemoteBranch(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const remoteExists = await checkRemoteBranch()
+      setHasRemoteBranch(remoteExists)
+
+      if (!remoteExists && !currentWorkspace.prNumber) {
+        setRuns([])
+        return
+      }
+
+      const branch = currentWorkspace.branchName.replace(/"/g, '\\"')
+      const output = await runShellCommand(
+        `gh run list --branch "${branch}" --json name,status,conclusion,databaseId,headBranch`
+      )
+      setRuns(parseWorkflowRuns(output))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch checks')
+      setRuns([])
+    } finally {
+      setLoading(false)
+    }
+  }, [
+    checkRemoteBranch,
+    currentWorkspace?.branchName,
+    currentWorkspace?.localPath,
+    currentWorkspace?.prNumber,
+    runShellCommand,
+  ])
+
+  const toggleFailedLogs = useCallback(
+    async (run: WorkflowRun) => {
+      const isExpanded = expandedRuns.has(run.databaseId)
+      if (isExpanded) {
+        setExpandedRuns((prev) => {
+          const next = new Set(prev)
+          next.delete(run.databaseId)
+          return next
+        })
+        return
+      }
+
+      setExpandedRuns((prev) => {
+        const next = new Set(prev)
+        next.add(run.databaseId)
+        return next
+      })
+
+      if (failedLogs[run.databaseId] !== undefined) {
+        return
+      }
+
+      setLoadingLogs((prev) => {
+        const next = new Set(prev)
+        next.add(run.databaseId)
+        return next
+      })
+
+      try {
+        const logs = await runShellCommand(`gh run view ${run.databaseId} --log-failed`)
+        setFailedLogs((prev) => ({
+          ...prev,
+          [run.databaseId]: logs || 'No failed log output',
+        }))
+      } catch (e) {
+        setFailedLogs((prev) => ({
+          ...prev,
+          [run.databaseId]: e instanceof Error ? e.message : 'Failed to fetch logs',
+        }))
+      } finally {
+        setLoadingLogs((prev) => {
+          const next = new Set(prev)
+          next.delete(run.databaseId)
+          return next
+        })
+      }
+    },
+    [expandedRuns, failedLogs, runShellCommand]
+  )
+
+  const rerunWorkflow = useCallback(
+    async (runId: number) => {
+      setRerunningRuns((prev) => {
+        const next = new Set(prev)
+        next.add(runId)
+        return next
+      })
+
+      try {
+        await runShellCommand(buildRerunCommand(runId))
+        await fetchChecks()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to rerun workflow')
+      } finally {
+        setRerunningRuns((prev) => {
+          const next = new Set(prev)
+          next.delete(runId)
+          return next
+        })
+      }
+    },
+    [fetchChecks, runShellCommand]
+  )
+
+  useEffect(() => {
+    fetchChecks()
+  }, [fetchChecks])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      fetchChecks()
+    }, 30000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [fetchChecks])
+
+  if (!currentWorkspace) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-neutral-500 text-sm px-4 text-center">
+        <p>No workspace selected</p>
+        <p className="text-xs mt-1">Select a workspace to see checks</p>
+      </div>
+    )
+  }
+
+  const noRemoteOrPr = !hasRemoteBranch && !currentWorkspace.prNumber
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+        <span className="text-xs text-neutral-400">GitHub Actions</span>
+        <button
+          onClick={fetchChecks}
+          disabled={loading}
+          className="p-1.5 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+          title="Refresh checks"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {loading && runs.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-neutral-500 text-sm">
+            Loading checks...
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full text-red-400 text-sm px-4 text-center">
+            {error}
+          </div>
+        ) : noRemoteOrPr ? (
+          <div className="flex items-center justify-center h-full text-neutral-500 text-sm px-4 text-center">
+            No checks
+          </div>
+        ) : runs.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-neutral-500 text-sm px-4 text-center">
+            No checks
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {runs.map((run) => {
+              const isFailure = run.status === 'completed' && run.conclusion !== 'success'
+              const isExpanded = expandedRuns.has(run.databaseId)
+              const isLogLoading = loadingLogs.has(run.databaseId)
+              const isRerunning = rerunningRuns.has(run.databaseId)
+
+              return (
+                <div key={run.databaseId} className="px-3 py-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm mt-0.5">
+                      {getStatusIcon(run.status, run.conclusion)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate" title={run.name}>
+                        {run.name}
+                      </p>
+                      <p className="text-xs text-neutral-500 truncate" title={run.headBranch}>
+                        {run.status}
+                        {run.conclusion ? ` • ${run.conclusion}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isFailure && (
+                        <button
+                          onClick={() => toggleFailedLogs(run)}
+                          className="px-2 py-1 rounded text-xs text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                          {isExpanded ? 'Hide logs' : 'Show logs'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => rerunWorkflow(run.databaseId)}
+                        disabled={isRerunning}
+                        className="px-2 py-1 rounded text-xs text-neutral-300 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                      >
+                        {isRerunning ? 'Re-running...' : 'Re-run'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isFailure && isExpanded && (
+                    <div className="mt-2 rounded border border-white/10 bg-neutral-950/80">
+                      {isLogLoading ? (
+                        <div className="px-3 py-2 text-xs text-neutral-500">
+                          Loading failed logs...
+                        </div>
+                      ) : (
+                        <pre className="px-3 py-2 text-xs text-neutral-300 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                          {failedLogs[run.databaseId] || 'No failed log output'}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -649,10 +968,13 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
 
       try {
         // Execute command using Tauri backend
-        const result = await invoke<{ success: boolean; message: string; path: string | null }>('run_shell_command', {
-          command: cmd,
-          workingDirectory: workspacePath || null,
-        })
+        const result = await invoke<{ success: boolean; message: string; path: string | null }>(
+          'run_shell_command',
+          {
+            command: cmd,
+            workingDirectory: workspacePath || null,
+          }
+        )
 
         if (result.message) {
           // Handle output line by line for proper rendering
@@ -668,7 +990,9 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
           if (!result.message.endsWith('\n')) term.write('\r\n')
         }
       } catch (error) {
-        term.write(`\x1b[31mError: ${error instanceof Error ? error.message : 'Command failed'}\x1b[0m\r\n`)
+        term.write(
+          `\x1b[31mError: ${error instanceof Error ? error.message : 'Command failed'}\x1b[0m\r\n`
+        )
       }
 
       writePrompt()
@@ -746,13 +1070,7 @@ function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
     }
   }, [workspacePath])
 
-  return (
-    <div
-      ref={terminalRef}
-      className="h-full w-full bg-[#0a0a0a]"
-      style={{ padding: '8px' }}
-    />
-  )
+  return <div ref={terminalRef} className="h-full w-full bg-[#0a0a0a]" style={{ padding: '8px' }} />
 }
 
 export function RightPanel() {
@@ -792,7 +1110,10 @@ export function RightPanel() {
             </button>
           ))}
           {currentWorkspace && (
-            <span className="ml-auto text-xs text-neutral-600 truncate max-w-[120px]" title={currentWorkspace.branchName}>
+            <span
+              className="ml-auto text-xs text-neutral-600 truncate max-w-[120px]"
+              title={currentWorkspace.branchName}
+            >
               {currentWorkspace.branchName}
             </span>
           )}
@@ -802,11 +1123,7 @@ export function RightPanel() {
         <div className="flex-1 min-h-0 overflow-hidden">
           {topTab === 'changes' && <ChangesPanel />}
           {topTab === 'files' && <FilesPanel />}
-          {topTab === 'checks' && (
-            <div className="flex items-center justify-center h-full text-neutral-500 text-sm">
-              No checks configured
-            </div>
-          )}
+          {topTab === 'checks' && <ChecksPanel />}
           {topTab === 'preview' && <PreviewPanel />}
         </div>
       </div>
@@ -842,7 +1159,12 @@ export function RightPanel() {
 
         {/* Bottom Content */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          {bottomTab === 'terminal' && <TerminalPanel key={currentWorkspace?.localPath || 'default'} workspacePath={currentWorkspace?.localPath} />}
+          {bottomTab === 'terminal' && (
+            <TerminalPanel
+              key={currentWorkspace?.localPath || 'default'}
+              workspacePath={currentWorkspace?.localPath}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -33,16 +33,19 @@ Due to file-level conflicts, Wave 1 is split into 3 sub-batches:
 ## Task 1: Remove Console Statements from Production Code
 
 ### Summary
+
 Successfully removed all console.log, console.warn, and console.error statements from production TypeScript/TSX source files under `apps/desktop/src/`. Total of 119 console statements removed across 24 files.
 
 ### Approach
+
 1. Used grep to identify all console statements in production code
-2. Excluded test files (__tests__, .test., .spec.)
+2. Excluded test files (**tests**, .test., .spec.)
 3. Used Python regex to remove entire lines containing console statements
 4. Fixed syntax errors in catch blocks (arrow functions without bodies)
 5. Preserved special case in bundler (lib/bundler/index.ts) where console.error is intentionally reassigned for iframe error handling
 
 ### Files Modified
+
 - apps/desktop/src/stores/ideaMazeStore.ts (11 statements)
 - apps/desktop/src/components/chat/MentionPopover.tsx (22 statements)
 - apps/desktop/src/stores/settingsStore.ts (1 statement)
@@ -69,17 +72,20 @@ Successfully removed all console.log, console.warn, and console.error statements
 - apps/desktop/src/services/skillsService.ts (1 statement)
 
 ### Key Learnings
+
 1. **Regex Pattern**: Used `^\s*console\.(log|warn|error)\([^)]*\).*$\n?` to match entire lines with console statements
 2. **Catch Block Handling**: When removing console statements from catch blocks, must replace with proper block syntax `() => { // comment }` instead of arrow function without body
 3. **Special Cases**: Template strings in bundler code that generate HTML/JavaScript should be preserved - they're not production code but generated code for iframes
 4. **Verification**: Final grep with exclusion of bundler directory confirmed all production console statements removed
 
 ### Evidence
+
 - `.sisyphus/evidence/task-1-console-log-grep.txt` - Empty file confirming no console statements remain
 - `.sisyphus/evidence/task-1-build-check.txt` - Build output (pre-existing TypeScript errors unrelated to console removal)
 - Commit: `ac952fa` - "chore: remove console.log statements from production code"
 
 ### Notes
+
 - Build fails due to pre-existing TypeScript errors in test files and repositoryStore.ts (unrelated to this task)
 - All console statements successfully removed from production code
 - No logic changes made - only removed debug logging statements
@@ -87,14 +93,17 @@ Successfully removed all console.log, console.warn, and console.error statements
 ## Task 7: GitCoordinator Types and Interfaces
 
 ### Summary
+
 Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with comprehensive TypeScript interfaces for the GitCoordinator system. Includes types for git operation queueing, worktree lifecycle management, and agent process management.
 
 ### Files Created
+
 1. `apps/desktop/src/lib/git/coordinator/types.ts` - Core type definitions (8.5 KB)
 2. `apps/desktop/src/lib/git/coordinator/index.ts` - Re-export module
 3. `apps/desktop/src/lib/git/coordinator/__tests__/types.test.ts` - Type compilation tests
 
 ### Type Definitions
+
 - **GitOperation**: Single queued git operation with priority, status, timestamps
 - **GitCoordinator**: Main interface for operation queueing and coordination
 - **WorktreeInfo**: Worktree metadata including health status
@@ -103,22 +112,26 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 - **AgentProcessManager**: Interface for spawning, killing, and managing agent processes
 
 ### Key Design Decisions
+
 1. **Serialized Queue**: GitCoordinator ensures one operation per repo root at a time (concurrency=1)
 2. **Health Status**: WorktreeHealthStatus tracks 'healthy', 'orphaned', 'locked', 'corrupted'
 3. **Process Tracking**: AgentProcess includes workspace binding, worktree path, and resource estimation
 4. **Omit Pattern**: enqueue() uses `Omit<GitOperation, 'id' | 'status' | 'enqueuedAt'>` to auto-generate fields
 
 ### Testing
+
 - 5 test cases covering all interfaces
 - Mock implementations satisfy each interface contract
 - All tests pass: ✓ 5 passed (1ms)
 
 ### Verification
+
 - TypeScript compilation: 0 errors in coordinator types
 - Evidence file: `.sisyphus/evidence/task-7-types-check.txt`
 - Commit: `c36f28f` - "feat(git): add GitCoordinator types and interfaces"
 
 ### Notes
+
 - No implementation code (T12 will implement GitCoordinator)
 - No Rust code (Tauri commands will be added in T12)
 - No new npm dependencies
@@ -128,6 +141,7 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 ## [2026-02-23] Task 3: Workspace Status Tracking
 
 ### Implementation Pattern
+
 - Added `WorkspaceStatus` type as union of 4 states: 'backlog' | 'in-progress' | 'in-review' | 'done'
 - Extended Workspace interface with `workspaceStatus: WorkspaceStatus` field
 - Created `updateWorkspaceWorkflowStatus` action for manual status transitions
@@ -135,22 +149,26 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 - Status persists via Zustand persist middleware (no special handling needed)
 
 ### Key Decisions
+
 - Separate `updateWorkspaceWorkflowStatus` from `updateWorkspaceStatus` (which manages 'idle'/'working'/'error')
 - WorkspaceStatus is workflow state, not operational state
 - No auto-transitions implemented in store (UI layer responsibility)
 - Status field is required (not optional) to ensure all workspaces have a defined state
 
 ### Testing Challenges
+
 - Zustand persist middleware requires proper localStorage mock setup
 - Mock must be set up BEFORE importing the store
 - AgentId type validation: use 'claude-code' not 'claude'
 - Test file removed due to localStorage mock complexity (can be added later with proper setup)
 
 ### Files Modified
+
 - `apps/desktop/src/stores/repositoryStore.ts`: Added type, field, and action
 - `.sisyphus/evidence/task-3-status-transitions.txt`: Created evidence file
 
 ### Next Phase (T15 dependency)
+
 - ProjectTree.tsx needs status pills with color coding
 - Auto-transitions on events (first message, PR creation, archive)
 - Dropdown menu for manual status selection
@@ -158,11 +176,13 @@ Successfully created `apps/desktop/src/lib/git/coordinator/types.ts` with compre
 ## Task 6: Slash Commands Parser
 
 ### Summary
+
 Successfully created a slash command parser module with 4 built-in commands (/clear, /review, /restart, /help) and comprehensive Vitest test suite. All 203 tests pass (170 existing + 33 new).
 
 ### Implementation Details
 
 #### File: `apps/desktop/src/lib/slashCommands.ts`
+
 - **SlashCommandResult**: Union type for all possible command outcomes
   - `{ type: 'clear' }` — Clear messages
   - `{ type: 'review'; scope?: string }` — Code review with optional file scope
@@ -186,6 +206,7 @@ Successfully created a slash command parser module with 4 built-in commands (/cl
   - Returns array of matching SlashCommandDef objects
 
 #### File: `apps/desktop/src/lib/__tests__/slashCommands.test.ts`
+
 - 33 comprehensive test cases organized in 4 describe blocks
 - Tests cover:
   - Non-command inputs (null returns)
@@ -220,10 +241,12 @@ Successfully created a slash command parser module with 4 built-in commands (/cl
 - **Type Safety**: Full TypeScript coverage, no `as any` or `@ts-ignore`
 
 ### Evidence
+
 - `.sisyphus/evidence/task-6-slash-commands.txt` — Test results and implementation summary
 - Commit: `a2e687d` — "feat(chat): add slash commands parser with built-in commands"
 
 ### Test Results
+
 - ✓ 203 tests pass (170 existing + 33 new)
 - ✓ 29 test files pass
 - ✓ Duration: 1.84s
@@ -232,11 +255,13 @@ Successfully created a slash command parser module with 4 built-in commands (/cl
 ## Task 2: Type Safety and LSP Error Resolution
 
 ### Summary
+
 Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. Fixed 9 LSP errors, removed unused variables, and added missing selector. All 203 tests pass. Zero TypeScript compilation errors.
 
 ### Issues Fixed
 
 #### 1. Missing selectCurrentMessages Selector
+
 - **Problem**: useChat.ts imported `selectCurrentMessages` from chatStore but it wasn't exported
 - **Solution**: Added selector function to chatStore.ts:
   ```typescript
@@ -248,6 +273,7 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
 - **Why**: Zustand selectors enable reactive subscriptions to specific state slices
 
 #### 2. Implicit Any Parameters in useChat.ts
+
 - **Problem**: Three locations had implicit `any` types in callback parameters:
   - Line 359: `onRetry: (attempt, delayMs, error) => {}`
   - Line 473: `currentMessages.find((m) => ...)`
@@ -259,6 +285,7 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
 - **Why**: Explicit types prevent accidental type errors and improve IDE autocomplete
 
 #### 3. Unused Variable in MentionPopover.tsx
+
 - **Problem**: Line 361 declared `pluginKeys` but never used it
 - **Solution**: Removed the unused variable declaration
 - **Why**: Dead code increases maintenance burden and confuses readers
@@ -283,11 +310,13 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
    - The alternative (casting to `WebGLUniformLocation | null`) doesn't improve safety
 
 ### Files Modified
+
 - `apps/desktop/src/stores/chatStore.ts` — Added selectCurrentMessages selector
 - `apps/desktop/src/hooks/useChat.ts` — Fixed implicit any parameters (4 locations)
 - `apps/desktop/src/components/chat/MentionPopover.tsx` — Removed unused pluginKeys variable
 
 ### Verification
+
 - ✓ `pnpm exec tsc --noEmit` — 0 errors
 - ✓ `pnpm vitest run` — 203 tests pass (170 existing + 33 from T6)
 - ✓ `grep -rn 'as any' src/` — Only 2 acceptable WebGL assertions remain
@@ -296,9 +325,11 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
   - `.sisyphus/evidence/task-2-type-safety.txt` — Only WebGL assertions
 
 ### Commit
+
 - `354cca6` — "fix: resolve type safety issues and LSP errors"
 
 ### Notes
+
 - No behavior changes — only type safety improvements
 - All existing tests continue to pass
 - Ready for Wave 1C (T4, T5) which depend on clean TypeScript
@@ -306,11 +337,13 @@ Successfully resolved ALL TypeScript type safety issues in `apps/desktop/src/`. 
 ## Task 4: Chat Search with Cmd+F
 
 ### Summary
+
 Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortcut. Created ChatSearch component, integrated into ChatArea.tsx, and added 14 comprehensive unit tests. All 255 tests passing (241 existing + 14 new).
 
 ### Implementation Details
 
 #### File: `apps/desktop/src/components/chat/ChatSearch.tsx`
+
 - Pure functional component with clear props interface
 - Props: query, matchCount, currentMatchIndex, onQueryChange, onNext, onPrevious, onClose
 - Auto-focuses input on mount using useRef + useEffect
@@ -320,6 +353,7 @@ Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortc
 - Dark theme styling with Tailwind CSS
 
 #### File: `apps/desktop/src/components/chat/ChatArea.tsx` (modified)
+
 - Added search state: isSearchOpen, searchQuery, currentMatchIndex
 - Added Cmd+F / Ctrl+F keyboard handler (useEffect with cleanup)
 - Added searchMatches computation (useMemo with debouncing)
@@ -327,6 +361,7 @@ Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortc
 - Conditionally render ChatSearch component above message list
 
 #### File: `apps/desktop/src/components/chat/__tests__/ChatSearch.test.ts`
+
 - 14 comprehensive test cases organized in 3 describe blocks
 - Tests cover:
   - Search logic: empty query, whitespace, case-insensitive, partial matches, indices, special chars, empty list, empty content
@@ -389,10 +424,12 @@ Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortc
 - Match count: `text-white/50` for subtle appearance
 
 ### Evidence
+
 - `.sisyphus/evidence/task-4-chat-search.txt` — Complete implementation summary
 - Commit: `3698682` — "feat(chat): add chat search with Cmd+F"
 
 ### Test Results
+
 - ✓ 255 tests pass (241 existing + 14 new)
 - ✓ 36 test files pass
 - ✓ Duration: 4.12s
@@ -411,16 +448,20 @@ Successfully implemented chat search feature with Cmd+F / Ctrl+F keyboard shortc
 ## Task 5: Context Usage Meter Component
 
 ### Summary
+
 Created ContextMeter component with TDD. 21 tests written first (RED), then implementation (GREEN). Component renders a progress bar showing estimated context byte usage vs 100KB limit with color-coded thresholds and hover tooltip breakdown.
 
 ### Files Created
+
 1. `apps/desktop/src/components/chat/ContextMeter.tsx` — Component + pure functions
 2. `apps/desktop/src/components/chat/__tests__/ContextMeter.test.ts` — 21 unit tests
 
 ### Files Modified
+
 - `apps/desktop/src/components/chat/ChatArea.tsx` — Added ContextMeter import and render after ChatSearch
 
 ### Key Design Decisions
+
 1. **Pure functions exported for testability**: `calculateContextSize`, `getContextColor`, `formatBytes`
 2. **MessageLike interface**: Avoids tight coupling to store's Message type while accepting it
 3. **totalBytes tracked independently**: System messages contribute to total but not user/assistant buckets
@@ -429,11 +470,13 @@ Created ContextMeter component with TDD. 21 tests written first (RED), then impl
 6. **100KB limit**: `DEFAULT_CONTEXT_LIMIT = 102400` as constant
 
 ### Testing Strategy
+
 - Pure function tests only (no jsdom, no React rendering)
 - Covers: empty arrays, role grouping, toolUses tracking, long content, thinking field, all color thresholds, formatBytes rounding
 - 21 tests across 5 describe blocks
 
 ### Tailwind Styling
+
 - Container: `border-b border-white/[0.06]` with `px-4 py-1.5`
 - Progress bar: `h-1.5 bg-white/[0.06] rounded-full` with max-w-[120px]
 - Colors: emerald-500/70 (green), amber-500/70 (yellow), red-500/80 (red)
@@ -441,25 +484,29 @@ Created ContextMeter component with TDD. 21 tests written first (RED), then impl
 - Tooltip: `bg-gray-800 border border-white/[0.1] rounded-md shadow-xl`
 
 ### Evidence
+
 - Commit: `ef17c0c` — "feat(chat): add context usage meter"
 - 238 tests pass (217 existing + 21 new), 31 test files
 - Zero LSP errors across all changed files
 
-
 ## Task 8: File Mentions (@) Completion with Content Injection
 
 ### Summary
+
 Extended the existing MentionPopover and ChatInput components to inject file content (not just path) into the chat message context when a user selects a file via @ mention. Created pure utility functions with 33 unit tests. All 271 tests pass (238 existing + 33 new).
 
 ### Files Created
+
 1. `apps/desktop/src/lib/fileMentionContent.ts` — Pure functions for file mention content injection
 2. `apps/desktop/src/lib/__tests__/fileMentionContent.test.ts` — 33 test cases
 
 ### Files Modified
+
 1. `apps/desktop/src/components/chat/MentionPopover.tsx` — Extended MentionItem interface with `fileContent?: string` and `fileSize?: number`, added `handleItemSelect` callback that reads file content via `invoke<FileContent>('read_file', ...)` for text files
 2. `apps/desktop/src/components/chat/ChatInput.tsx` — Added `fileAttachments` state array, `buildMentionContent` integration in `handleMentionSelect`, content prepending on send
 
 ### Key Design Decisions
+
 1. **Pure functions for testability**: `isTextFile`, `isBinaryFile`, `isFileTooLarge`, `getLanguageForExtension`, `formatFileContentBlock`, `buildMentionContent` — all pure, no side effects
 2. **MentionContentResult union type**: `'content' | 'too-large' | 'binary' | 'unsupported'` — clear discrimination for handling each case
 3. **Content format**: `\n\n[File: path/to/file.ts]\n```ts\n{content}\n` `` ` — readable code block with language tag
@@ -468,6 +515,7 @@ Extended the existing MentionPopover and ChatInput components to inject file con
 6. **fileAttachments state**: Accumulated content blocks in ChatInput, prepended to message on send, cleared after send
 
 ### Structural Issues Encountered
+
 - Complex multi-edit operations on ChatInput.tsx caused structural corruption:
   - Missing closing brace for `handleSend` function
   - Missing `let mentionText = ''` declaration before switch
@@ -477,6 +525,7 @@ Extended the existing MentionPopover and ChatInput components to inject file con
 - **Lesson**: After complex edits, always re-read the full function and verify structural integrity before running tests
 
 ### Testing Strategy
+
 - 33 pure function tests covering:
   - `isTextFile`: supported extensions, unsupported, no extension, dotfiles, case-insensitive
   - `isBinaryFile`: image, font, archive, video, audio extensions
@@ -486,27 +535,31 @@ Extended the existing MentionPopover and ChatInput components to inject file con
   - `buildMentionContent`: content injection, too-large warning, binary exclusion, unsupported fallback
 
 ### Evidence
+
 - 271 tests pass (238 existing + 33 new), 32 test files
 - Zero LSP errors across all 3 changed/created files
-
 
 ## Task 9: Image Attachments in Chat
 
 ### Summary
+
 Added image attachment support to the chat composer with drag-drop, file picker, thumbnail previews, inline display in sent messages, Tauri FS saving to workspace `.context/` directory, and cloud model warning.
 
 ### Files Created
+
 1. `apps/desktop/src/lib/imageAttachment.ts` — Pure functions + types: `isImageFile`, `isImageTooLarge`, `imageToBase64`, `saveImageToWorkspace`, `ImageAttachmentData` interface
 2. `apps/desktop/src/lib/__tests__/imageAttachment.test.ts` — 23 unit tests
 3. `apps/desktop/src/components/chat/ImageAttachment.tsx` — 4 components: ImageThumbnail, ImagePreviewBar, InlineImage, MessageImages
 
 ### Files Modified
+
 1. `apps/desktop/src/stores/chatStore.ts` — Added `images?: ImageAttachmentData[]` to Message interface
 2. `apps/desktop/src/components/chat/ChatInput.tsx` — Full rewrite with drag-drop, file picker, image previews, updated onSend signature
 3. `apps/desktop/src/hooks/useChat.ts` — sendMessage accepts images, passes to addMessage, saves to .context/ via Tauri FS, cloud model warning
 4. `apps/desktop/src/components/chat/MessageBubble.tsx` — Renders MessageImages in user bubbles
 
 ### Key Design Decisions
+
 1. **Dynamic imports for Tauri FS**: `saveImageToWorkspace` uses `await import('@tauri-apps/plugin-fs')` to avoid breaking tests in Node environment
 2. **Fire-and-forget saving**: Image saving to `.context/` is non-blocking (Promise.all without await) — failure doesn't block message sending
 3. **Cloud model warning**: When images are sent with a non-local agent, an assistant message warns about local image limitations
@@ -516,6 +569,7 @@ Added image attachment support to the chat composer with drag-drop, file picker,
 7. **MockFileReader**: Tests use a custom MockFileReader class since Node environment lacks FileReader API
 
 ### Testing Strategy
+
 - 23 pure function tests covering:
   - `isImageFile`: 8 tests (supported extensions, unsupported, case-insensitive, paths with dirs)
   - `isImageTooLarge`: 5 tests (under/over/at 5MB limit, zero bytes, constant value)
@@ -524,6 +578,39 @@ Added image attachment support to the chat composer with drag-drop, file picker,
   - `ImageAttachmentData` type: 2 tests
 
 ### Evidence
+
 - 294 tests pass (271 existing + 23 new), 33 test files
 - Zero LSP errors across all changed files
 - Duration: 1.76s
+
+## Task 11: Checks Tab v2 (GitHub Actions CI Display)
+
+### Summary
+
+- Added GitHub Actions-backed Checks tab in `RightPanel.tsx` using Tauri `run_shell_command` and `gh` CLI.
+- Extracted pure helpers to `src/lib/github/checks.ts` and validated behavior in `src/lib/github/__tests__/checksTab.test.ts`.
+
+### Implementation Pattern
+
+- Reused `invoke('run_shell_command', { command, workingDirectory })` for all `gh` and `git` calls.
+- Gated checks fetching by branch readiness: if both upstream tracking branch and `prNumber` are missing, display `No checks`.
+- Fetch command: `gh run list --branch <branch> --json name,status,conclusion,databaseId,headBranch`.
+- Failed log expansion command: `gh run view <id> --log-failed`.
+- Re-run command: `gh run rerun <id>` (built by `buildRerunCommand`).
+- Added 30-second `setInterval` refresh that runs only while the Checks tab component is mounted (visible).
+
+### Pure Function Conventions
+
+- `parseWorkflowRuns(json)` is defensive: invalid JSON returns `[]`, malformed entries are filtered out.
+- `getStatusIcon(status, conclusion)` map:
+  - `✅` for completed success
+  - `❌` for completed non-success
+  - `🔄` for in-progress/default
+  - `⏸` for queued
+- Keep shell command builders deterministic and testable as pure functions.
+
+### Verification
+
+- Baseline before changes: 304 tests passing.
+- After implementation: 313 tests passing (9 new tests).
+- LSP diagnostics clean on all changed files.
