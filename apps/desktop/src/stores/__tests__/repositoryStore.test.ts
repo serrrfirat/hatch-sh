@@ -1,7 +1,13 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRepositoryStore, type Workspace } from '../repositoryStore'
 
 // Mock the git and github bridges
+vi.mock('zustand/middleware', () => ({
+  persist: <T>(fn: T) => fn,
+  devtools: <T>(fn: T) => fn,
+}))
+
 vi.mock('../../lib/git/bridge', () => ({
   extractRepoName: vi.fn((url: string) => url.split('/').pop()?.replace('.git', '') || 'repo'),
   cloneRepo: vi.fn(async () => ({
