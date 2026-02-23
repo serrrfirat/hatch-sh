@@ -614,3 +614,30 @@ Added image attachment support to the chat composer with drag-drop, file picker,
 - Baseline before changes: 304 tests passing.
 - After implementation: 313 tests passing (9 new tests).
 - LSP diagnostics clean on all changed files.
+
+## Task 12: GitCoordinator Serialized Queue
+
+### Summary
+
+- Added Rust `GitCoordinator` as Tauri managed state to serialize git operations per `repoRoot` with strict concurrency=1.
+- Added Tauri commands: `git_coordinator_enqueue`, `git_coordinator_status`, `git_coordinator_cancel`.
+- Updated `src/lib/git/bridge.ts` so all git operations route through coordinator instead of direct git Tauri commands.
+
+### Implementation Pattern
+
+- Queue model: per-repo `VecDeque` with priority insertion (`critical` > `normal` > `low`) and FIFO preserved inside each priority bucket.
+- Execution model: one worker task per repo root (`worker_active` guard), each operation run under `tokio::time::timeout(Duration::from_secs(60), ...)`.
+- Cancellation model:
+  - Pending: remove from queue and complete with `Operation cancelled`.
+  - Running: trigger oneshot cancel signal and end operation.
+- Dispatch model: coordinator executes existing git functions (`git_status`, `git_commit`, `git_push`, etc.) via a command-name matcher to preserve semantics.
+
+### Verification
+
+- Rust tests: `cargo test` passed, including new queue-priority unit tests.
+- TypeScript tests: `pnpm vitest run` passed with 313/313 tests.
+- Rust LSP diagnostics unavailable locally because `rust-analyzer` binary is missing in toolchain; relied on compile+test verification.
+
+### Notes
+
+- `tokio` features had to include `macros`, `sync`, and `time` for `select!`, queue coordination primitives, and timeout support.

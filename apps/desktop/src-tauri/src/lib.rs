@@ -1,10 +1,13 @@
 use std::env;
 use std::path::PathBuf;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tokio::process::Command as AsyncCommand;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use std::process::Stdio;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, State};
 
 mod github;
 mod git;
@@ -71,6 +74,504 @@ struct ProjectFileWriteResult {
     success: bool,
     size: usize,
     error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum GitOperationPriority {
+    Critical,
+    Normal,
+    Low,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCoordinatorOperation {
+    id: String,
+    #[serde(rename = "type")]
+    operation_type: String,
+    repo_root: String,
+    command: String,
+    priority: GitOperationPriority,
+    enqueued_at: u64,
+    started_at: Option<u64>,
+    completed_at: Option<u64>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCoordinatorQueueStatus {
+    repo_root: String,
+    pending_count: usize,
+    running_operation: Option<GitCoordinatorOperation>,
+    completed_count: usize,
+    failed_count: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCoordinatorEnqueueRequest {
+    repo_root: String,
+    command: String,
+    params: serde_json::Value,
+    priority: Option<GitOperationPriority>,
+    #[serde(rename = "type")]
+    operation_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCoordinatorStatusRequest {
+    repo_root: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCoordinatorCancelRequest {
+    operation_id: String,
+}
+
+struct QueuedGitOperation {
+    operation: GitCoordinatorOperation,
+    params: serde_json::Value,
+    result_tx: Option<tokio::sync::oneshot::Sender<Result<serde_json::Value, String>>>,
+}
+
+struct RunningGitOperation {
+    operation: GitCoordinatorOperation,
+    cancel_tx: Option<tokio::sync::oneshot::Sender<()>>,
+}
+
+#[derive(Default)]
+struct RepoQueueState {
+    pending: VecDeque<QueuedGitOperation>,
+    running: Option<RunningGitOperation>,
+    completed_count: usize,
+    failed_count: usize,
+    worker_active: bool,
+}
+
+#[derive(Default)]
+struct GitCoordinatorState {
+    next_operation_id: u64,
+    repos: HashMap<String, RepoQueueState>,
+}
+
+#[derive(Clone, Default)]
+struct GitCoordinator {
+    state: Arc<tokio::sync::Mutex<GitCoordinatorState>>,
+}
+
+impl GitCoordinator {
+    fn new() -> Self {
+        Self {
+            state: Arc::new(tokio::sync::Mutex::new(GitCoordinatorState::default())),
+        }
+    }
+
+    async fn enqueue(&self, request: GitCoordinatorEnqueueRequest) -> Result<serde_json::Value, String> {
+        let operation_id;
+        let operation;
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
+
+        {
+            let mut guard = self.state.lock().await;
+            guard.next_operation_id += 1;
+            operation_id = format!("git-op-{}", guard.next_operation_id);
+
+            operation = GitCoordinatorOperation {
+                id: operation_id,
+                operation_type: request.operation_type.unwrap_or_else(|| request.command.clone()),
+                repo_root: request.repo_root.clone(),
+                command: request.command,
+                priority: request.priority.unwrap_or(GitOperationPriority::Normal),
+                enqueued_at: unix_timestamp_ms(),
+                started_at: None,
+                completed_at: None,
+                error: None,
+            };
+
+            let queued_operation = QueuedGitOperation {
+                operation,
+                params: request.params,
+                result_tx: Some(result_tx),
+            };
+
+            let repo_root = queued_operation.operation.repo_root.clone();
+            let queue = guard.repos.entry(repo_root.clone()).or_default();
+            queue_insert_by_priority(&mut queue.pending, queued_operation);
+
+            if !queue.worker_active {
+                queue.worker_active = true;
+                let coordinator = self.clone();
+                tauri::async_runtime::spawn(async move {
+                    coordinator.process_repo_queue(repo_root).await;
+                });
+            }
+        }
+
+        result_rx
+            .await
+            .map_err(|_| "Git coordinator queue channel closed".to_string())?
+    }
+
+    async fn status(&self, repo_root: String) -> GitCoordinatorQueueStatus {
+        let guard = self.state.lock().await;
+        if let Some(queue) = guard.repos.get(&repo_root) {
+            return GitCoordinatorQueueStatus {
+                repo_root,
+                pending_count: queue.pending.len(),
+                running_operation: queue.running.as_ref().map(|running| running.operation.clone()),
+                completed_count: queue.completed_count,
+                failed_count: queue.failed_count,
+            };
+        }
+
+        GitCoordinatorQueueStatus {
+            repo_root,
+            pending_count: 0,
+            running_operation: None,
+            completed_count: 0,
+            failed_count: 0,
+        }
+    }
+
+    async fn cancel(&self, operation_id: String) -> bool {
+        let mut guard = self.state.lock().await;
+
+        for queue in guard.repos.values_mut() {
+            if let Some(index) = queue.pending.iter().position(|entry| entry.operation.id == operation_id) {
+                if let Some(mut pending) = queue.pending.remove(index) {
+                    if let Some(sender) = pending.result_tx.take() {
+                        let _ = sender.send(Err("Operation cancelled".to_string()));
+                    }
+                    return true;
+                }
+            }
+
+            if let Some(running) = queue.running.as_mut() {
+                if running.operation.id == operation_id {
+                    if let Some(cancel_tx) = running.cancel_tx.take() {
+                        let _ = cancel_tx.send(());
+                    }
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    async fn process_repo_queue(&self, repo_root: String) {
+        loop {
+            let (queued_operation, cancel_rx) = {
+                let mut guard = self.state.lock().await;
+                let queue = match guard.repos.get_mut(&repo_root) {
+                    Some(queue) => queue,
+                    None => break,
+                };
+
+                if queue.pending.is_empty() {
+                    queue.worker_active = false;
+                    queue.running = None;
+                    break;
+                }
+
+                let mut next = match queue.pending.pop_front() {
+                    Some(op) => op,
+                    None => {
+                        queue.worker_active = false;
+                        queue.running = None;
+                        break;
+                    }
+                };
+
+                next.operation.started_at = Some(unix_timestamp_ms());
+                let running_snapshot = next.operation.clone();
+                let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+
+                queue.running = Some(RunningGitOperation {
+                    operation: running_snapshot,
+                    cancel_tx: Some(cancel_tx),
+                });
+
+                (next, cancel_rx)
+            };
+
+            let timeout_duration = Duration::from_secs(60);
+            let mut dispatch_future = Box::pin(execute_coordinated_git_command(
+                &queued_operation.operation.command,
+                queued_operation.params.clone(),
+            ));
+
+            let execution_result: Result<serde_json::Value, String> = tokio::select! {
+                _ = cancel_rx => Err("Operation cancelled".to_string()),
+                timeout_result = tokio::time::timeout(timeout_duration, &mut dispatch_future) => {
+                    match timeout_result {
+                        Ok(result) => result,
+                        Err(_) => Err("Operation timed out after 60 seconds".to_string()),
+                    }
+                }
+            };
+
+            let mut completed_operation = queued_operation.operation.clone();
+            completed_operation.completed_at = Some(unix_timestamp_ms());
+
+            if let Err(error_message) = &execution_result {
+                completed_operation.error = Some(error_message.clone());
+            }
+
+            if let Some(sender) = queued_operation.result_tx {
+                let _ = sender.send(execution_result.clone());
+            }
+
+            let mut guard = self.state.lock().await;
+            if let Some(queue) = guard.repos.get_mut(&repo_root) {
+                queue.running = None;
+                match execution_result {
+                    Ok(_) => queue.completed_count += 1,
+                    Err(_) => queue.failed_count += 1,
+                }
+            }
+        }
+    }
+}
+
+fn unix_timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn queue_insert_by_priority(queue: &mut VecDeque<QueuedGitOperation>, operation: QueuedGitOperation) {
+    match operation.operation.priority {
+        GitOperationPriority::Critical => {
+            let insert_at = queue
+                .iter()
+                .position(|item| item.operation.priority != GitOperationPriority::Critical)
+                .unwrap_or(queue.len());
+            queue.insert(insert_at, operation);
+        }
+        GitOperationPriority::Normal => {
+            let insert_at = queue
+                .iter()
+                .position(|item| item.operation.priority == GitOperationPriority::Low)
+                .unwrap_or(queue.len());
+            queue.insert(insert_at, operation);
+        }
+        GitOperationPriority::Low => {
+            queue.push_back(operation);
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCloneRepoParams {
+    repo_url: String,
+    repo_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitOpenLocalRepoParams {
+    path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCreateWorkspaceBranchParams {
+    repo_path: String,
+    workspace_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitDeleteWorkspaceBranchParams {
+    repo_path: String,
+    branch_name: String,
+    worktree_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitRepoPathParams {
+    repo_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCommitParams {
+    repo_path: String,
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitPushParams {
+    repo_path: String,
+    branch: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCreatePrParams {
+    repo_full_name: String,
+    head_branch: String,
+    base_branch: String,
+    title: String,
+    body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCreateGithubRepoParams {
+    name: String,
+    is_private: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitFileDiffParams {
+    repo_path: String,
+    file_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitGetPrParams {
+    repo_full_name: String,
+    pr_number: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitMergePrParams {
+    repo_full_name: String,
+    pr_number: u64,
+    merge_method: Option<String>,
+}
+
+async fn execute_coordinated_git_command(
+    command: &str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    match command {
+        "git_clone_repo" => {
+            let payload: GitCloneRepoParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_clone_repo: {}", e))?;
+            to_json_value(git_clone_repo(payload.repo_url, payload.repo_name).await?)
+        }
+        "git_open_local_repo" => {
+            let payload: GitOpenLocalRepoParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_open_local_repo: {}", e))?;
+            to_json_value(git_open_local_repo(payload.path).await?)
+        }
+        "git_create_workspace_branch" => {
+            let payload: GitCreateWorkspaceBranchParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_create_workspace_branch: {}", e))?;
+            to_json_value(git_create_workspace_branch(payload.repo_path, payload.workspace_id).await?)
+        }
+        "git_delete_workspace_branch" => {
+            let payload: GitDeleteWorkspaceBranchParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_delete_workspace_branch: {}", e))?;
+            git_delete_workspace_branch(payload.repo_path, payload.branch_name, payload.worktree_path).await?;
+            Ok(serde_json::Value::Null)
+        }
+        "git_list_worktrees" => {
+            let payload: GitRepoPathParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_list_worktrees: {}", e))?;
+            to_json_value(git_list_worktrees(payload.repo_path).await?)
+        }
+        "git_prune_worktrees" => {
+            let payload: GitRepoPathParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_prune_worktrees: {}", e))?;
+            to_json_value(git_prune_worktrees(payload.repo_path).await?)
+        }
+        "git_status" => {
+            let payload: GitRepoPathParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_status: {}", e))?;
+            to_json_value(git_status(payload.repo_path).await?)
+        }
+        "git_commit" => {
+            let payload: GitCommitParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_commit: {}", e))?;
+            to_json_value(git_commit(payload.repo_path, payload.message).await?)
+        }
+        "git_push" => {
+            let payload: GitPushParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_push: {}", e))?;
+            git_push(payload.repo_path, payload.branch).await?;
+            Ok(serde_json::Value::Null)
+        }
+        "git_create_pr" => {
+            let payload: GitCreatePrParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_create_pr: {}", e))?;
+            to_json_value(git_create_pr(payload.repo_full_name, payload.head_branch, payload.base_branch, payload.title, payload.body).await?)
+        }
+        "git_create_github_repo" => {
+            let payload: GitCreateGithubRepoParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_create_github_repo: {}", e))?;
+            to_json_value(git_create_github_repo(payload.name, payload.is_private).await?)
+        }
+        "git_diff" => {
+            let payload: GitRepoPathParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_diff: {}", e))?;
+            to_json_value(git_diff(payload.repo_path).await?)
+        }
+        "git_diff_stats" => {
+            let payload: GitRepoPathParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_diff_stats: {}", e))?;
+            to_json_value(git_diff_stats(payload.repo_path).await?)
+        }
+        "git_file_diff" => {
+            let payload: GitFileDiffParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_file_diff: {}", e))?;
+            to_json_value(git_file_diff(payload.repo_path, payload.file_path).await?)
+        }
+        "git_get_pr" => {
+            let payload: GitGetPrParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_get_pr: {}", e))?;
+            to_json_value(git_get_pr(payload.repo_full_name, payload.pr_number as u32).await?)
+        }
+        "git_merge_pr" => {
+            let payload: GitMergePrParams = serde_json::from_value(params)
+                .map_err(|e| format!("Invalid params for git_merge_pr: {}", e))?;
+            let merge_method = payload.merge_method.unwrap_or_else(|| "squash".to_string());
+            to_json_value(git_merge_pr(payload.repo_full_name, payload.pr_number as u32, merge_method).await?)
+        }
+        _ => Err(format!("Unsupported coordinated command: {}", command)),
+    }
+}
+
+fn to_json_value<T: Serialize>(value: T) -> Result<serde_json::Value, String> {
+    serde_json::to_value(value).map_err(|e| format!("Failed to serialize operation result: {}", e))
+}
+
+#[tauri::command]
+async fn git_coordinator_enqueue(
+    coordinator: State<'_, GitCoordinator>,
+    request: GitCoordinatorEnqueueRequest,
+) -> Result<serde_json::Value, String> {
+    coordinator.enqueue(request).await
+}
+
+#[tauri::command]
+async fn git_coordinator_status(
+    coordinator: State<'_, GitCoordinator>,
+    request: GitCoordinatorStatusRequest,
+) -> Result<GitCoordinatorQueueStatus, String> {
+    Ok(coordinator.status(request.repo_root).await)
+}
+
+#[tauri::command]
+async fn git_coordinator_cancel(
+    coordinator: State<'_, GitCoordinator>,
+    request: GitCoordinatorCancelRequest,
+) -> Result<bool, String> {
+    Ok(coordinator.cancel(request.operation_id).await)
 }
 
 #[tauri::command]
@@ -1527,6 +2028,65 @@ async fn proxy_fetch(client: &reqwest::Client, url: &str) -> http::Response<Vec<
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn queued(id: &str, priority: GitOperationPriority) -> QueuedGitOperation {
+        let (tx, _rx) = tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
+        QueuedGitOperation {
+            operation: GitCoordinatorOperation {
+                id: id.to_string(),
+                operation_type: "test".to_string(),
+                repo_root: "/tmp/repo".to_string(),
+                command: "git_status".to_string(),
+                priority,
+                enqueued_at: 0,
+                started_at: None,
+                completed_at: None,
+                error: None,
+            },
+            params: serde_json::json!({}),
+            result_tx: Some(tx),
+        }
+    }
+
+    #[test]
+    fn queue_inserts_critical_before_normal_and_low() {
+        let mut queue = VecDeque::new();
+        queue_insert_by_priority(&mut queue, queued("normal-1", GitOperationPriority::Normal));
+        queue_insert_by_priority(&mut queue, queued("low-1", GitOperationPriority::Low));
+        queue_insert_by_priority(&mut queue, queued("critical-1", GitOperationPriority::Critical));
+
+        let ids: Vec<String> = queue.iter().map(|item| item.operation.id.clone()).collect();
+        assert_eq!(ids, vec!["critical-1", "normal-1", "low-1"]);
+    }
+
+    #[test]
+    fn queue_preserves_fifo_within_same_priority() {
+        let mut queue = VecDeque::new();
+        queue_insert_by_priority(&mut queue, queued("critical-1", GitOperationPriority::Critical));
+        queue_insert_by_priority(&mut queue, queued("critical-2", GitOperationPriority::Critical));
+        queue_insert_by_priority(&mut queue, queued("normal-1", GitOperationPriority::Normal));
+        queue_insert_by_priority(&mut queue, queued("normal-2", GitOperationPriority::Normal));
+        queue_insert_by_priority(&mut queue, queued("low-1", GitOperationPriority::Low));
+        queue_insert_by_priority(&mut queue, queued("low-2", GitOperationPriority::Low));
+
+        let ids: Vec<String> = queue.iter().map(|item| item.operation.id.clone()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "critical-1",
+                "critical-2",
+                "normal-1",
+                "normal-2",
+                "low-1",
+                "low-2"
+            ]
+        );
+    }
+}
 // =============================================================================
 // Application Entry Point
 // =============================================================================
@@ -1539,6 +2099,7 @@ pub fn run() {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
     tauri::Builder::default()
+        .manage(GitCoordinator::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -1585,6 +2146,9 @@ pub fn run() {
             github_sign_out,
             github_validate_token,
             // Git commands
+            git_coordinator_enqueue,
+            git_coordinator_status,
+            git_coordinator_cancel,
             git_clone_repo,
             git_open_local_repo,
             git_create_workspace_branch,

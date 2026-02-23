@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { GitCoordinatorQueueStatus, GitOperationPriority } from './coordinator/types'
 
 export interface Repository {
   id: string
@@ -80,67 +81,150 @@ export interface MergeResult {
   sha?: string
 }
 
+interface GitCoordinatorRequest {
+  repoRoot: string
+  command: string
+  params: Record<string, unknown>
+  priority: GitOperationPriority
+  type: string
+}
+
+function commandPriority(command: string): GitOperationPriority {
+  switch (command) {
+    case 'git_commit':
+    case 'git_push':
+    case 'git_delete_workspace_branch':
+    case 'git_merge_pr':
+      return 'critical'
+    case 'git_diff':
+    case 'git_diff_stats':
+    case 'git_file_diff':
+      return 'low'
+    default:
+      return 'normal'
+  }
+}
+
+async function runCoordinatedGitCommand<T>(
+  repoRoot: string,
+  command: string,
+  params: Record<string, unknown>,
+  type: string
+): Promise<T> {
+  const request: GitCoordinatorRequest = {
+    repoRoot,
+    command,
+    params,
+    priority: commandPriority(command),
+    type,
+  }
+
+  return invoke<T>('git_coordinator_enqueue', { request })
+}
+
+export async function getGitCoordinatorStatus(
+  repoRoot: string
+): Promise<GitCoordinatorQueueStatus> {
+  return invoke<GitCoordinatorQueueStatus>('git_coordinator_status', { request: { repoRoot } })
+}
+
+export async function cancelGitCoordinatorOperation(operationId: string): Promise<boolean> {
+  return invoke<boolean>('git_coordinator_cancel', { request: { operationId } })
+}
+
 /**
  * Clone a repository from GitHub
  */
 export async function cloneRepo(repoUrl: string, repoName: string): Promise<Repository> {
-  return invoke<Repository>('git_clone_repo', { repoUrl, repoName })
+  return runCoordinatedGitCommand<Repository>(
+    `clone:${repoName}`,
+    'git_clone_repo',
+    { repoUrl, repoName },
+    'clone'
+  )
 }
 
 /**
  * Open an existing local repository
  */
 export async function openLocalRepo(path: string): Promise<Repository> {
-  return invoke<Repository>('git_open_local_repo', { path })
+  return runCoordinatedGitCommand<Repository>(path, 'git_open_local_repo', { path }, 'open-local')
 }
 
 /**
  * Create a new workspace with its own worktree for isolation
  */
-export async function createWorkspaceBranch(repoPath: string, workspaceId: string): Promise<WorkspaceResult> {
-  return invoke<WorkspaceResult>('git_create_workspace_branch', { repoPath, workspaceId })
+export async function createWorkspaceBranch(
+  repoPath: string,
+  workspaceId: string
+): Promise<WorkspaceResult> {
+  return runCoordinatedGitCommand<WorkspaceResult>(
+    repoPath,
+    'git_create_workspace_branch',
+    { repoPath, workspaceId },
+    'worktree-create'
+  )
 }
 
 /**
  * Delete a workspace branch and its worktree
  */
-export async function deleteWorkspaceBranch(repoPath: string, branchName: string, worktreePath?: string): Promise<void> {
-  return invoke('git_delete_workspace_branch', { repoPath, branchName, worktreePath })
+export async function deleteWorkspaceBranch(
+  repoPath: string,
+  branchName: string,
+  worktreePath?: string
+): Promise<void> {
+  await runCoordinatedGitCommand<null>(
+    repoPath,
+    'git_delete_workspace_branch',
+    { repoPath, branchName, worktreePath },
+    'worktree-delete'
+  )
 }
 
 /**
  * List all worktrees for a repository
  */
 export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
-  return invoke<WorktreeInfo[]>('git_list_worktrees', { repoPath })
+  return runCoordinatedGitCommand<WorktreeInfo[]>(
+    repoPath,
+    'git_list_worktrees',
+    { repoPath },
+    'worktree-list'
+  )
 }
 
 /**
  * Prune stale worktree references
  */
 export async function pruneWorktrees(repoPath: string): Promise<string> {
-  return invoke<string>('git_prune_worktrees', { repoPath })
+  return runCoordinatedGitCommand<string>(
+    repoPath,
+    'git_prune_worktrees',
+    { repoPath },
+    'worktree-prune'
+  )
 }
 
 /**
  * Get git status for a repository
  */
 export async function getGitStatus(repoPath: string): Promise<GitStatus> {
-  return invoke<GitStatus>('git_status', { repoPath })
+  return runCoordinatedGitCommand<GitStatus>(repoPath, 'git_status', { repoPath }, 'status')
 }
 
 /**
  * Commit all changes with the given message
  */
 export async function commitChanges(repoPath: string, message: string): Promise<string> {
-  return invoke<string>('git_commit', { repoPath, message })
+  return runCoordinatedGitCommand<string>(repoPath, 'git_commit', { repoPath, message }, 'commit')
 }
 
 /**
  * Push changes to remote
  */
 export async function pushChanges(repoPath: string, branch: string): Promise<void> {
-  return invoke('git_push', { repoPath, branch })
+  await runCoordinatedGitCommand<null>(repoPath, 'git_push', { repoPath, branch }, 'push')
 }
 
 /**
@@ -153,27 +237,31 @@ export async function createPR(
   title: string,
   body: string
 ): Promise<string> {
-  return invoke<string>('git_create_pr', {
-    repoFullName,
-    headBranch,
-    baseBranch,
-    title,
-    body,
-  })
+  return runCoordinatedGitCommand<string>(
+    `github:${repoFullName}`,
+    'git_create_pr',
+    { repoFullName, headBranch, baseBranch, title, body },
+    'create-pr'
+  )
 }
 
 /**
  * Create a new GitHub repository
  */
 export async function createGitHubRepo(name: string, isPrivate: boolean): Promise<Repository> {
-  return invoke<Repository>('git_create_github_repo', { name, isPrivate })
+  return runCoordinatedGitCommand<Repository>(
+    `github:create:${name}`,
+    'git_create_github_repo',
+    { name, isPrivate },
+    'create-repo'
+  )
 }
 
 /**
  * Get the diff for a repository
  */
 export async function getDiff(repoPath: string): Promise<string> {
-  return invoke<string>('git_diff', { repoPath })
+  return runCoordinatedGitCommand<string>(repoPath, 'git_diff', { repoPath }, 'diff')
 }
 
 /**
@@ -202,13 +290,22 @@ export function extractRepoName(url: string): string {
  * Get detailed diff stats for each changed file
  */
 export async function getDiffStats(repoPath: string): Promise<FileChange[]> {
-  return invoke<FileChange[]>('git_diff_stats', { repoPath })
+  return runCoordinatedGitCommand<FileChange[]>(
+    repoPath,
+    'git_diff_stats',
+    { repoPath },
+    'diff-stats'
+  )
 }
 
 /**
  * List all files in a directory recursively
  */
-export async function listDirectoryFiles(dirPath: string, maxDepth?: number, showHidden?: boolean): Promise<FileEntry[]> {
+export async function listDirectoryFiles(
+  dirPath: string,
+  maxDepth?: number,
+  showHidden?: boolean
+): Promise<FileEntry[]> {
   return invoke<FileEntry[]>('list_directory_files', { dirPath, maxDepth, showHidden })
 }
 
@@ -223,14 +320,27 @@ export async function readFile(filePath: string): Promise<FileContent> {
  * Get diff for a specific file (old content vs new content)
  */
 export async function getFileDiff(repoPath: string, filePath: string): Promise<FileDiff> {
-  return invoke<FileDiff>('git_file_diff', { repoPath, filePath })
+  return runCoordinatedGitCommand<FileDiff>(
+    repoPath,
+    'git_file_diff',
+    { repoPath, filePath },
+    'file-diff'
+  )
 }
 
 /**
  * Get pull request details from GitHub
  */
-export async function getPullRequest(repoFullName: string, prNumber: number): Promise<PullRequestInfo> {
-  return invoke<PullRequestInfo>('git_get_pr', { repoFullName, prNumber })
+export async function getPullRequest(
+  repoFullName: string,
+  prNumber: number
+): Promise<PullRequestInfo> {
+  return runCoordinatedGitCommand<PullRequestInfo>(
+    `github:${repoFullName}`,
+    'git_get_pr',
+    { repoFullName, prNumber },
+    'get-pr'
+  )
 }
 
 /**
@@ -241,5 +351,10 @@ export async function mergePullRequest(
   prNumber: number,
   mergeMethod: string = 'squash'
 ): Promise<MergeResult> {
-  return invoke<MergeResult>('git_merge_pr', { repoFullName, prNumber, mergeMethod })
+  return runCoordinatedGitCommand<MergeResult>(
+    `github:${repoFullName}`,
+    'git_merge_pr',
+    { repoFullName, prNumber, mergeMethod },
+    'merge-pr'
+  )
 }
