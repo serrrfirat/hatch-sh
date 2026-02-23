@@ -258,3 +258,12 @@ export const useChatStore = create<ChatState>()(
     }
   )
 )
+
+
+/**
+ * Selector to get current workspace messages
+ */
+export const selectCurrentMessages = (state: ChatState): Message[] => {
+  if (!state.currentWorkspaceId) return []
+  return state.messagesByWorkspace[state.currentWorkspaceId] || []
+}

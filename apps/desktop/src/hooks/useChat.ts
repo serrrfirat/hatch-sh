@@ -356,7 +356,7 @@ export function useChat() {
           maxRetries: 3,
           baseDelayMs: 1000,
           shouldRetry: isRetryableCloudError,
-          onRetry: (attempt, delayMs, error) => {
+          onRetry: (_attempt: number, _delayMs: number, _error: unknown) => {
           },
         }
       )

@@ -1,0 +1,42 @@
+# Task 6: Slash Commands Parser — Evidence
+
+## Files Created
+1. apps/desktop/src/lib/slashCommands.ts (67 lines)
+   - SlashCommandResult type union
+   - SlashCommandDef interface
+   - SLASH_COMMANDS registry (4 built-in commands)
+   - parseSlashCommand() function with context.isStreaming check
+   - isSlashInput() helper for autocomplete triggering
+   - getCommandSuggestions() for command autocomplete
+
+2. apps/desktop/src/lib/__tests__/slashCommands.test.ts (197 lines)
+   - 33 comprehensive test cases
+   - Tests for parseSlashCommand (14 tests)
+   - Tests for isSlashInput (6 tests)
+   - Tests for getCommandSuggestions (8 tests)
+   - Tests for SLASH_COMMANDS registry (5 tests)
+
+## Test Results
+✓ All 203 tests pass (170 existing + 33 new)
+✓ Test Files: 29 passed
+✓ Duration: 1.84s
+
+## Command Implementations
+1. /clear — Clears messages (blocked while streaming)
+2. /review — Generates review prompt (optional file scope)
+3. /restart — Returns restart signal
+4. /help — Lists all commands
+
+## Key Features
+✓ Case-insensitive command parsing
+✓ Whitespace handling (leading/multiple spaces)
+✓ Streaming context check for /clear
+✓ Autocomplete suggestions with partial matching
+✓ Unknown command error handling
+✓ Non-command input returns null
+
+## Verification
+- LSP diagnostics: clean on both files
+- No TypeScript errors
+- No unused imports
+- All edge cases covered
