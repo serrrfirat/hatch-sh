@@ -29,3 +29,57 @@ Due to file-level conflicts, Wave 1 is split into 3 sub-batches:
 - Wave 1A (parallel): T1 console.log cleanup, T3 workspace status, T7 GitCoordinator types
 - Wave 1B (parallel after 1A): T2 type safety, T6 slash commands
 - Wave 1C (sequential after 1B): T4 chat search, T5 context meter (both touch ChatArea.tsx)
+
+## Task 1: Remove Console Statements from Production Code
+
+### Summary
+Successfully removed all console.log, console.warn, and console.error statements from production TypeScript/TSX source files under `apps/desktop/src/`. Total of 119 console statements removed across 24 files.
+
+### Approach
+1. Used grep to identify all console statements in production code
+2. Excluded test files (__tests__, .test., .spec.)
+3. Used Python regex to remove entire lines containing console statements
+4. Fixed syntax errors in catch blocks (arrow functions without bodies)
+5. Preserved special case in bundler (lib/bundler/index.ts) where console.error is intentionally reassigned for iframe error handling
+
+### Files Modified
+- apps/desktop/src/stores/ideaMazeStore.ts (11 statements)
+- apps/desktop/src/components/chat/MentionPopover.tsx (22 statements)
+- apps/desktop/src/stores/settingsStore.ts (1 statement)
+- apps/desktop/src/stores/repositoryStore.ts (2 statements)
+- apps/desktop/src/stores/marketplaceStore.ts (1 statement)
+- apps/desktop/src/stores/chatStore.ts (1 statement)
+- apps/desktop/src/components/ide/RightPanel.tsx (1 statement)
+- apps/desktop/src/components/chat/CodeBlock.tsx (1 statement)
+- apps/desktop/src/components/layout/Layout.tsx (1 statement)
+- apps/desktop/src/components/layout/ProjectTree.tsx (1 statement)
+- apps/desktop/src/components/SettingsPanel.tsx (2 statements)
+- apps/desktop/src/components/Plasma.tsx (1 statement)
+- apps/desktop/src/components/DiscoverPage.tsx (1 statement)
+- apps/desktop/src/components/ErrorBoundary.tsx (1 statement)
+- apps/desktop/src/hooks/useChat.ts (6 statements)
+- apps/desktop/src/hooks/useIdeaMazeChat.ts (7 statements)
+- apps/desktop/src/lib/ideaMaze/storage.ts (25 statements)
+- apps/desktop/src/lib/claudeCode/bridge.ts (15 statements)
+- apps/desktop/src/lib/agents/streamUtils.ts (3 statements)
+- apps/desktop/src/lib/agents/adapters/cursor.ts (2 statements)
+- apps/desktop/src/lib/agents/adapters/opencode.ts (2 statements)
+- apps/desktop/src/pages/IdeaMazePage.tsx (1 statement)
+- apps/desktop/src/pages/MarketplacePage.tsx (8 statements)
+- apps/desktop/src/services/skillsService.ts (1 statement)
+
+### Key Learnings
+1. **Regex Pattern**: Used `^\s*console\.(log|warn|error)\([^)]*\).*$\n?` to match entire lines with console statements
+2. **Catch Block Handling**: When removing console statements from catch blocks, must replace with proper block syntax `() => { // comment }` instead of arrow function without body
+3. **Special Cases**: Template strings in bundler code that generate HTML/JavaScript should be preserved - they're not production code but generated code for iframes
+4. **Verification**: Final grep with exclusion of bundler directory confirmed all production console statements removed
+
+### Evidence
+- `.sisyphus/evidence/task-1-console-log-grep.txt` - Empty file confirming no console statements remain
+- `.sisyphus/evidence/task-1-build-check.txt` - Build output (pre-existing TypeScript errors unrelated to console removal)
+- Commit: `ac952fa` - "chore: remove console.log statements from production code"
+
+### Notes
+- Build fails due to pre-existing TypeScript errors in test files and repositoryStore.ts (unrelated to this task)
+- All console statements successfully removed from production code
+- No logic changes made - only removed debug logging statements

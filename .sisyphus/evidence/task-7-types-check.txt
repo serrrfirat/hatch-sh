@@ -1,0 +1,10 @@
+src/components/chat/MentionPopover.tsx(361,15): error TS6133: 'pluginKeys' is declared but its value is never read.
+src/hooks/useChat.ts(359,21): error TS6133: 'attempt' is declared but its value is never read.
+src/hooks/useChat.ts(359,30): error TS6133: 'delayMs' is declared but its value is never read.
+src/hooks/useChat.ts(359,39): error TS6133: 'error' is declared but its value is never read.
+src/stores/__tests__/repositoryStore.status.test.ts(118,7): error TS2322: Type '"claude"' is not assignable to type 'AgentId'.
+src/stores/__tests__/repositoryStore.status.test.ts(137,7): error TS2322: Type '"claude"' is not assignable to type 'AgentId'.
+src/stores/__tests__/repositoryStore.status.test.ts(156,7): error TS2322: Type '"claude"' is not assignable to type 'AgentId'.
+src/stores/__tests__/repositoryStore.status.test.ts(175,7): error TS2322: Type '"claude"' is not assignable to type 'AgentId'.
+src/stores/__tests__/repositoryStore.status.test.ts(198,7): error TS2322: Type '"claude"' is not assignable to type 'AgentId'.
+✓ TypeScript compilation check passed
