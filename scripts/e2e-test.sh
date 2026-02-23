@@ -6,7 +6,7 @@
 set -e
 
 API_URL="${API_URL:-http://localhost:8787}"
-WEB_URL="${WEB_URL:-http://localhost:5173}"
+WEB_URL="${WEB_URL:-http://localhost:5174}"
 
 echo "=========================================="
 echo "  hatch.sh E2E Test Suite"
