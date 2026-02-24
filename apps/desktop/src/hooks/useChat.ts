@@ -19,6 +19,8 @@ import {
 import { extractCodeBlocks } from '../lib/codeExtractor'
 import { writeCodeBlocksToWorkspace } from '../lib/fileWriter'
 // readProjectMemory is available for future system prompt enrichment
+import { loadPRDFromWorkspace } from '../lib/context/prdStorage'
+import { formatPRDForAgent } from '../lib/context/prdFormatter'
 import { windowMessages, getDroppedMessages } from '../lib/chatWindow'
 import { summarizeDroppedMessages } from '../lib/chatSummarizer'
 import { saveImageToWorkspace, type ImageAttachmentData } from '../lib/imageAttachment'
@@ -298,8 +300,21 @@ export function useChat(workspaceId?: string) {
           agentProcessManager.markStreaming(targetWorkspaceId)
         }
 
+        // Load PRD context if available
+        let systemPrompt = SYSTEM_PROMPT
+        if (workingDirectory) {
+          try {
+            const prd = await loadPRDFromWorkspace(workingDirectory)
+            if (prd) {
+              systemPrompt = `${SYSTEM_PROMPT}\n\n${formatPRDForAgent(prd)}`
+            }
+          } catch {
+            // Graceful fallback: use default system prompt if PRD load fails
+          }
+        }
+
         const sendPromise = adapter.sendMessage(formattedMessages, {
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt,
           onStream,
           model,
           workingDirectory,
