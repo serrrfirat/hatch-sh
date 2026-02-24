@@ -220,7 +220,7 @@ Max Concurrent: 7 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Console.log Cleanup (70+ removals)
+- [x] 1. Console.log Cleanup (70+ removals)
 
   **What to do**:
   - Search all `.ts` and `.tsx` files under `apps/desktop/src/` for `console.log`, `console.warn`, `console.error`
@@ -293,7 +293,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `chore: remove console.log statements from production code`
   - Pre-commit: `pnpm lint`
 
-- [ ] 2. Type Safety Fixes
+- [x] 2. Type Safety Fixes
 
   **What to do**:
   - Fix existing LSP errors in the codebase:
@@ -364,7 +364,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `fix: resolve type safety issues and LSP errors`
   - Pre-commit: `pnpm exec tsc --noEmit`
 
-- [ ] 3. Workspace Status Tracking
+- [x] 3. Workspace Status Tracking
 
   **What to do**:
   - Add `status` field to workspace type in repositoryStore.ts: `'backlog' | 'in-progress' | 'in-review' | 'done'`
@@ -449,7 +449,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(workspace): add workspace status tracking (backlog/in-progress/review/done)`
   - Pre-commit: `pnpm test`
 
-- [ ] 4. Chat Search (Cmd+F)
+- [x] 4. Chat Search (Cmd+F)
 
   **What to do**:
   - Create `ChatSearch` component with search input, match count, prev/next navigation
@@ -530,7 +530,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(chat): add chat search with Cmd+F`
   - Pre-commit: `pnpm test`
 
-- [ ] 5. Context Usage Meter
+- [x] 5. Context Usage Meter
 
   **What to do**:
   - Create `ContextMeter` component showing estimated context usage
@@ -593,7 +593,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(chat): add context usage meter`
   - Pre-commit: `pnpm test`
 
-- [ ] 6. Slash Commands Parser + Built-in Commands
+- [x] 6. Slash Commands Parser + Built-in Commands
 
   **What to do**:
   - Create `lib/slashCommands.ts` with command parser and registry
@@ -674,7 +674,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(chat): add slash commands parser with built-in commands`
   - Pre-commit: `pnpm test`
 
-- [ ] 7. GitCoordinator Types + Interfaces
+- [x] 7. GitCoordinator Types + Interfaces
 
   **What to do**:
   - Create `lib/git/coordinator/types.ts` with TypeScript interfaces for git operation coordination
@@ -735,7 +735,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(git): add GitCoordinator types and interfaces`
   - Pre-commit: `pnpm exec tsc --noEmit`
 
-- [ ] 8. File Mentions (@) Completion
+- [x] 8. File Mentions (@) Completion
 
   **What to do**:
   - Extend existing MentionPopover.tsx to inject file CONTENT (not just path) into the chat message
@@ -792,7 +792,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(chat): complete file mentions with content injection`
 
-- [ ] 9. Image Attachments in Chat
+- [x] 9. Image Attachments in Chat
 
   **What to do**:
   - Add image attachment support to chat composer
@@ -852,7 +852,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(chat): add image attachment support`
 
-- [ ] 10. Code Review Mode
+- [x] 10. Code Review Mode
 
   **What to do**:
   - Implement /review slash command handler (depends on T6 slash parser)
@@ -907,7 +907,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(chat): add code review mode via /review command`
 
-- [ ] 11. Checks Tab v2 (GitHub Actions)
+- [x] 11. Checks Tab v2 (GitHub Actions)
 
   **What to do**:
   - Enhance existing Checks tab in RightPanel.tsx
@@ -968,7 +968,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(checks): add GitHub Actions logs and CI re-run`
 
-- [ ] 12. GitCoordinator Implementation (Serialized Queue)
+- [x] 12. GitCoordinator Implementation (Serialized Queue)
 
   **What to do**:
   - Implement GitCoordinator in Rust (src-tauri/src/lib.rs or new module)
@@ -1037,7 +1037,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(git): implement GitCoordinator with serialized queue`
 
-- [ ] 13. Worktree Lifecycle Manager
+- [x] 13. Worktree Lifecycle Manager
 
   **What to do**:
   - Implement worktree lifecycle management in Rust + TypeScript
@@ -1108,7 +1108,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(git): add worktree lifecycle management`
 
-- [ ] 14. Concurrent Agent Process Manager
+- [x] 14. Concurrent Agent Process Manager
 
   **What to do**:
   - Create `lib/agents/processManager.ts` to spawn, monitor, and kill multiple CLI agent processes
@@ -1175,7 +1175,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(agents): implement concurrent agent process manager`
 
-- [ ] 15. Multi-Agent Dashboard UI
+- [x] 15. Multi-Agent Dashboard UI
 
   **What to do**:
   - Create `AgentDashboard` component showing all active agents at a glance
@@ -1237,7 +1237,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(ui): add multi-agent dashboard`
 
-- [ ] 16. Rate Limit Awareness + Resource Monitoring
+- [x] 16. Rate Limit Awareness + Resource Monitoring
 
   **What to do**:
   - Create `RateLimitMeter` component showing API rate limit status
@@ -1295,7 +1295,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(agents): add rate limit awareness and resource monitoring`
 
-- [ ] 17. Parallel Workspace Chat Routing
+- [x] 17. Parallel Workspace Chat Routing
 
   **What to do**:
   - Modify chatStore.ts to support multiple simultaneous active chats
@@ -1357,7 +1357,7 @@ Max Concurrent: 7 (Wave 1)
   **Commit**: YES
   - Message: `feat(agents): parallel workspace chat routing`
 
-- [ ] 18. Integration Testing (All Features)
+- [x] 18. Integration Testing (All Features)
 
   **What to do**:
   - Write comprehensive integration tests covering all new features working together
@@ -1426,11 +1426,11 @@ Max Concurrent: 7 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Rejection -> fix -> re-run.
 
-- [ ] F1. **Plan Compliance Audit** -- `oracle`
+- [x] F1. **Plan Compliance Audit** -- `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns -- reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** -- `unspecified-high`
+- [x] F2. **Code Quality Review** -- `unspecified-high`
       Run `tsc --noEmit` + linter + `pnpm test`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
@@ -1438,7 +1438,7 @@ Max Concurrent: 7 (Wave 1)
       Start from clean state. Execute EVERY QA scenario from EVERY task -- follow exact steps, capture evidence. Test cross-task integration (features working together, not isolation). Test edge cases: empty state, invalid input, rapid actions. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** -- `deep`
+- [x] F4. **Scope Fidelity Check** -- `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 -- everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination: Task N touching Task M's files. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -1483,11 +1483,11 @@ grep -rn "as any" apps/desktop/src/ --include="*.ts" --include="*.tsx" | grep -v
 
 ### Final Checklist
 
-- [ ] All 18 tasks completed with QA evidence
-- [ ] All "Must Have" requirements present
-- [ ] All "Must NOT Have" guardrails respected
-- [ ] 3 parallel agents run without git corruption
-- [ ] All tests pass
-- [ ] No console.log in production code
-- [ ] No as any in new code
-- [ ] F1-F4 all APPROVE
+- [x] All 18 tasks completed with QA evidence
+- [x] All "Must Have" requirements present
+- [x] All "Must NOT Have" guardrails respected
+- [x] 3 parallel agents run without git corruption
+- [x] All tests pass
+- [x] No console.log in production code
+- [x] No as any in new code
+- [x] F1-F4 all APPROVE
