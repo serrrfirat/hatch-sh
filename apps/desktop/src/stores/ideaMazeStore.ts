@@ -63,6 +63,9 @@ import { useRepositoryStore } from './repositoryStore'
 import { useChatStore } from './chatStore'
 import { useSettingsStore } from './settingsStore'
 import type { PRDDocument } from '../lib/context/types'
+import { generatePRD } from '../lib/context/prdGenerator'
+import { savePRDToAppData } from '../lib/context/prdStorage'
+import { useToastStore } from './toastStore'
 
 // Debounce timer for auto-save
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
@@ -1276,6 +1279,105 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
       }),
   }))
 )
+
+// ── PRD auto-regeneration on significant maze changes ─────────────────────────
+// Significant: node count, connection count, plan content, critique changes
+// NOT significant: position, dimensions, viewport, selection
+
+interface PrdRegenSnapshot {
+  nodeCount: number
+  connectionCount: number
+  planContentHash: string
+  critiqueHash: string
+}
+
+function getPlanContentHash(state: IdeaMazeState): string {
+  const planNodes = state.currentMoodboard?.nodes.filter((n) =>
+    n.content.some((c) => c.type === 'plan')
+  ) ?? []
+  return JSON.stringify(planNodes.map((n) => n.content))
+}
+
+function getCritiqueHash(state: IdeaMazeState): string {
+  const allCritiques = (state.currentMoodboard?.nodes ?? []).flatMap((n) =>
+    (n.critiques ?? []).map((c) => ({ id: c.id, dismissed: c.dismissed ?? false }))
+  )
+  return JSON.stringify(allCritiques)
+}
+
+function computePrdRegenSnapshot(state: IdeaMazeState): PrdRegenSnapshot | null {
+  if (!state.currentMoodboard) return null
+  return {
+    nodeCount: state.currentMoodboard.nodes.length,
+    connectionCount: state.currentMoodboard.connections.length,
+    planContentHash: getPlanContentHash(state),
+    critiqueHash: getCritiqueHash(state),
+  }
+}
+
+let prdRegenTimer: ReturnType<typeof setTimeout> | null = null
+let previousPrdSnapshot: PrdRegenSnapshot | null = null
+
+useIdeaMazeStore.subscribe((state) => {
+  // Only auto-regenerate when a PRD already exists
+  if (!state.currentPRD || !state.currentMoodboard) {
+    previousPrdSnapshot = null
+    return
+  }
+
+  // Skip during AI streaming / processing
+  if (state.isAIProcessing) return
+
+  const current = computePrdRegenSnapshot(state)
+  if (!current) return
+
+  // First observation after PRD becomes available — seed and return
+  if (!previousPrdSnapshot) {
+    previousPrdSnapshot = current
+    return
+  }
+
+  const isSignificant =
+    current.nodeCount !== previousPrdSnapshot.nodeCount ||
+    current.connectionCount !== previousPrdSnapshot.connectionCount ||
+    current.planContentHash !== previousPrdSnapshot.planContentHash ||
+    current.critiqueHash !== previousPrdSnapshot.critiqueHash
+
+  if (!isSignificant) return
+
+  previousPrdSnapshot = current
+
+  // Debounce 2 seconds
+  if (prdRegenTimer) clearTimeout(prdRegenTimer)
+  prdRegenTimer = setTimeout(() => {
+    const currentState = useIdeaMazeStore.getState()
+    if (!currentState.currentPRD || !currentState.currentMoodboard || currentState.isAIProcessing) return
+
+    const planNode = currentState.currentMoodboard.nodes.find(
+      (n) => n.id === currentState.currentPRD!.metadata.generatedFrom
+    )
+    if (!planNode) return
+
+    const previousPRD = currentState.currentPRD
+    const moodboardId = currentState.currentMoodboard.id
+    try {
+      const newPRD = generatePRD(currentState.currentMoodboard, planNode)
+      useIdeaMazeStore.getState().setCurrentPRD(newPRD)
+      savePRDToAppData(moodboardId, newPRD).catch(() => {})
+      useToastStore.getState().showToast({
+        message: 'PRD updated',
+        type: 'info',
+        dismissTimeout: 4000,
+        undoCallback: () => {
+          useIdeaMazeStore.getState().setCurrentPRD(previousPRD)
+          savePRDToAppData(moodboardId, previousPRD).catch(() => {})
+        },
+      })
+    } catch {
+      // Regeneration failed silently — plan node may lack content
+    }
+  }, 2000)
+})
 
 // Initialize store subscription to auto-save UI preferences to localStorage
 // (lightweight settings that don't need file system storage)
