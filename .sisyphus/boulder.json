@@ -1,10 +1,9 @@
 {
-  "active_plan": "/Users/firatsertgoz/Documents/hatch-sh/.sisyphus/plans/feature-parity-v3.md",
-  "started_at": "2026-02-23T10:40:09.626Z",
+  "active_plan": "/Users/firatsertgoz/Documents/hatch-sh/.sisyphus/plans/living-prd.md",
+  "started_at": "2026-02-24T21:25:00.000Z",
   "session_ids": [
-    "ses_379acc7ebffe5s0QWVgHRWvE6Y",
     "ses_36fb0a593ffebp5nQJZnNu2Jdg"
   ],
-  "plan_name": "feature-parity-v3",
+  "plan_name": "living-prd",
   "agent": "atlas"
 }

@@ -142,3 +142,13 @@
 - New chat text behavior: with PRD -> `PRD loaded: {N} requirements, {M} dependencies. Your workspace is ready - start building!`; without PRD -> `Workspace ready - start building!`.
 - `apps/desktop/testing/e2e/build-from-plan.spec.ts` assertions needed updates to expect structured message (no markdown content).
 - Unit coverage added in `apps/desktop/src/stores/__tests__/repositoryStore.test.ts` for PRD copy call, structured message, and fallback path; required extending local mocks (`subscribeWithSelector`, `setCurrentPage`, and chat `addMessage`).
+
+## [2026-02-24] T9: Build Agent Context Injection
+
+- Context assembly in `useChat.ts` → `sendLocalAgentMessage` passes `systemPrompt: SYSTEM_PROMPT` to `adapter.sendMessage()` at line ~302
+- PRD injected by appending `formatPRDForAgent(prd)` to `SYSTEM_PROMPT` with double newline separator
+- `loadPRDFromWorkspace(workingDirectory)` called inside try/catch before `adapter.sendMessage` — graceful fallback on error or missing PRD
+- Cloud model path (`sendCloudModelMessage`) does NOT use system prompt — PRD injection only applies to local agents (claude-code, opencode, cursor)
+- Formatter in `prdFormatter.ts`: converts PRDDocument to markdown-like text with conditional sections (deps, contradictions, exclusions, acceptance criteria)
+- Formatter includes `designNotes` and `technicalApproach` from PlanContent when present
+- 10 tests cover all sections, empty section omission, and full population

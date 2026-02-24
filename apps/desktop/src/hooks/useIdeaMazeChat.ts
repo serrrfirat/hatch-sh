@@ -498,7 +498,7 @@ export function useIdeaMazeChat() {
                   useIdeaMazeStore.getState().setCurrentPRD(prd)
                   savePRDToAppData(moodboard.id, prd).catch(() => {})
                   useToastStore.getState().showToast({
-                    message: 'PRD generated from your plan',
+                    message: `PRD generated: ${prd.plan.requirements.length} requirements, ${prd.dependencyGraph.length} dependencies`,
                     type: 'success',
                     dismissTimeout: 5000,
                     undoCallback: () => {

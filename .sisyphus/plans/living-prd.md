@@ -198,7 +198,7 @@ Max Concurrent: 3 (Waves 1 & 3)
 > Implementation + Test = ONE Task. Never separate.
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info + QA Scenarios.
 
-- [ ] 1. PRDDocument Type System
+- [x] 1. PRDDocument Type System
 
   **What to do**:
   - Create `apps/desktop/src/lib/context/types.ts` with `PRDDocument` type that WRAPS `PlanContent` (never modifies it)
@@ -270,7 +270,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `apps/desktop/src/lib/context/types.ts`, `apps/desktop/src/lib/context/index.ts`, `apps/desktop/src/lib/context/__tests__/types.test.ts`
   - Pre-commit: `bun run --cwd apps/desktop tsc --noEmit`
 
-- [ ] 2. Reusable Toast Notification System
+- [x] 2. Reusable Toast Notification System
 
   **What to do**:
   - Create `apps/desktop/src/stores/toastStore.ts` — Zustand store for toast state
@@ -351,7 +351,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `stores/toastStore.ts`, `components/ui/Toast.tsx`, `components/ui/ToastContainer.tsx`, `App.tsx` (mount point), tests
   - Pre-commit: `bun run --cwd apps/desktop tsc --noEmit`
 
-- [ ] 3. PRD Two-Phase Storage Service
+- [x] 3. PRD Two-Phase Storage Service
 
   **What to do**:
   - Create `apps/desktop/src/lib/context/prdStorage.ts` with two-phase storage:
@@ -434,7 +434,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `lib/context/prdStorage.ts`, tests
   - Pre-commit: `bun run --cwd apps/desktop tsc --noEmit && bun test apps/desktop/src/lib/context/`
 
-- [ ] 4. PRD Generator (Maze Topology → PRDDocument)
+- [x] 4. PRD Generator (Maze Topology → PRDDocument)
 
   **What to do**:
   - Create `apps/desktop/src/lib/context/prdGenerator.ts` with function `generatePRD(moodboard: Moodboard, planNode: IdeaNode): PRDDocument`
@@ -519,7 +519,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `lib/context/prdGenerator.ts`, tests
   - Pre-commit: `bun test apps/desktop/src/lib/context/`
 
-- [ ] 5. PRD Auto-Generation on Plan Creation
+- [x] 5. PRD Auto-Generation on Plan Creation
 
   **What to do**:
   - Modify `apps/desktop/src/hooks/useIdeaMazeChat.ts` — in the interview completion handler (where ````plan` block is parsed and PlanContent node created):
@@ -587,7 +587,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `hooks/useIdeaMazeChat.ts`, `stores/ideaMazeStore.ts`, tests
   - Pre-commit: `bun test apps/desktop/src/hooks/ && bun test apps/desktop/src/lib/context/`
 
-- [ ] 6. PRD Auto-Regeneration on Maze Changes
+- [x] 6. PRD Auto-Regeneration on Maze Changes
 
   **What to do**:
   - Add change detection in `ideaMazeStore.ts` for significant maze modifications:
@@ -667,7 +667,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `stores/ideaMazeStore.ts`, tests
   - Pre-commit: `bun test apps/desktop/src/stores/`
 
-- [ ] 7. PRD Sidebar Card in Build Tab
+- [x] 7. PRD Sidebar Card in Build Tab
 
   **What to do**:
   - Activate and evolve the orphaned `apps/desktop/src/components/layout/PlanReferenceCard.tsx`
@@ -740,7 +740,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `components/build/PrdCard.tsx`, `pages/IDEPage.tsx`, remove orphaned `PlanReferenceCard.tsx`, tests
   - Pre-commit: `bun run --cwd apps/desktop tsc --noEmit`
 
-- [ ] 8. Replace Markdown Handoff with Structured PRD
+- [x] 8. Replace Markdown Handoff with Structured PRD
 
   **What to do**:
   - Modify `apps/desktop/src/stores/repositoryStore.ts` — `buildFromPlan()` function:

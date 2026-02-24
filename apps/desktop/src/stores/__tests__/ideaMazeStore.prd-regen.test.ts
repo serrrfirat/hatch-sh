@@ -224,7 +224,7 @@ describe('ideaMazeStore - PRD auto-regeneration', () => {
 
     expect(mockShowToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'PRD updated',
+        message: expect.stringMatching(/^PRD updated: \d+ requirements, \d+ dependencies$/),
         type: 'info',
         undoCallback: expect.any(Function),
       })

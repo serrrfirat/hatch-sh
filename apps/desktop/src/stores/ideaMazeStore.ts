@@ -1372,7 +1372,7 @@ useIdeaMazeStore.subscribe((state) => {
       useIdeaMazeStore.getState().setCurrentPRD(newPRD)
       savePRDToAppData(moodboardId, newPRD).catch(() => {})
       useToastStore.getState().showToast({
-        message: 'PRD updated',
+        message: `PRD updated: ${newPRD.plan.requirements.length} requirements, ${newPRD.dependencyGraph.length} dependencies`,
         type: 'info',
         dismissTimeout: 4000,
         undoCallback: () => {
