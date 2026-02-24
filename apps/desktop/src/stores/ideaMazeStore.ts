@@ -56,7 +56,6 @@ import {
   deleteMoodboard as deleteMoodboardFromStorage,
   migrateFromLocalStorage,
 } from '../lib/ideaMaze/storage'
-import { formatPlanAsMarkdown } from '../lib/ideaMaze/planExporter'
 import { UndoManager } from '../lib/ideaMaze/undoManager'
 import type { Snapshot } from '../lib/ideaMaze/snapshots'
 import { useRepositoryStore } from './repositoryStore'
@@ -64,7 +63,7 @@ import { useChatStore } from './chatStore'
 import { useSettingsStore } from './settingsStore'
 import type { PRDDocument } from '../lib/context/types'
 import { generatePRD } from '../lib/context/prdGenerator'
-import { savePRDToAppData } from '../lib/context/prdStorage'
+import { copyPRDToWorkspace, savePRDToAppData } from '../lib/context/prdStorage'
 import { useToastStore } from './toastStore'
 
 // Debounce timer for auto-save
@@ -1178,11 +1177,19 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         currentWorkspace: updatedWorkspace,
       })
 
-      // Format plan as markdown and seed chat
-      const markdown = formatPlanAsMarkdown(planContent)
+      const currentPRD = useIdeaMazeStore.getState().currentPRD
+
+      if (currentPRD) {
+        void copyPRDToWorkspace(currentPRD, workspace.localPath).catch(() => {})
+      }
+
+      const handoffMessage = currentPRD
+        ? `PRD loaded: ${currentPRD.plan.requirements.length} requirements, ${currentPRD.dependencyGraph.length} dependencies. Your workspace is ready - start building!`
+        : 'Workspace ready - start building!'
+
       useChatStore.getState().addMessage({
         role: 'user',
-        content: `## Build from Plan\n\n${markdown}`,
+        content: handoffMessage,
       })
 
       // Switch to Build tab
@@ -1292,9 +1299,8 @@ interface PrdRegenSnapshot {
 }
 
 function getPlanContentHash(state: IdeaMazeState): string {
-  const planNodes = state.currentMoodboard?.nodes.filter((n) =>
-    n.content.some((c) => c.type === 'plan')
-  ) ?? []
+  const planNodes =
+    state.currentMoodboard?.nodes.filter((n) => n.content.some((c) => c.type === 'plan')) ?? []
   return JSON.stringify(planNodes.map((n) => n.content))
 }
 
@@ -1351,7 +1357,8 @@ useIdeaMazeStore.subscribe((state) => {
   if (prdRegenTimer) clearTimeout(prdRegenTimer)
   prdRegenTimer = setTimeout(() => {
     const currentState = useIdeaMazeStore.getState()
-    if (!currentState.currentPRD || !currentState.currentMoodboard || currentState.isAIProcessing) return
+    if (!currentState.currentPRD || !currentState.currentMoodboard || currentState.isAIProcessing)
+      return
 
     const planNode = currentState.currentMoodboard.nodes.find(
       (n) => n.id === currentState.currentPRD!.metadata.generatedFrom

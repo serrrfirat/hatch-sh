@@ -1,12 +1,16 @@
 import type { PlanContent } from './types'
 
+/**
+ * @deprecated Use prdGenerator.ts + prdStorage.ts instead.
+ * This file is kept for backward compatibility only.
+ */
 export function formatPlanAsMarkdown(plan: PlanContent): string {
   const sections: string[] = []
 
   sections.push(`## Plan Summary\n\n${plan.summary}`)
 
   if (plan.requirements.length > 0) {
-    sections.push(`## Requirements\n\n${plan.requirements.map(r => `- ${r}`).join('\n')}`)
+    sections.push(`## Requirements\n\n${plan.requirements.map((r) => `- ${r}`).join('\n')}`)
   }
 
   if (plan.designNotes) {

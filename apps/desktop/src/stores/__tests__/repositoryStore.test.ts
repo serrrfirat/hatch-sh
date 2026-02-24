@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRepositoryStore, type Workspace } from '../repositoryStore'
+import { useIdeaMazeStore } from '../ideaMazeStore'
+import { createMoodboard, createPlanNode } from '../../lib/ideaMaze/types'
+import type { PRDDocument } from '../../lib/context/types'
+
+const { mockCopyPRDToWorkspace, mockChatAddMessage } = vi.hoisted(() => ({
+  mockCopyPRDToWorkspace: vi.fn(async () => undefined),
+  mockChatAddMessage: vi.fn(() => 'msg-1'),
+}))
 
 // Mock the git and github bridges
 vi.mock('zustand/middleware', () => ({
   persist: <T>(fn: T) => fn,
   devtools: <T>(fn: T) => fn,
+  subscribeWithSelector: <T>(fn: T) => fn,
 }))
 
 vi.mock('../../lib/git/bridge', () => ({
@@ -65,11 +74,27 @@ vi.mock('../../lib/github/bridge', () => ({
   isAuthExpiredError: vi.fn(() => false),
 }))
 
+vi.mock('../../lib/ideaMaze/storage', () => ({
+  initializeStorage: vi.fn(async () => undefined),
+  saveMoodboard: vi.fn(async () => undefined),
+  loadAllMoodboards: vi.fn(async () => []),
+  deleteMoodboard: vi.fn(async () => undefined),
+  migrateFromLocalStorage: vi.fn(async () => []),
+}))
+
+vi.mock('../../lib/context/prdStorage', () => ({
+  savePRDToAppData: vi.fn(async () => undefined),
+  loadPRDFromAppData: vi.fn(async () => null),
+  copyPRDToWorkspace: mockCopyPRDToWorkspace,
+  loadPRDFromWorkspace: vi.fn(async () => null),
+}))
+
 vi.mock('../settingsStore', () => ({
   useSettingsStore: {
     getState: vi.fn(() => ({
       agentMode: 'claude-code',
       setAuthExpired: vi.fn(),
+      setCurrentPage: vi.fn(),
     })),
   },
 }))
@@ -78,6 +103,7 @@ vi.mock('../chatStore', () => ({
   useChatStore: {
     getState: vi.fn(() => ({
       setWorkspaceId: vi.fn(),
+      addMessage: mockChatAddMessage,
     })),
   },
 }))
@@ -95,6 +121,9 @@ vi.stubGlobal('localStorage', mockStorage)
 
 describe('repositoryStore', () => {
   beforeEach(() => {
+    mockCopyPRDToWorkspace.mockClear()
+    mockChatAddMessage.mockClear()
+
     // Reset store to initial state
     useRepositoryStore.setState({
       githubAuth: null,
@@ -109,7 +138,44 @@ describe('repositoryStore', () => {
       cloneProgress: null,
       notifications: [],
     })
+
+    useIdeaMazeStore.setState({
+      currentMoodboard: null,
+      currentPRD: null,
+      moodboards: [],
+      isAIProcessing: false,
+      chatMessagesByMoodboard: {},
+      isSidebarOpen: true,
+      isMinimapVisible: false,
+    })
   })
+
+  function createPRD(overrides?: Partial<PRDDocument>): PRDDocument {
+    return {
+      id: 'prd-1',
+      version: 1,
+      createdAt: '2026-02-24T00:00:00.000Z',
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      plan: {
+        type: 'plan',
+        id: 'plan-content-1',
+        summary: 'Build a todo app',
+        requirements: ['Add tasks', 'Delete tasks', 'Mark complete'],
+        sourceIdeaIds: ['idea-1'],
+      },
+      dependencyGraph: [{ fromId: 'idea-1', toId: 'idea-2' }],
+      contradictions: [],
+      scopeExclusions: [],
+      acceptanceCriteria: [],
+      metadata: {
+        sourceMoodboardId: 'mb-1',
+        generatedFrom: 'plan-node-1',
+        nodeCount: 2,
+        connectionCount: 1,
+      },
+      ...overrides,
+    }
+  }
 
   describe('updateWorkspaceWorkflowStatus', () => {
     it('updates workspace status to in-review', () => {
@@ -275,6 +341,125 @@ describe('repositoryStore', () => {
       const workspace = await useRepositoryStore.getState().createWorkspace('repo-1')
 
       expect(workspace.workspaceStatus).toBe('backlog')
+    })
+  })
+
+  describe('buildFromPlan handoff', () => {
+    it('calls copyPRDToWorkspace when currentPRD exists', async () => {
+      const repo = {
+        id: 'repo-1',
+        name: 'test-repo',
+        full_name: 'user/test-repo',
+        clone_url: 'https://github.com/user/test-repo.git',
+        local_path: '/path/to/repo',
+        default_branch: 'main',
+        is_private: false,
+      }
+      useRepositoryStore.setState({ repositories: [repo], currentRepository: repo })
+
+      const moodboard = createMoodboard('Build Plan')
+      const planNode = createPlanNode(
+        { x: 0, y: 0 },
+        {
+          summary: 'Build a todo app',
+          requirements: ['Add tasks', 'Delete tasks', 'Mark complete'],
+          sourceIdeaIds: ['idea-1'],
+        },
+        'Plan'
+      )
+      const currentPRD = createPRD({
+        plan: {
+          type: 'plan',
+          id: planNode.id,
+          summary: 'Build a todo app',
+          requirements: ['Add tasks', 'Delete tasks', 'Mark complete'],
+          sourceIdeaIds: ['idea-1'],
+        },
+      })
+
+      useIdeaMazeStore.setState({
+        currentMoodboard: { ...moodboard, nodes: [...moodboard.nodes, planNode] },
+        currentPRD,
+      })
+
+      await useIdeaMazeStore.getState().buildFromPlan(planNode.id)
+
+      expect(mockCopyPRDToWorkspace).toHaveBeenCalledWith(currentPRD, '/path/to/worktree')
+    })
+
+    it('seeds chat with structured PRD summary message', async () => {
+      const repo = {
+        id: 'repo-1',
+        name: 'test-repo',
+        full_name: 'user/test-repo',
+        clone_url: 'https://github.com/user/test-repo.git',
+        local_path: '/path/to/repo',
+        default_branch: 'main',
+        is_private: false,
+      }
+      useRepositoryStore.setState({ repositories: [repo], currentRepository: repo })
+
+      const moodboard = createMoodboard('Build Plan')
+      const planNode = createPlanNode(
+        { x: 0, y: 0 },
+        {
+          summary: 'Build a todo app',
+          requirements: ['Add tasks', 'Delete tasks', 'Mark complete'],
+          sourceIdeaIds: [],
+        }
+      )
+
+      useIdeaMazeStore.setState({
+        currentMoodboard: { ...moodboard, nodes: [...moodboard.nodes, planNode] },
+        currentPRD: createPRD(),
+      })
+
+      await useIdeaMazeStore.getState().buildFromPlan(planNode.id)
+
+      expect(mockChatAddMessage).toHaveBeenCalledWith({
+        role: 'user',
+        content:
+          'PRD loaded: 3 requirements, 1 dependencies. Your workspace is ready - start building!',
+      })
+      expect(mockChatAddMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('## Build from Plan') })
+      )
+    })
+
+    it('falls back to generic workspace-ready message when currentPRD is missing', async () => {
+      const repo = {
+        id: 'repo-1',
+        name: 'test-repo',
+        full_name: 'user/test-repo',
+        clone_url: 'https://github.com/user/test-repo.git',
+        local_path: '/path/to/repo',
+        default_branch: 'main',
+        is_private: false,
+      }
+      useRepositoryStore.setState({ repositories: [repo], currentRepository: repo })
+
+      const moodboard = createMoodboard('Build Plan')
+      const planNode = createPlanNode(
+        { x: 0, y: 0 },
+        {
+          summary: 'Build a todo app',
+          requirements: ['Add tasks'],
+          sourceIdeaIds: [],
+        }
+      )
+
+      useIdeaMazeStore.setState({
+        currentMoodboard: { ...moodboard, nodes: [...moodboard.nodes, planNode] },
+        currentPRD: null,
+      })
+
+      await useIdeaMazeStore.getState().buildFromPlan(planNode.id)
+
+      expect(mockCopyPRDToWorkspace).not.toHaveBeenCalled()
+      expect(mockChatAddMessage).toHaveBeenCalledWith({
+        role: 'user',
+        content: 'Workspace ready - start building!',
+      })
     })
   })
 })

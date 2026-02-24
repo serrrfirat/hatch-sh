@@ -30,6 +30,34 @@ import { useChatStore } from '../../src/stores/chatStore'
 import { createPlanNode } from '../../src/lib/ideaMaze/types'
 import type { PlanContent } from '../../src/lib/ideaMaze/types'
 import { formatPlanAsMarkdown } from '../../src/lib/ideaMaze/planExporter'
+import type { PRDDocument } from '../../src/lib/context/types'
+
+function createPRDDocument(overrides?: Partial<PRDDocument>): PRDDocument {
+  return {
+    id: 'prd-1',
+    version: 1,
+    createdAt: '2026-02-24T00:00:00.000Z',
+    updatedAt: '2026-02-24T00:00:00.000Z',
+    plan: {
+      type: 'plan',
+      id: 'plan-prd-1',
+      summary: 'Build a todo app',
+      requirements: ['Add tasks', 'Delete tasks'],
+      sourceIdeaIds: [],
+    },
+    dependencyGraph: [{ fromId: 'node-a', toId: 'node-b' }],
+    contradictions: [],
+    scopeExclusions: [],
+    acceptanceCriteria: [],
+    metadata: {
+      sourceMoodboardId: 'moodboard-1',
+      generatedFrom: 'plan-node-1',
+      nodeCount: 2,
+      connectionCount: 1,
+    },
+    ...overrides,
+  }
+}
 
 describe('P1-H1: buildFromPlan function', () => {
   beforeEach(() => {
@@ -55,6 +83,7 @@ describe('P1-H1: buildFromPlan function', () => {
       focusMode: false,
       aiSuggestions: [],
       isAIProcessing: false,
+      currentPRD: null,
       chatMessagesByMoodboard: {},
       isSidebarOpen: true,
       isMinimapVisible: false,
@@ -134,6 +163,15 @@ describe('P1-H1: buildFromPlan function', () => {
         ...moodboard,
         nodes: [...moodboard.nodes, planNode],
       },
+      currentPRD: createPRDDocument({
+        plan: {
+          type: 'plan',
+          id: planNode.id,
+          summary: 'Build a todo app',
+          requirements: ['Add tasks', 'Delete tasks', 'Mark complete'],
+          sourceIdeaIds: [],
+        },
+      }),
     })
 
     await ideaStore.buildFromPlan(planNode.id)
@@ -148,7 +186,10 @@ describe('P1-H1: buildFromPlan function', () => {
     const messages = useChatStore.getState().messagesByWorkspace[currentWsId!]
     expect(messages).toBeDefined()
     expect(messages.length).toBeGreaterThanOrEqual(1)
-    expect(messages[0].content).toContain('Build a todo app')
+    expect(messages[0].content).toBe(
+      'PRD loaded: 3 requirements, 1 dependencies. Your workspace is ready - start building!'
+    )
+    expect(messages[0].content).not.toContain('## Build from Plan')
   })
 
   it('buildFromPlan switches to Build tab', async () => {
