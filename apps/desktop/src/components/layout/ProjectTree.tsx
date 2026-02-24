@@ -1,6 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitBranch, Plus, MoreHorizontal, ChevronRight, Settings, FolderPlus, Github, Trash2, Archive, Loader2 } from 'lucide-react'
+import {
+  GitBranch,
+  Plus,
+  MoreHorizontal,
+  ChevronRight,
+  Settings,
+  FolderPlus,
+  Github,
+  Trash2,
+  Archive,
+  Loader2,
+} from 'lucide-react'
 import { useRepositoryStore, type Workspace } from '../../stores/repositoryStore'
 import type { Repository } from '../../lib/git/bridge'
 import { AddRepositoryMenu } from '../repository/AddRepositoryMenu'
@@ -31,18 +42,7 @@ interface WorkspaceItemProps {
 
 function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: WorkspaceItemProps) {
   const [isHovered, setIsHovered] = useState(false)
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
-  const { updateWorkspaceWorkflowStatus } = useRepositoryStore()
-
-  const statusConfig = {
-    'backlog': { label: 'Backlog', className: 'bg-gray-600 text-gray-200' },
-    'in-progress': { label: 'In Progress', className: 'bg-blue-600 text-white' },
-    'in-review': { label: 'Review', className: 'bg-yellow-500 text-black' },
-    'done': { label: 'Done', className: 'bg-green-600 text-white' },
-  } as const
-
-  const currentStatus = workspace.workspaceStatus || 'backlog'
-  const statusOptions: Array<keyof typeof statusConfig> = ['backlog', 'in-progress', 'in-review', 'done']
+  const workspaceLabel = workspace.branchName?.trim() || `workspace/${workspace.id}`
 
   return (
     <motion.div
@@ -59,10 +59,7 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
       )}
     >
       {/* Clickable area */}
-      <button
-        onClick={onSelect}
-        className="flex items-start gap-2 flex-1 min-w-0"
-      >
+      <button onClick={onSelect} className="flex items-start gap-2 flex-1 min-w-0">
         {/* Branch icon or status indicator */}
         <div className="flex-shrink-0 mt-0.5">
           {workspace.isInitializing ? (
@@ -89,7 +86,7 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-white truncate">{workspace.branchName}</span>
+            <span className="text-sm text-white truncate">{workspaceLabel}</span>
             {/* Git stats */}
             {(workspace.additions !== undefined || workspace.deletions !== undefined) && (
               <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700">
@@ -102,49 +99,6 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
                 )}
               </span>
             )}
-            {/* Status pill */}
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setStatusDropdownOpen(!statusDropdownOpen)
-                }}
-                className={`text-xs px-2 py-1 rounded font-medium transition-colors cursor-pointer ${statusConfig[currentStatus].className}`}
-              >
-                {statusConfig[currentStatus].label}
-              </button>
-              <AnimatePresence>
-                {statusDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setStatusDropdownOpen(false)} />
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="absolute left-0 top-full mt-1 w-32 bg-neutral-900 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden"
-                    >
-                      {statusOptions.map((status) => (
-                        <button
-                          key={status}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            updateWorkspaceWorkflowStatus(workspace.id, status)
-                            setStatusDropdownOpen(false)
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                            currentStatus === status
-                              ? 'bg-white/10 text-white font-medium'
-                              : 'text-neutral-400 hover:bg-white/5 hover:text-white'
-                          }`}
-                        >
-                          {statusConfig[status].label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-neutral-500">
             {workspace.isInitializing ? (
@@ -155,13 +109,21 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
               <span className="flex items-center gap-1">
                 <span className="text-emerald-400">PR #{workspace.prNumber}</span>
                 <span>•</span>
-                <span className={workspace.prState === 'merged' ? 'text-purple-400' : 'text-emerald-400'}>
+                <span
+                  className={
+                    workspace.prState === 'merged' ? 'text-purple-400' : 'text-emerald-400'
+                  }
+                >
                   {workspace.prState === 'merged' ? 'Archive' : 'Ready to Merge'}
                 </span>
               </span>
             ) : (
               // No PR - show status or time
-              <span>{workspace.status === 'working' ? 'Working...' : formatTimeAgo(workspace.lastActive)}</span>
+              <span>
+                {workspace.status === 'working'
+                  ? 'Working...'
+                  : formatTimeAgo(workspace.lastActive)}
+              </span>
             )}
           </div>
         </div>
@@ -182,9 +144,7 @@ function WorkspaceItem({ workspace, index, isActive, onSelect, onArchive }: Work
             <Archive size={14} />
           </button>
         ) : (
-          <span className="text-xs text-neutral-600 font-mono">
-            ⌘{index + 1}
-          </span>
+          <span className="text-xs text-neutral-600 font-mono">⌘{index + 1}</span>
         )}
       </div>
     </motion.div>
@@ -222,14 +182,8 @@ function RepositoryItem({
     <div className="border-b border-white/5 last:border-b-0">
       {/* Repository Header */}
       <div className="flex items-center justify-between px-3 py-3 hover:bg-white/5 transition-colors">
-        <button
-          onClick={onToggleExpanded}
-          className="flex items-center gap-2 flex-1 text-left"
-        >
-          <motion.div
-            animate={{ rotate: isExpanded ? 90 : 0 }}
-            transition={{ duration: 0.2 }}
-          >
+        <button onClick={onToggleExpanded} className="flex items-center gap-2 flex-1 text-left">
+          <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
             <ChevronRight size={14} className="text-neutral-500" />
           </motion.div>
           <div className="flex flex-col min-w-0">
@@ -271,7 +225,9 @@ function RepositoryItem({
                   </button>
                   {repository.clone_url && (
                     <a
-                      href={repository.clone_url.replace(/\.git$/, '').replace(/^git@github.com:/, 'https://github.com/')}
+                      href={repository.clone_url
+                        .replace(/\.git$/, '')
+                        .replace(/^git@github.com:/, 'https://github.com/')}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setShowMenu(false)}
@@ -388,8 +344,7 @@ export function ProjectTree() {
     try {
       const workspace = await createWorkspace(repositoryId)
       setCurrentWorkspace(workspace)
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   const handleToggleExpanded = (repoId: string) => {
@@ -432,7 +387,14 @@ export function ProjectTree() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2 text-neutral-400">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="12" cy="12" r="10" />
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             <path d="M2 12h20" />

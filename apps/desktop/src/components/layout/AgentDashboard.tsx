@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronUp, Square, RotateCcw, MessageSquare, Cpu } from 'lucide-react'
-import { agentProcessManager, type ManagedAgentProcess, type ProcessLifecycleStatus } from '../../lib/agents/processManager'
-import { useRepositoryStore, type Workspace, type WorkspaceStatus } from '../../stores/repositoryStore'
+import {
+  agentProcessManager,
+  type ManagedAgentProcess,
+  type ProcessLifecycleStatus,
+} from '../../lib/agents/processManager'
+import {
+  useRepositoryStore,
+  type Workspace,
+  type WorkspaceStatus,
+} from '../../stores/repositoryStore'
 
 // ─── Pure Functions (exported for testing) ──────────────────────────
 
@@ -54,28 +62,24 @@ export function getAgentStatusColor(status: ProcessLifecycleStatus): string {
 
 export function buildAgentRow(
   process: ManagedAgentProcess,
-  workspace: Workspace | null,
+  workspace: Workspace | null
 ): AgentRowData {
+  const workspaceStatus =
+    workspace?.workspaceStatus === 'in-review' || workspace?.workspaceStatus === 'done'
+      ? workspace.workspaceStatus
+      : 'backlog'
+
   return {
     workspaceId: process.workspaceId,
     workspaceName: workspace?.branchName ?? process.workspaceId,
     branchName: workspace?.branchName ?? process.workspaceId,
     agentType: process.agentType,
     status: process.status,
-    workspaceStatus: workspace?.workspaceStatus ?? 'backlog',
+    workspaceStatus,
     isStreaming: process.status === 'streaming',
     elapsedTime: formatElapsedTime(process.startedAt),
     startedAt: process.startedAt,
   }
-}
-
-// ─── Workspace Status Pill ──────────────────────────────────────────
-
-const workspaceStatusConfig: Record<WorkspaceStatus, { label: string; className: string }> = {
-  'backlog': { label: 'Backlog', className: 'bg-gray-600 text-gray-200' },
-  'in-progress': { label: 'In Progress', className: 'bg-blue-600 text-white' },
-  'in-review': { label: 'Review', className: 'bg-yellow-500 text-black' },
-  'done': { label: 'Done', className: 'bg-green-600 text-white' },
 }
 
 // ─── Agent Row Component ────────────────────────────────────────────
@@ -138,40 +142,45 @@ function AgentRow({ row, compact, onSelect, onKill, onRestart }: AgentRowProps) 
         <button onClick={onSelect} className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-2">
             <span className="text-sm text-white truncate">{row.workspaceName}</span>
-            {/* Agent status pill */}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getAgentStatusColor(row.status)}`}>
-              {getAgentStatusLabel(row.status)}
-            </span>
-            {/* Workspace status pill */}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${workspaceStatusConfig[row.workspaceStatus].className}`}>
-              {workspaceStatusConfig[row.workspaceStatus].label}
-            </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-neutral-500 mt-0.5">
             <span>{row.agentType}</span>
+            <span>·</span>
+            <span>{getAgentStatusLabel(row.status)}</span>
             <span>·</span>
             <span>{row.elapsedTime}</span>
           </div>
         </button>
 
         {/* Quick actions */}
-        <div className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+        <div
+          className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+        >
           <button
-            onClick={(e) => { e.stopPropagation(); onSelect() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect()
+            }}
             className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
             title="Open Chat"
           >
             <MessageSquare size={12} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onRestart() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestart()
+            }}
             className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-amber-400 transition-colors"
             title="Restart"
           >
             <RotateCcw size={12} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onKill() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onKill()
+            }}
             className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-red-400 transition-colors"
             title="Kill"
           >
@@ -209,7 +218,7 @@ export function AgentDashboard({ compact = false }: AgentDashboardProps) {
     (workspaceId: string): Workspace | null => {
       return workspaces.find((w: Workspace) => w.id === workspaceId) ?? null
     },
-    [workspaces],
+    [workspaces]
   )
 
   const handleSelectAgent = useCallback(
@@ -219,7 +228,7 @@ export function AgentDashboard({ compact = false }: AgentDashboardProps) {
         setCurrentWorkspace(ws)
       }
     },
-    [findWorkspace, setCurrentWorkspace],
+    [findWorkspace, setCurrentWorkspace]
   )
 
   const handleKillAgent = useCallback(
@@ -231,7 +240,7 @@ export function AgentDashboard({ compact = false }: AgentDashboardProps) {
         // Kill failed silently
       }
     },
-    [refreshProcesses],
+    [refreshProcesses]
   )
 
   const handleRestartAgent = useCallback(
@@ -246,11 +255,11 @@ export function AgentDashboard({ compact = false }: AgentDashboardProps) {
         // Restart failed silently
       }
     },
-    [processes, refreshProcesses],
+    [processes, refreshProcesses]
   )
 
   const rows: AgentRowData[] = processes.map((proc: ManagedAgentProcess) =>
-    buildAgentRow(proc, findWorkspace(proc.workspaceId)),
+    buildAgentRow(proc, findWorkspace(proc.workspaceId))
   )
 
   return (

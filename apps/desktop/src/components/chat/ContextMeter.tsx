@@ -13,6 +13,7 @@ export interface ContextBreakdown {
 interface MessageLike {
   role: 'user' | 'assistant' | 'system'
   content: string
+  thinking?: string
   toolUses?: Array<{
     id: string
     name: string
@@ -20,7 +21,41 @@ interface MessageLike {
     result?: string
     status: 'running' | 'completed' | 'error'
   }>
+  images?: Array<{
+    id: string
+    fileName: string
+    mimeType: string
+    base64: string
+    sizeBytes: number
+    savedPath?: string
+  }>
+}
 
+export function estimateMessageBytes(message: MessageLike): number {
+  const safeMessage: Record<string, unknown> = {
+    role: message.role,
+    content: message.content,
+  }
+
+  if (message.thinking) {
+    safeMessage.thinking = message.thinking
+  }
+
+  if (message.toolUses && message.toolUses.length > 0) {
+    safeMessage.toolUses = message.toolUses
+  }
+
+  if (message.images && message.images.length > 0) {
+    safeMessage.images = message.images.map((image) => ({
+      id: image.id,
+      fileName: image.fileName,
+      mimeType: image.mimeType,
+      sizeBytes: image.sizeBytes,
+      savedPath: image.savedPath,
+    }))
+  }
+
+  return JSON.stringify(safeMessage).length
 }
 
 export function calculateContextSize(messages: MessageLike[]): ContextBreakdown {
@@ -29,7 +64,7 @@ export function calculateContextSize(messages: MessageLike[]): ContextBreakdown 
   let toolBytes = 0
   let totalBytes = 0
   for (const message of messages) {
-    const messageSize = JSON.stringify(message).length
+    const messageSize = estimateMessageBytes(message)
     totalBytes += messageSize
     if (message.toolUses && message.toolUses.length > 0) {
       const toolSize = JSON.stringify(message.toolUses).length

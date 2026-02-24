@@ -243,7 +243,7 @@ export interface AgentProcess {
   worktreePath: string
 
   /** Type of agent running */
-  agentType: 'claude-code' | 'opencode' | 'cursor'
+  agentType: 'claude-code' | 'opencode' | 'cursor' | 'codex'
 
   /** Operating system process ID (if available) */
   pid?: number

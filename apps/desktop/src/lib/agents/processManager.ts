@@ -3,6 +3,7 @@ import type { LocalAgentId } from './types'
 
 export const MAX_CONCURRENT_AGENTS = 3
 export const MAX_AGENTS_HARD_CAP = 5
+export const TAURI_AGENT_INVOKE_TIMEOUT_MS = 15000
 
 export type ProcessLifecycleStatus = 'starting' | 'streaming' | 'idle' | 'error' | 'killed'
 
@@ -35,6 +36,28 @@ function clampMaxConcurrent(requested: number): number {
     return MAX_CONCURRENT_AGENTS
   }
   return Math.min(Math.floor(requested), MAX_AGENTS_HARD_CAP)
+}
+
+async function invokeWithTimeout<T>(
+  command: string,
+  payload: Record<string, unknown>,
+  timeoutMs = TAURI_AGENT_INVOKE_TIMEOUT_MS
+): Promise<T> {
+  const invokePromise = invoke<T>(command, payload)
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timed out while executing ${command}`))
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([invokePromise, timeoutPromise])
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+  }
 }
 
 export class AgentProcessManager {
@@ -78,7 +101,7 @@ export class AgentProcessManager {
       worktreePath,
     }
 
-    const spawned = await invoke<ManagedAgentProcess>('agent_spawn', { request })
+    const spawned = await invokeWithTimeout<ManagedAgentProcess>('agent_spawn', { request })
     this.processesByWorkspace.set(workspaceId, spawned)
     return spawned
   }
@@ -89,18 +112,25 @@ export class AgentProcessManager {
     }
 
     const request: KillAgentRequest = { workspaceId }
-    await invoke<void>('agent_kill', { request })
+    await invokeWithTimeout<void>('agent_kill', { request })
     this.processesByWorkspace.delete(workspaceId)
   }
 
-  async getStatus(workspaceId: string): Promise<ManagedAgentProcess | null> {
+  async getStatus(
+    workspaceId: string,
+    options?: { timeoutMs?: number }
+  ): Promise<ManagedAgentProcess | null> {
     const existing = this.processesByWorkspace.get(workspaceId)
     if (!existing) {
       return null
     }
 
     const request = { workspaceId }
-    const status = await invoke<ManagedAgentProcess | null>('agent_status', { request })
+    const status = await invokeWithTimeout<ManagedAgentProcess | null>(
+      'agent_status',
+      { request },
+      options?.timeoutMs
+    )
     if (!status) {
       this.processesByWorkspace.delete(workspaceId)
       return null

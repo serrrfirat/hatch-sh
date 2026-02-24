@@ -35,7 +35,7 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
     status: 'idle',
     lastActive: new Date(),
     agentId: 'claude-code',
-    workspaceStatus: 'in-progress' as WorkspaceStatus,
+    workspaceStatus: 'in-review' as WorkspaceStatus,
     ...overrides,
   }
 }
@@ -125,7 +125,7 @@ describe('buildAgentRow', () => {
     expect(row.workspaceName).toBe('workspace/auth-flow')
     expect(row.agentType).toBe('claude-code')
     expect(row.status).toBe('streaming')
-    expect(row.workspaceStatus).toBe('in-progress')
+    expect(row.workspaceStatus).toBe('in-review')
     expect(row.isStreaming).toBe(true)
   })
 

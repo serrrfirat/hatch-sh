@@ -11,7 +11,23 @@ import { SettingsPage } from '../SettingsPanel'
 import { IdeaMazePage } from '../../pages/IdeaMazePage'
 import { MarketplacePage } from '../../pages/MarketplacePage'
 import { DesignPage } from '../../pages/DesignPage'
-import { GitBranch, GitPullRequest, ChevronDown, ChevronLeft, ChevronRight, Settings, Terminal, Lightbulb, ShoppingBag, Loader2, ExternalLink, Archive, AlertCircle, X, Palette } from 'lucide-react'
+import {
+  GitBranch,
+  GitPullRequest,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  Terminal,
+  Lightbulb,
+  ShoppingBag,
+  Loader2,
+  ExternalLink,
+  Archive,
+  AlertCircle,
+  X,
+  Palette,
+} from 'lucide-react'
 import { keychainSet } from '../../lib/keychain'
 import { CreatePRModal } from '../repository/CreatePRModal'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -29,8 +45,13 @@ export function Layout() {
   const [prModalOpen, setPrModalOpen] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
-  const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } = useRepositoryStore()
-  const { claudeCodeStatus, currentPage, setCurrentPage, hasCompletedOnboarding } = useSettingsStore()
+  const { currentWorkspace, currentRepository, mergePullRequest, removeWorkspace } =
+    useRepositoryStore()
+  const workspaceLabel =
+    currentWorkspace?.branchName?.trim() ||
+    (currentWorkspace ? `workspace/${currentWorkspace.id}` : '')
+  const { claudeCodeStatus, currentPage, setCurrentPage, hasCompletedOnboarding } =
+    useSettingsStore()
   const { triggerOpenPR } = useChatStore()
 
   // Migrate legacy anthropicApiKey from localStorage to OS keychain (one-time)
@@ -80,10 +101,9 @@ export function Layout() {
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('webview_navigate', {
         webviewLabel: 'superdesign-embed',
-        direction: 'back'
+        direction: 'back',
       })
-    } catch (err) {
-    }
+    } catch (err) {}
   }, [currentPage])
 
   const handleWebviewForward = useCallback(async () => {
@@ -92,14 +112,14 @@ export function Layout() {
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('webview_navigate', {
         webviewLabel: 'superdesign-embed',
-        direction: 'forward'
+        direction: 'forward',
       })
-    } catch (err) {
-    }
+    } catch (err) {}
   }, [currentPage])
 
   // Check both Zustand persist and standalone flag (belt-and-suspenders)
-  const onboardingDone = hasCompletedOnboarding || localStorage.getItem('hatch-onboarding-done') === '1'
+  const onboardingDone =
+    hasCompletedOnboarding || localStorage.getItem('hatch-onboarding-done') === '1'
 
   if (!onboardingDone) {
     return <OnboardingWizard />
@@ -140,7 +160,7 @@ export function Layout() {
           {currentWorkspace ? (
             <>
               <GitBranch size={14} className="text-neutral-500" />
-              <span className="text-white font-medium">{currentWorkspace.branchName}</span>
+              <span className="text-white font-medium">{workspaceLabel}</span>
               <ChevronRight size={12} className="text-neutral-600" />
               <button className="flex items-center gap-1 text-neutral-400 hover:text-white transition-colors">
                 <span>origin/main</span>
@@ -161,9 +181,7 @@ export function Layout() {
                 key={tab.id}
                 onClick={() => setCurrentPage(tab.id)}
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  currentPage === tab.id
-                    ? 'text-white'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                  currentPage === tab.id ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
                 }`}
               >
                 {currentPage === tab.id && (
@@ -177,9 +195,11 @@ export function Layout() {
                 <span className="relative z-10 flex items-center gap-1.5">
                   <tab.icon size={12} />
                   <span>{tab.label}</span>
-                  {tab.id === 'byoa' && claudeCodeStatus?.installed && claudeCodeStatus?.authenticated && (
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                  )}
+                  {tab.id === 'byoa' &&
+                    claudeCodeStatus?.installed &&
+                    claudeCodeStatus?.authenticated && (
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                    )}
                 </span>
               </button>
             ))}
@@ -218,7 +238,9 @@ export function Layout() {
 
                   {/* Review Button */}
                   <button
-                    onClick={() => currentWorkspace.prUrl && window.open(currentWorkspace.prUrl, '_blank')}
+                    onClick={() =>
+                      currentWorkspace.prUrl && window.open(currentWorkspace.prUrl, '_blank')
+                    }
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/20 text-white text-xs hover:bg-white/10 transition-colors"
                   >
                     <ExternalLink size={12} />
@@ -254,18 +276,16 @@ export function Layout() {
                     </button>
                   )}
                 </>
-              ) : (
-                // No PR - show Create PR button only if there are changes
-                (currentWorkspace.additions || currentWorkspace.deletions) ? (
-                  <button
-                    onClick={handleCreatePR}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
-                  >
-                    <GitPullRequest size={14} />
-                    <span>Create PR</span>
-                  </button>
-                ) : null
-              )}
+              ) : // No PR - show Create PR button only if there are changes
+              currentWorkspace.additions || currentWorkspace.deletions ? (
+                <button
+                  onClick={handleCreatePR}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
+                >
+                  <GitPullRequest size={14} />
+                  <span>Create PR</span>
+                </button>
+              ) : null}
             </div>
           )}
 
@@ -275,7 +295,9 @@ export function Layout() {
           <button
             onClick={() => setCurrentPage('settings')}
             className={`p-1.5 rounded hover:bg-white/10 transition-colors ${
-              currentPage === 'settings' ? 'text-white bg-white/10' : 'text-neutral-400 hover:text-white'
+              currentPage === 'settings'
+                ? 'text-white bg-white/10'
+                : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Settings size={16} />

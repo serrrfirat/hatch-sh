@@ -18,25 +18,35 @@ interface InitStep {
 }
 
 export function WorkspaceInitScreen({ workspace, repository, onReady }: WorkspaceInitScreenProps) {
+  const workspaceLabel = workspace.branchName?.trim() || `workspace/${workspace.id}`
   const [steps, setSteps] = useState<InitStep[]>([
-    { id: 'branch', label: `Branched from origin/${repository?.default_branch || 'master'}`, status: 'completed', icon: GitBranch },
-    { id: 'create', label: `Created ${workspace.branchName}`, status: 'completed', icon: FolderGit2 },
+    {
+      id: 'branch',
+      label: `Branched from origin/${repository?.default_branch || 'master'}`,
+      status: 'completed',
+      icon: GitBranch,
+    },
+    { id: 'create', label: `Created ${workspaceLabel}`, status: 'completed', icon: FolderGit2 },
     { id: 'detect', label: 'Detecting setup script...', status: 'running', icon: FileCode2 },
   ])
 
   // Simulate step completion
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSteps(prev => prev.map(step =>
-        step.id === 'detect' ? { ...step, status: 'completed' as const, label: 'Ready to build' } : step
-      ))
+      setSteps((prev) =>
+        prev.map((step) =>
+          step.id === 'detect'
+            ? { ...step, status: 'completed' as const, label: 'Ready to build' }
+            : step
+        )
+      )
       onReady?.()
     }, 2000)
 
     return () => clearTimeout(timer)
   }, [onReady])
 
-  const repoName = repository?.name || workspace.branchName.split('-')[0] || 'workspace'
+  const repoName = repository?.name || workspaceLabel.split('-')[0] || 'workspace'
 
   return (
     <div className="flex flex-col h-full bg-neutral-950">
@@ -69,13 +79,15 @@ export function WorkspaceInitScreen({ workspace, repository, onReady }: Workspac
               className="flex items-center gap-3"
             >
               {/* Status Icon */}
-              <div className={`w-6 h-6 flex items-center justify-center rounded-full ${
-                step.status === 'completed'
-                  ? 'bg-emerald-500/20'
-                  : step.status === 'running'
-                    ? 'bg-amber-500/20'
-                    : 'bg-neutral-800'
-              }`}>
+              <div
+                className={`w-6 h-6 flex items-center justify-center rounded-full ${
+                  step.status === 'completed'
+                    ? 'bg-emerald-500/20'
+                    : step.status === 'running'
+                      ? 'bg-amber-500/20'
+                      : 'bg-neutral-800'
+                }`}
+              >
                 {step.status === 'completed' ? (
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
                 ) : step.status === 'running' ? (
@@ -86,17 +98,18 @@ export function WorkspaceInitScreen({ workspace, repository, onReady }: Workspac
               </div>
 
               {/* Step Label */}
-              <span className={`text-sm ${
-                step.status === 'completed'
-                  ? 'text-neutral-300'
-                  : step.status === 'running'
-                    ? 'text-neutral-200'
-                    : 'text-neutral-500'
-              }`}>
+              <span
+                className={`text-sm ${
+                  step.status === 'completed'
+                    ? 'text-neutral-300'
+                    : step.status === 'running'
+                      ? 'text-neutral-200'
+                      : 'text-neutral-500'
+                }`}
+              >
                 {step.status === 'running' && step.id === 'detect' ? (
                   <>
-                    <span className="text-neutral-400">↻</span>{' '}
-                    {step.label}
+                    <span className="text-neutral-400">↻</span> {step.label}
                   </>
                 ) : (
                   <>

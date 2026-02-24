@@ -55,6 +55,13 @@ export interface WorkspaceResult {
   worktree_path: string
 }
 
+interface WorktreeCreateInvokeResult {
+  branchName?: string
+  worktreePath?: string
+  branch_name?: string
+  worktree_path?: string
+}
+
 export interface WorktreeLifecycleInfo {
   path: string
   branch: string
@@ -179,12 +186,24 @@ export async function worktreeCreate(
   repoPath: string,
   workspaceId: string
 ): Promise<WorkspaceResult> {
-  return invoke<WorkspaceResult>('worktree_create', {
+  const result = await invoke<WorktreeCreateInvokeResult>('worktree_create', {
     request: {
       repoRoot: repoPath,
       workspaceId,
     },
   })
+
+  const branchName = result.branch_name ?? result.branchName
+  const worktreePath = result.worktree_path ?? result.worktreePath
+
+  if (!branchName || !worktreePath) {
+    throw new Error('Invalid worktree_create response: missing branchName/worktreePath')
+  }
+
+  return {
+    branch_name: branchName,
+    worktree_path: worktreePath,
+  }
 }
 
 export async function worktreeRemove(

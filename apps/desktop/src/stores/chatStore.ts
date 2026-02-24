@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { useRepositoryStore } from './repositoryStore'
 
 import type { ImageAttachmentData } from '../lib/imageAttachment'
 
@@ -118,16 +117,6 @@ export const useChatStore = create<ChatState>()(
             },
           }
         })
-
-        // Auto-transition workspace from backlog to in-progress on first message
-        const workspace = useRepositoryStore
-          .getState()
-          .workspaces.find((w) => w.id === resolvedWorkspaceId)
-        if (workspace && workspace.workspaceStatus === 'backlog') {
-          useRepositoryStore
-            .getState()
-            .updateWorkspaceWorkflowStatus(resolvedWorkspaceId, 'in-progress')
-        }
 
         return id
       },

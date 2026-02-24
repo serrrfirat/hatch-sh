@@ -968,6 +968,7 @@ async fn ensure_agent_available(agent_type: &str) -> Result<(), String> {
         "claude-code" => find_claude_path().await.is_some(),
         "opencode" => find_opencode_path().await.is_some(),
         "cursor" => find_cursor_path().await.is_some(),
+        "codex" => find_codex_path().await.is_some(),
         _ => return Err(format!("Unknown agent type: {}", agent_type)),
     };
 
@@ -2171,6 +2172,280 @@ async fn run_cursor_impl(prompt: String, model: Option<String>, working_dir: Opt
     }
 }
 
+async fn find_codex_path() -> Option<PathBuf> {
+    if let Ok(output) = AsyncCommand::new("sh")
+        .args(["-l", "-c", "which codex"])
+        .output()
+        .await
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
+    }
+
+    let home = env::var("HOME").unwrap_or_default();
+    let common_paths = vec![
+        format!("{}/.npm-global/bin/codex", home),
+        format!("{}/node_modules/.bin/codex", home),
+        "/opt/homebrew/bin/codex".to_string(),
+        "/usr/local/bin/codex".to_string(),
+        format!("{}/.bun/bin/codex", home),
+    ];
+
+    for path in common_paths {
+        let p = PathBuf::from(&path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    None
+}
+
+async fn check_codex_impl() -> AgentStatus {
+    let codex_path = match find_codex_path().await {
+        Some(path) => path,
+        None => {
+            return AgentStatus {
+                installed: false,
+                authenticated: false,
+                version: None,
+                error: Some("Codex CLI is not installed. Install with `npm install -g @openai/codex`".to_string()),
+                path: None,
+            };
+        }
+    };
+
+    let path_str = codex_path.to_string_lossy().to_string();
+
+    let version_result = AsyncCommand::new(&codex_path)
+        .args(["--version"])
+        .output()
+        .await;
+
+    let version = match version_result {
+        Ok(output) if output.status.success() => {
+            Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        }
+        _ => None,
+    };
+
+    let auth_result = AsyncCommand::new(&codex_path)
+        .args(["login", "status"])
+        .output()
+        .await;
+
+    match auth_result {
+        Ok(output) if output.status.success() => AgentStatus {
+            installed: true,
+            authenticated: true,
+            version,
+            error: None,
+            path: Some(path_str),
+        },
+        Ok(_) => AgentStatus {
+            installed: true,
+            authenticated: false,
+            version,
+            error: Some("Codex CLI is not authenticated. Run `codex login` in your terminal".to_string()),
+            path: Some(path_str),
+        },
+        Err(error) => AgentStatus {
+            installed: true,
+            authenticated: false,
+            version,
+            error: Some(format!("Failed to validate Codex CLI auth: {}", error)),
+            path: Some(path_str),
+        },
+    }
+}
+
+async fn run_codex_impl(prompt: String, working_dir: Option<String>) -> CommandResult {
+    let codex_path = match find_codex_path().await {
+        Some(path) => path,
+        None => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: "Codex CLI not found".to_string(),
+                code: None,
+            };
+        }
+    };
+
+    let mut args = vec![
+        "exec".to_string(),
+        "--sandbox".to_string(),
+        "read-only".to_string(),
+    ];
+
+    if let Some(ref dir) = working_dir {
+        if !dir.is_empty() {
+            args.push("--cd".to_string());
+            args.push(dir.clone());
+        }
+    }
+
+    args.push(prompt);
+
+    match AsyncCommand::new(&codex_path).args(&args).output().await {
+        Ok(output) => CommandResult {
+            success: output.status.success(),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            code: output.status.code(),
+        },
+        Err(error) => CommandResult {
+            success: false,
+            stdout: String::new(),
+            stderr: format!("Failed to run Codex CLI: {}", error),
+            code: None,
+        },
+    }
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn run_codex_streaming(
+    app: tauri::AppHandle,
+    prompt: String,
+    sessionId: String,
+    workingDirectory: Option<String>,
+) -> CommandResult {
+    let session_id = sessionId;
+    let working_dir = workingDirectory;
+
+    let codex_path = match find_codex_path().await {
+        Some(path) => path,
+        None => {
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: "Codex CLI not found".to_string(),
+                code: None,
+            };
+        }
+    };
+
+    let mut args = vec![
+        "exec".to_string(),
+        "--sandbox".to_string(),
+        "read-only".to_string(),
+        "--json".to_string(),
+    ];
+
+    if let Some(ref dir) = working_dir {
+        if !dir.is_empty() {
+            args.push("--cd".to_string());
+            args.push(dir.clone());
+        }
+    }
+
+    args.push(prompt);
+
+    let mut cmd = AsyncCommand::new(&codex_path);
+    cmd.args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            let err_msg = format!("Failed to spawn Codex CLI: {}", error);
+            let _ = app.emit("codex-stream", StreamEvent {
+                event_type: "error".to_string(),
+                data: err_msg.clone(),
+                session_id: session_id.clone(),
+            });
+            return CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: err_msg,
+                code: None,
+            };
+        }
+    };
+
+    let stdout = child.stdout.take().expect("Failed to get stdout");
+    let stderr = child.stderr.take().expect("Failed to get stderr");
+
+    let stderr_app = app.clone();
+    let stderr_session_id = session_id.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut full_stderr = String::new();
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            if !line.is_empty() {
+                full_stderr.push_str(&line);
+                full_stderr.push('\n');
+                let _ = stderr_app.emit("codex-stream", StreamEvent {
+                    event_type: "stderr".to_string(),
+                    data: line,
+                    session_id: stderr_session_id.clone(),
+                });
+            }
+        }
+        full_stderr
+    });
+
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut full_output = String::new();
+
+    while let Ok(Some(line)) = stdout_reader.next_line().await {
+        if !line.is_empty() {
+            full_output.push_str(&line);
+            full_output.push('\n');
+
+            let _ = app.emit("codex-stream", StreamEvent {
+                event_type: "line".to_string(),
+                data: line,
+                session_id: session_id.clone(),
+            });
+        }
+    }
+
+    let full_stderr = stderr_handle.await.unwrap_or_default();
+    let status = child.wait().await;
+    let (success, exit_code) = match &status {
+        Ok(s) => (s.success(), s.code()),
+        Err(_) => (false, None),
+    };
+
+    if !success {
+        let error_message = if !full_stderr.trim().is_empty() {
+            format!("Codex stream interrupted (exit {:?}): {}", exit_code, full_stderr.trim())
+        } else {
+            format!("Codex stream interrupted (exit {:?})", exit_code)
+        };
+
+        let _ = app.emit("codex-stream", StreamEvent {
+            event_type: "error".to_string(),
+            data: error_message,
+            session_id: session_id.clone(),
+        });
+    }
+
+    let _ = app.emit("codex-stream", StreamEvent {
+        event_type: "done".to_string(),
+        data: if !full_stderr.is_empty() {
+            full_stderr.clone()
+        } else {
+            String::new()
+        },
+        session_id: session_id.clone(),
+    });
+
+    CommandResult {
+        success,
+        stdout: full_output,
+        stderr: full_stderr,
+        code: exit_code,
+    }
+}
+
 // =============================================================================
 // Get Available Models from Agents
 // =============================================================================
@@ -2482,6 +2757,11 @@ async fn get_agent_models(agent_id: String) -> AvailableModels {
                 error: Some("Claude Code uses its own model".to_string()),
             }
         }
+        "codex" => AvailableModels {
+            success: true,
+            models: vec![],
+            error: Some("Codex CLI uses its own default model".to_string()),
+        },
         _ => AvailableModels {
             success: false,
             models: vec![],
@@ -2501,6 +2781,7 @@ async fn check_agent(agent_id: String) -> AgentStatus {
         "claude-code" => check_claude_code_impl().await,
         "opencode" => check_opencode_impl().await,
         "cursor" => check_cursor_impl().await,
+        "codex" => check_codex_impl().await,
         _ => AgentStatus {
             installed: false,
             authenticated: false,
@@ -2519,6 +2800,7 @@ async fn run_agent(agent_id: String, prompt: String, model: Option<String>, work
         "claude-code" => run_claude_code_impl(prompt).await,
         "opencode" => run_opencode_impl(prompt, model).await,
         "cursor" => run_cursor_impl(prompt, model, workingDirectory).await,
+        "codex" => run_codex_impl(prompt, workingDirectory).await,
         _ => CommandResult {
             success: false,
             stdout: String::new(),
@@ -2927,8 +3209,8 @@ pub fn run() {
             check_claude_code,
             run_claude_code,
             run_claude_code_streaming,
-            // Opencode streaming
             run_opencode_streaming,
+            run_codex_streaming,
             // GitHub auth commands
             github_check_gh_installed,
             github_login,

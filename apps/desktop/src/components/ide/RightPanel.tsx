@@ -17,7 +17,6 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { PreviewPanel } from '../preview/PreviewPanel'
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useEditorStore } from '../../stores/editorStore'
 import {
@@ -34,7 +33,7 @@ import {
 } from '../../lib/github/checks'
 import { FileIcon } from '../icons/FileIcon'
 
-type TopTab = 'changes' | 'files' | 'checks' | 'preview'
+type TopTab = 'changes' | 'files' | 'checks'
 type BottomTab = 'terminal'
 
 interface FileChangeItemProps {
@@ -1082,7 +1081,6 @@ export function RightPanel() {
     { id: 'changes', label: 'Changes' },
     { id: 'files', label: 'All files' },
     { id: 'checks', label: 'Checks' },
-    { id: 'preview', label: 'Preview' },
   ]
 
   const bottomTabs: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
@@ -1124,7 +1122,6 @@ export function RightPanel() {
           {topTab === 'changes' && <ChangesPanel />}
           {topTab === 'files' && <FilesPanel />}
           {topTab === 'checks' && <ChecksPanel />}
-          {topTab === 'preview' && <PreviewPanel />}
         </div>
       </div>
 

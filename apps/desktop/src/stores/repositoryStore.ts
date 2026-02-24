@@ -11,7 +11,14 @@ import { DEFAULT_AGENT_ID, isValidAgentId } from '../lib/agents/registry'
 import { generateWorkspaceName } from '../lib/pokemon'
 import { useSettingsStore } from './settingsStore'
 
-export type WorkspaceStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
+export type WorkspaceStatus = 'backlog' | 'in-review' | 'done'
+
+function normalizeWorkspaceStatus(value: string | undefined): WorkspaceStatus {
+  if (value === 'in-review' || value === 'done') {
+    return value
+  }
+  return 'backlog'
+}
 
 export interface Workspace {
   id: string
@@ -275,7 +282,7 @@ export const useRepositoryStore = create<RepositoryState>()(
         const initializingWorkspace: Workspace = {
           id: workspaceId,
           repositoryId,
-          branchName: workspaceId, // Temporary, will be updated
+          branchName: `workspace/${workspaceId}`, // Temporary, will be updated
           localPath: '', // Will be set after worktree creation
           repoPath: repo.local_path,
           status: 'idle',
@@ -360,11 +367,21 @@ export const useRepositoryStore = create<RepositoryState>()(
       updateWorkspaceWorkflowStatus: (workspaceId, workspaceStatus) => {
         set((state) => ({
           workspaces: state.workspaces.map((w) =>
-            w.id === workspaceId ? { ...w, workspaceStatus, lastActive: new Date() } : w
+            w.id === workspaceId
+              ? {
+                  ...w,
+                  workspaceStatus: normalizeWorkspaceStatus(workspaceStatus),
+                  lastActive: new Date(),
+                }
+              : w
           ),
           currentWorkspace:
             state.currentWorkspace?.id === workspaceId
-              ? { ...state.currentWorkspace, workspaceStatus, lastActive: new Date() }
+              ? {
+                  ...state.currentWorkspace,
+                  workspaceStatus: normalizeWorkspaceStatus(workspaceStatus),
+                  lastActive: new Date(),
+                }
               : state.currentWorkspace,
         }))
       },
@@ -563,6 +580,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           .filter((w) => !w.isInitializing) // Don't persist incomplete workspaces
           .map((w) => ({
             ...w,
+            workspaceStatus: normalizeWorkspaceStatus(w.workspaceStatus),
             status: 'idle' as const, // Reset status on reload
             lastActive: w.lastActive,
             agentId: w.agentId || DEFAULT_AGENT_ID, // Ensure agentId is always set

@@ -8,15 +8,14 @@ import { FileViewer } from '../components/editor/FileViewer'
 import { DiffViewer } from '../components/editor/DiffViewer'
 import { FileIcon } from '../components/icons/FileIcon'
 
-
 import { cn } from '@hatch/ui'
 import { X, MessageSquare, GitCompare } from 'lucide-react'
 
 export function IDEPage() {
-  const { currentProject, setCurrentProject, addProject, addWorkspace, setCurrentWorkspace } = useProjectStore()
+  const { currentProject, setCurrentProject, addProject, addWorkspace, setCurrentWorkspace } =
+    useProjectStore()
   const { setProjectId } = useChatStore()
   const { tabs, activeTabId, setActiveTab, closeTab } = useEditorStore()
-
 
   // Auto-create a demo project if none exists
   useEffect(() => {
@@ -46,14 +45,19 @@ export function IDEPage() {
       addWorkspace(projectId, workspace)
       setCurrentWorkspace(workspace)
     }
-  }, [currentProject, addProject, setCurrentProject, setProjectId, addWorkspace, setCurrentWorkspace])
+  }, [
+    currentProject,
+    addProject,
+    setCurrentProject,
+    setProjectId,
+    addWorkspace,
+    setCurrentWorkspace,
+  ])
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
-
   return (
     <div className="flex h-full w-full">
-
       {/* Main Content Section */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Tab Bar */}
@@ -108,7 +112,7 @@ export function IDEPage() {
         </div>
       </div>
 
-      {/* Right Panel - Changes/Preview + Terminal/Token */}
+      {/* Right Panel - Changes/Files/Checks + Terminal */}
       <div className="w-80 border-l border-white/10 flex-shrink-0">
         <RightPanel />
       </div>

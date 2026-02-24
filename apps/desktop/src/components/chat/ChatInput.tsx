@@ -5,6 +5,7 @@ import {
   useCallback,
   type KeyboardEvent,
   type ChangeEvent,
+  type ClipboardEvent,
   type ReactNode,
   type DragEvent,
 } from 'react'
@@ -132,7 +133,7 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
   const processImageFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files)
     for (const file of fileArray) {
-      if (!isImageFile(file.name)) {
+      if (!isImageFile(file.name, file.type)) {
         setImageError(`"${file.name}" is not a supported image type`)
         continue
       }
@@ -172,6 +173,29 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
       if (e.dataTransfer.files.length > 0) {
         await processImageFiles(e.dataTransfer.files)
       }
+    },
+    [processImageFiles]
+  )
+
+  const handlePaste = useCallback(
+    async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items
+      if (!items || items.length === 0) return
+
+      const pastedImages: File[] = []
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            pastedImages.push(file)
+          }
+        }
+      }
+
+      if (pastedImages.length === 0) return
+
+      e.preventDefault()
+      await processImageFiles(pastedImages)
     },
     [processImageFiles]
   )
@@ -333,6 +357,7 @@ export function ChatInput({ onSend, isLoading, onStop, placeholder, disabled }: 
               value={message}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 placeholder ||
                 'What do you want to build? Type @ to mention files, skills, or agents'

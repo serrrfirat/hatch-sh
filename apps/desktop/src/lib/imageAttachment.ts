@@ -4,7 +4,22 @@
  */
 
 /** Supported image file extensions */
-export const SUPPORTED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'] as const
+export const SUPPORTED_IMAGE_EXTENSIONS = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+] as const
+
+export const SUPPORTED_IMAGE_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+] as const
 
 /** Maximum image size in bytes (5MB) */
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -23,7 +38,14 @@ export interface ImageAttachmentData {
  * Check if a filename has a supported image extension.
  * Case-insensitive. Handles paths with directories.
  */
-export function isImageFile(filename: string): boolean {
+export function isImageFile(filename: string, mimeType?: string): boolean {
+  if (mimeType) {
+    const normalized = mimeType.toLowerCase()
+    if ((SUPPORTED_IMAGE_MIME_TYPES as readonly string[]).includes(normalized)) {
+      return true
+    }
+  }
+
   const lastDotIndex = filename.lastIndexOf('.')
   if (lastDotIndex === -1) return false
   const ext = filename.slice(lastDotIndex).toLowerCase()

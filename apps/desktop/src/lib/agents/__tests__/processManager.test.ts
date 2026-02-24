@@ -4,6 +4,7 @@ import {
   AgentProcessManager,
   MAX_AGENTS_HARD_CAP,
   MAX_CONCURRENT_AGENTS,
+  TAURI_AGENT_INVOKE_TIMEOUT_MS,
   type ManagedAgentProcess,
 } from '../processManager'
 
@@ -25,6 +26,7 @@ const baseProcess: ManagedAgentProcess = {
 describe('AgentProcessManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useRealTimers()
   })
 
   it('exports default and hard cap constants', () => {
@@ -116,5 +118,19 @@ describe('AgentProcessManager', () => {
     expect(status?.lastExitCode).toBe(1)
     expect(status?.crashed).toBe(true)
     expect(status?.canRestart).toBe(true)
+  })
+
+  it('times out stalled tauri agent_spawn invokes', async () => {
+    vi.useFakeTimers()
+
+    const invokeMock = vi.mocked(invoke)
+    invokeMock.mockImplementationOnce(() => new Promise(() => {}))
+
+    const manager = new AgentProcessManager()
+    const spawnPromise = manager.spawn('ws-timeout', 'claude-code', '/tmp/ws-timeout')
+    const assertion = expect(spawnPromise).rejects.toThrow('Timed out while executing agent_spawn')
+
+    await vi.advanceTimersByTimeAsync(TAURI_AGENT_INVOKE_TIMEOUT_MS + 1)
+    await assertion
   })
 })

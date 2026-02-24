@@ -59,6 +59,15 @@ describe('isImageFile', () => {
     expect(isImageFile('assets/images/logo.png')).toBe(true)
     expect(isImageFile('/home/user/photo.jpg')).toBe(true)
   })
+
+  it('returns true when MIME type is supported even without file extension', () => {
+    expect(isImageFile('clipboard-image', 'image/png')).toBe(true)
+    expect(isImageFile('blob', 'image/jpeg')).toBe(true)
+  })
+
+  it('returns false when MIME type and extension are both unsupported', () => {
+    expect(isImageFile('clipboard-data', 'application/octet-stream')).toBe(false)
+  })
 })
 
 describe('isImageTooLarge', () => {

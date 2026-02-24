@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
-import { useSettingsStore, LOCAL_AGENT_IDS } from "../stores/settingsStore";
-import type { AgentStatus, LocalAgentId, ModelInfo } from "../lib/agents/types";
-import type { BranchNamePrefix as _BranchNamePrefix } from "../stores/settingsStore";
-import { AGENT_CONFIGS } from "../lib/agents/registry";
+import { useEffect, useState, useCallback } from 'react'
+import { useSettingsStore, LOCAL_AGENT_IDS } from '../stores/settingsStore'
+import type { AgentStatus, LocalAgentId, ModelInfo } from '../lib/agents/types'
+import type { BranchNamePrefix as _BranchNamePrefix } from '../stores/settingsStore'
+import { AGENT_CONFIGS } from '../lib/agents/registry'
 import {
   CheckCircle2,
   XCircle,
@@ -19,34 +19,28 @@ import {
   EyeOff,
   Trash2,
   Save,
-} from "lucide-react";
-import { keychainSet, keychainDelete, type KeychainKey } from "../lib/keychain";
-import { DotGridLoader } from "./DotGridLoader";
+} from 'lucide-react'
+import { keychainSet, keychainDelete, type KeychainKey } from '../lib/keychain'
+import { DotGridLoader } from './DotGridLoader'
 
-type SettingsTab = "chat" | "git" | "agents" | "keys";
+type SettingsTab = 'chat' | 'git' | 'agents' | 'keys'
 
 /** Toggle switch component */
-function Toggle({
-  enabled,
-  onChange,
-}: {
-  enabled: boolean;
-  onChange: (enabled: boolean) => void;
-}) {
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (enabled: boolean) => void }) {
   return (
     <button
       onClick={() => onChange(!enabled)}
       className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-        enabled ? "bg-emerald-500" : "bg-neutral-700"
+        enabled ? 'bg-emerald-500' : 'bg-neutral-700'
       }`}
     >
       <span
         className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
-          enabled ? "translate-x-5" : "translate-x-0"
+          enabled ? 'translate-x-5' : 'translate-x-0'
         }`}
       />
     </button>
-  );
+  )
 }
 
 /** Setting row with label, description, and toggle */
@@ -56,22 +50,20 @@ function SettingRow({
   enabled,
   onChange,
 }: {
-  label: string;
-  description?: string;
-  enabled: boolean;
-  onChange: (enabled: boolean) => void;
+  label: string
+  description?: string
+  enabled: boolean
+  onChange: (enabled: boolean) => void
 }) {
   return (
     <div className="flex items-start justify-between py-4 border-b border-white/5 last:border-b-0">
       <div className="flex-1 pr-4">
         <div className="text-sm font-medium text-white">{label}</div>
-        {description && (
-          <div className="text-xs text-neutral-500 mt-1">{description}</div>
-        )}
+        {description && <div className="text-xs text-neutral-500 mt-1">{description}</div>}
       </div>
       <Toggle enabled={enabled} onChange={onChange} />
     </div>
-  );
+  )
 }
 
 /** Radio option component */
@@ -81,31 +73,26 @@ function RadioOption({
   selected,
   onSelect,
 }: {
-  label: string;
-  description?: string;
-  selected: boolean;
-  onSelect: () => void;
+  label: string
+  description?: string
+  selected: boolean
+  onSelect: () => void
 }) {
   return (
-    <button
-      onClick={onSelect}
-      className="flex items-start gap-3 w-full text-left py-2"
-    >
+    <button onClick={onSelect} className="flex items-start gap-3 w-full text-left py-2">
       <div
         className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-          selected ? "border-emerald-500 bg-emerald-500" : "border-neutral-600"
+          selected ? 'border-emerald-500 bg-emerald-500' : 'border-neutral-600'
         }`}
       >
         {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
       </div>
       <div>
         <div className="text-sm text-white">{label}</div>
-        {description && (
-          <div className="text-xs text-neutral-500 mt-0.5">{description}</div>
-        )}
+        {description && <div className="text-xs text-neutral-500 mt-0.5">{description}</div>}
       </div>
     </button>
-  );
+  )
 }
 
 /** Dropdown select component */
@@ -114,9 +101,9 @@ function Select({
   options,
   onChange,
 }: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
 }) {
   return (
     <div className="relative">
@@ -136,7 +123,7 @@ function Select({
         className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
       />
     </div>
-  );
+  )
 }
 
 /** Chat settings tab content */
@@ -156,7 +143,7 @@ function ChatSettings() {
     setStripAbsolutelyRight,
     showChatCost,
     setShowChatCost,
-  } = useSettingsStore();
+  } = useSettingsStore()
 
   return (
     <div>
@@ -206,7 +193,7 @@ function ChatSettings() {
         />
       </div>
     </div>
-  );
+  )
 }
 
 /** Git settings tab content */
@@ -220,7 +207,7 @@ function GitSettings() {
     setDeleteBranchOnArchive,
     archiveOnMerge,
     setArchiveOnMerge,
-  } = useSettingsStore();
+  } = useSettingsStore()
 
   return (
     <div>
@@ -228,24 +215,22 @@ function GitSettings() {
 
       {/* Branch name prefix */}
       <div className="mb-6">
-        <div className="text-sm font-medium text-white mb-1">
-          Branch name prefix
-        </div>
+        <div className="text-sm font-medium text-white mb-1">Branch name prefix</div>
         <div className="text-xs text-neutral-500 mb-3">
           Prefix for new workspace branch names. Will be followed by a slash.
         </div>
         <div className="space-y-1">
           <RadioOption
             label="GitHub username (serrrfirat)"
-            selected={branchNamePrefix === "github-username"}
-            onSelect={() => setBranchNamePrefix("github-username")}
+            selected={branchNamePrefix === 'github-username'}
+            onSelect={() => setBranchNamePrefix('github-username')}
           />
           <RadioOption
             label="Custom"
-            selected={branchNamePrefix === "custom"}
-            onSelect={() => setBranchNamePrefix("custom")}
+            selected={branchNamePrefix === 'custom'}
+            onSelect={() => setBranchNamePrefix('custom')}
           />
-          {branchNamePrefix === "custom" && (
+          {branchNamePrefix === 'custom' && (
             <input
               type="text"
               value={customBranchPrefix}
@@ -256,8 +241,8 @@ function GitSettings() {
           )}
           <RadioOption
             label="None"
-            selected={branchNamePrefix === "none"}
-            onSelect={() => setBranchNamePrefix("none")}
+            selected={branchNamePrefix === 'none'}
+            onSelect={() => setBranchNamePrefix('none')}
           />
         </div>
       </div>
@@ -277,7 +262,7 @@ function GitSettings() {
         />
       </div>
     </div>
-  );
+  )
 }
 
 /** Agent card component for checking and configuring a local agent */
@@ -287,34 +272,31 @@ function LocalAgentCard({
   isChecking,
   onCheck,
 }: {
-  agentId: LocalAgentId;
-  status: AgentStatus | null;
-  isChecking: boolean;
-  onCheck: () => void;
+  agentId: LocalAgentId
+  status: AgentStatus | null
+  isChecking: boolean
+  onCheck: () => void
 }) {
-  const config = AGENT_CONFIGS[agentId];
-  const isConnected = status?.installed && status?.authenticated;
+  const config = AGENT_CONFIGS[agentId]
+  const isConnected = status?.installed && status?.authenticated
 
   const colorMap: Record<LocalAgentId, { accent: string }> = {
-    "claude-code": { accent: "text-violet-400" },
-    opencode: { accent: "text-emerald-400" },
-    cursor: { accent: "text-sky-400" },
-  };
+    'claude-code': { accent: 'text-violet-400' },
+    opencode: { accent: 'text-emerald-400' },
+    cursor: { accent: 'text-sky-400' },
+    codex: { accent: 'text-green-400' },
+  }
 
-  const colors = colorMap[agentId];
+  const colors = colorMap[agentId]
 
   return (
     <div className="bg-neutral-900/50 border border-white/5 rounded-lg p-4 mb-3">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3">
-          <div
-            className={`w-2 h-2 rounded-full mt-2 ${colors.accent.replace("text-", "bg-")}`}
-          />
+          <div className={`w-2 h-2 rounded-full mt-2 ${colors.accent.replace('text-', 'bg-')}`} />
           <div>
             <h4 className="text-sm font-medium text-white">{config.name}</h4>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {config.description}
-            </p>
+            <p className="text-xs text-neutral-500 mt-0.5">{config.description}</p>
           </div>
         </div>
         <button
@@ -322,7 +304,7 @@ function LocalAgentCard({
           disabled={isChecking}
           className="p-1.5 text-neutral-500 hover:text-white transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -335,7 +317,7 @@ function LocalAgentCard({
         ) : isConnected ? (
           <span className={`text-xs flex items-center gap-1.5 ${colors.accent}`}>
             <CheckCircle2 className="w-3 h-3" />
-            Connected{status?.version ? ` (${status.version})` : ""}
+            Connected{status?.version ? ` (${status.version})` : ''}
           </span>
         ) : status?.installed && !status?.authenticated ? (
           <div>
@@ -345,9 +327,7 @@ function LocalAgentCard({
             </span>
             <div className="mt-2 flex items-start gap-2">
               <Terminal className="w-3 h-3 text-neutral-600 mt-0.5" />
-              <code className={`text-xs ${colors.accent}`}>
-                {config.authCommand}
-              </code>
+              <code className={`text-xs ${colors.accent}`}>{config.authCommand}</code>
             </div>
           </div>
         ) : (
@@ -369,7 +349,7 @@ function LocalAgentCard({
         )}
       </div>
     </div>
-  );
+  )
 }
 
 /** Model selector for an agent */
@@ -380,22 +360,22 @@ function AgentModelSelector({
   isLoading,
   onChange,
 }: {
-  agent: "opencode" | "cursor";
-  currentModel: string;
-  availableModels: ModelInfo[];
-  isLoading: boolean;
-  onChange: (model: string) => void;
+  agent: 'opencode' | 'cursor'
+  currentModel: string
+  availableModels: ModelInfo[]
+  isLoading: boolean
+  onChange: (model: string) => void
 }) {
   // Build options from available models
   const modelOptions: { value: string; label: string }[] = [
-    { value: "default", label: "Default (Agent's choice)" },
+    { value: 'default', label: "Default (Agent's choice)" },
     ...availableModels.map((model) => ({
       value: model.id,
-      label: model.name + (model.provider ? ` (${model.provider})` : ""),
+      label: model.name + (model.provider ? ` (${model.provider})` : ''),
     })),
-  ];
+  ]
 
-  const agentName = agent === "opencode" ? "Opencode" : "Cursor";
+  const agentName = agent === 'opencode' ? 'Opencode' : 'Cursor'
 
   return (
     <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-b-0">
@@ -411,14 +391,10 @@ function AgentModelSelector({
           Loading models...
         </span>
       ) : (
-        <Select
-          value={currentModel}
-          options={modelOptions}
-          onChange={onChange}
-        />
+        <Select value={currentModel} options={modelOptions} onChange={onChange} />
       )}
     </div>
-  );
+  )
 }
 
 /** Agents settings tab content */
@@ -432,38 +408,38 @@ function AgentsSettings() {
     availableModels,
     isLoadingModels,
     fetchAgentModels,
-  } = useSettingsStore();
+  } = useSettingsStore()
 
-  const [modelsFetched, setModelsFetched] = useState(false);
+  const [modelsFetched, setModelsFetched] = useState(false)
 
   // Check status for all agents when opening this tab
   useEffect(() => {
     for (const agentId of LOCAL_AGENT_IDS) {
       if (!agentStatuses[agentId]) {
-        checkAgentStatus(agentId);
+        checkAgentStatus(agentId)
       }
     }
-  }, [agentStatuses, checkAgentStatus]);
+  }, [agentStatuses, checkAgentStatus])
 
   // Fetch models once on mount (separate effect to avoid dependency issues)
   useEffect(() => {
     if (!modelsFetched) {
       const fetchModels = async () => {
         // Always try to fetch - the Rust side handles the case where agent isn't installed
-        await Promise.all([
-          fetchAgentModels("opencode"),
-          fetchAgentModels("cursor"),
-        ]);
-        setModelsFetched(true);
-      };
-      fetchModels();
+        await Promise.all([fetchAgentModels('opencode'), fetchAgentModels('cursor')])
+        setModelsFetched(true)
+      }
+      fetchModels()
     }
-  }, [fetchAgentModels, modelsFetched]);
+  }, [fetchAgentModels, modelsFetched])
 
   // Refetch models when agent becomes installed
-  const handleRefetchModels = useCallback(async (agent: "opencode" | "cursor") => {
-    await fetchAgentModels(agent);
-  }, [fetchAgentModels]);
+  const handleRefetchModels = useCallback(
+    async (agent: 'opencode' | 'cursor') => {
+      await fetchAgentModels(agent)
+    },
+    [fetchAgentModels]
+  )
 
   return (
     <div>
@@ -471,9 +447,7 @@ function AgentsSettings() {
 
       {/* Agent status section */}
       <div className="mb-6">
-        <div className="text-sm font-medium text-white mb-1">
-          Local Agents (BYOA)
-        </div>
+        <div className="text-sm font-medium text-white mb-1">Local Agents (BYOA)</div>
         <div className="text-xs text-neutral-500 mb-3">
           Configure local CLI agents for use in your workspaces.
         </div>
@@ -485,10 +459,10 @@ function AgentsSettings() {
               status={agentStatuses[agentId]}
               isChecking={isCheckingAgent}
               onCheck={() => {
-                checkAgentStatus(agentId);
+                checkAgentStatus(agentId)
                 // Refetch models after status check for applicable agents
-                if (agentId === "opencode" || agentId === "cursor") {
-                  setTimeout(() => handleRefetchModels(agentId), 500);
+                if (agentId === 'opencode' || agentId === 'cursor') {
+                  setTimeout(() => handleRefetchModels(agentId), 500)
                 }
               }}
             />
@@ -499,24 +473,21 @@ function AgentsSettings() {
       {/* Model configuration section */}
       <div className="border-t border-white/5 pt-4">
         <div className="flex items-center justify-between mb-1">
-          <div className="text-sm font-medium text-white">
-            Model Configuration
-          </div>
+          <div className="text-sm font-medium text-white">Model Configuration</div>
           <button
             onClick={() => {
-              handleRefetchModels("opencode");
-              handleRefetchModels("cursor");
+              handleRefetchModels('opencode')
+              handleRefetchModels('cursor')
             }}
             disabled={isLoadingModels}
             className="text-xs text-neutral-500 hover:text-white transition-colors flex items-center gap-1"
           >
-            <RefreshCw className={`w-3 h-3 ${isLoadingModels ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3 h-3 ${isLoadingModels ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
         <div className="text-xs text-neutral-500 mb-3">
-          Choose which model each agent should use. Models are fetched from the
-          installed agents.
+          Choose which model each agent should use. Models are fetched from the installed agents.
         </div>
         <div className="space-y-0">
           <AgentModelSelector
@@ -524,14 +495,14 @@ function AgentsSettings() {
             currentModel={agentModels.opencode}
             availableModels={availableModels.opencode}
             isLoading={isLoadingModels && availableModels.opencode.length === 0}
-            onChange={(model) => setAgentModel("opencode", model)}
+            onChange={(model) => setAgentModel('opencode', model)}
           />
           <AgentModelSelector
             agent="cursor"
             currentModel={agentModels.cursor}
             availableModels={availableModels.cursor}
             isLoading={isLoadingModels && availableModels.cursor.length === 0}
-            onChange={(model) => setAgentModel("cursor", model)}
+            onChange={(model) => setAgentModel('cursor', model)}
           />
         </div>
       </div>
@@ -539,13 +510,13 @@ function AgentsSettings() {
       {/* Info section */}
       <div className="mt-6 p-4 bg-neutral-900/50 border border-white/5 rounded-lg">
         <div className="text-xs text-neutral-500">
-          <strong className="text-neutral-400">Per-Workspace Selection:</strong>{" "}
-          Each workspace can use a different agent. Use the dropdown in the chat
-          area to select which agent to use for the current workspace.
+          <strong className="text-neutral-400">Per-Workspace Selection:</strong> Each workspace can
+          use a different agent. Use the dropdown in the chat area to select which agent to use for
+          the current workspace.
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 /** Secret field with masked input, show/hide toggle, save and clear */
@@ -556,55 +527,52 @@ function SecretField({
   isSet,
   onSaved,
 }: {
-  label: string;
-  description: string;
-  keychainKey: KeychainKey;
-  isSet: boolean;
-  onSaved: () => void;
+  label: string
+  description: string
+  keychainKey: KeychainKey
+  isSet: boolean
+  onSaved: () => void
 }) {
-  const [value, setValue] = useState("");
-  const [visible, setVisible] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [value, setValue] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
-    if (!value.trim()) return;
-    setSaving(true);
+    if (!value.trim()) return
+    setSaving(true)
     try {
-      await keychainSet(keychainKey, value.trim());
-      setValue("");
-      setVisible(false);
-      onSaved();
+      await keychainSet(keychainKey, value.trim())
+      setValue('')
+      setVisible(false)
+      onSaved()
     } catch (err) {
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const handleClear = async () => {
     try {
-      await keychainDelete(keychainKey);
-      setValue("");
-      onSaved();
-    } catch (err) {
-    }
-  };
+      await keychainDelete(keychainKey)
+      setValue('')
+      onSaved()
+    } catch (err) {}
+  }
 
   return (
     <div className="py-4 border-b border-white/5 last:border-b-0">
       <div className="flex items-center gap-2 mb-1">
-        <div
-          className={`w-2 h-2 rounded-full ${isSet ? "bg-emerald-500" : "bg-neutral-600"}`}
-        />
+        <div className={`w-2 h-2 rounded-full ${isSet ? 'bg-emerald-500' : 'bg-neutral-600'}`} />
         <div className="text-sm font-medium text-white">{label}</div>
       </div>
       <div className="text-xs text-neutral-500 mb-3">{description}</div>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <input
-            type={visible ? "text" : "password"}
+            type={visible ? 'text' : 'password'}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder={isSet ? "Key is set (enter new value to replace)" : "Enter key..."}
+            placeholder={isSet ? 'Key is set (enter new value to replace)' : 'Enter key...'}
             className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 pr-9 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20"
           />
           <button
@@ -633,17 +601,16 @@ function SecretField({
         )}
       </div>
     </div>
-  );
+  )
 }
 
 /** API Keys settings tab content */
 function ApiKeysSettings() {
-  const { apiUrl, setApiUrl, keychainStatus, refreshKeychainStatus } =
-    useSettingsStore();
+  const { apiUrl, setApiUrl, keychainStatus, refreshKeychainStatus } = useSettingsStore()
 
   useEffect(() => {
-    refreshKeychainStatus();
-  }, [refreshKeychainStatus]);
+    refreshKeychainStatus()
+  }, [refreshKeychainStatus])
 
   return (
     <div>
@@ -691,9 +658,7 @@ function ApiKeysSettings() {
       {/* API URL — not a secret, stored in localStorage */}
       <div className="py-4">
         <div className="text-sm font-medium text-white mb-1">API URL</div>
-        <div className="text-xs text-neutral-500 mb-3">
-          Base URL for the hatch.sh API backend.
-        </div>
+        <div className="text-xs text-neutral-500 mb-3">Base URL for the hatch.sh API backend.</div>
         <input
           type="text"
           value={apiUrl}
@@ -706,27 +671,26 @@ function ApiKeysSettings() {
       {/* Info box */}
       <div className="mt-4 p-4 bg-neutral-900/50 border border-white/5 rounded-lg">
         <div className="text-xs text-neutral-500">
-          <strong className="text-neutral-400">Secure Storage:</strong>{" "}
-          API keys and tokens are stored in your operating system's keychain
-          (macOS Keychain, Linux Secret Service, or Windows Credential Manager)
-          — never in localStorage or plain text.
+          <strong className="text-neutral-400">Secure Storage:</strong> API keys and tokens are
+          stored in your operating system's keychain (macOS Keychain, Linux Secret Service, or
+          Windows Credential Manager) — never in localStorage or plain text.
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 /** Full-page Settings component */
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("chat");
-  const { setCurrentPage } = useSettingsStore();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('chat')
+  const { setCurrentPage } = useSettingsStore()
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: "chat", label: "Chat", icon: <MessageSquare size={18} /> },
-    { id: "git", label: "Git", icon: <GitBranch size={18} /> },
-    { id: "agents", label: "Agents", icon: <Bot size={18} /> },
-    { id: "keys", label: "API Keys", icon: <Key size={18} /> },
-  ];
+    { id: 'chat', label: 'Chat', icon: <MessageSquare size={18} /> },
+    { id: 'git', label: 'Git', icon: <GitBranch size={18} /> },
+    { id: 'agents', label: 'Agents', icon: <Bot size={18} /> },
+    { id: 'keys', label: 'API Keys', icon: <Key size={18} /> },
+  ]
 
   return (
     <div className="h-full flex flex-col">
@@ -751,8 +715,8 @@ export function SettingsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? "bg-white/10 text-white"
-                    : "text-neutral-400 hover:text-white hover:bg-white/5"
+                    ? 'bg-white/10 text-white'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 {tab.icon}
@@ -765,13 +729,13 @@ export function SettingsPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-2xl mx-auto p-8">
-            {activeTab === "chat" && <ChatSettings />}
-            {activeTab === "git" && <GitSettings />}
-            {activeTab === "agents" && <AgentsSettings />}
-            {activeTab === "keys" && <ApiKeysSettings />}
+            {activeTab === 'chat' && <ChatSettings />}
+            {activeTab === 'git' && <GitSettings />}
+            {activeTab === 'agents' && <AgentsSettings />}
+            {activeTab === 'keys' && <ApiKeysSettings />}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -8,7 +8,7 @@
 
 import type { AgentAdapter, AgentConfig, AgentId, LocalAgentId } from './types'
 import { isLocalAgent } from './types'
-import { claudeCodeAdapter, opencodeAdapter, cursorAdapter } from './adapters'
+import { claudeCodeAdapter, opencodeAdapter, cursorAdapter, codexAdapter } from './adapters'
 
 /**
  * Static configuration for all supported agents
@@ -44,6 +44,16 @@ export const AGENT_CONFIGS: Record<AgentId, AgentConfig> = {
     installUrl: 'https://cursor.com/docs/cli',
     authCommand: 'agent login',
     color: '#06b6d4', // Cyan
+  },
+  codex: {
+    id: 'codex',
+    type: 'local',
+    name: 'Codex CLI',
+    description: 'OpenAI Codex local CLI agent',
+    provider: 'OpenAI',
+    installUrl: 'https://developers.openai.com/codex/cli',
+    authCommand: 'codex login',
+    color: '#22c55e',
   },
 
   // Cloud API Models - Anthropic
@@ -106,12 +116,13 @@ export const localAgentAdapters: Record<LocalAgentId, AgentAdapter> = {
   'claude-code': claudeCodeAdapter,
   opencode: opencodeAdapter,
   cursor: cursorAdapter,
+  codex: codexAdapter,
 }
 
 /**
  * All agent IDs grouped by type
  */
-export const LOCAL_AGENT_IDS: LocalAgentId[] = ['claude-code', 'opencode', 'cursor']
+export const LOCAL_AGENT_IDS: LocalAgentId[] = ['claude-code', 'opencode', 'cursor', 'codex']
 export const CLOUD_MODEL_IDS: AgentId[] = [
   'opus-4.5',
   'sonnet-4.5',

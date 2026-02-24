@@ -112,7 +112,7 @@ describe('repositoryStore', () => {
   })
 
   describe('updateWorkspaceWorkflowStatus', () => {
-    it('updates workspace status to in-progress', () => {
+    it('updates workspace status to in-review', () => {
       const workspace: Workspace = {
         id: 'ws-1',
         repositoryId: 'repo-1',
@@ -127,10 +127,10 @@ describe('repositoryStore', () => {
 
       useRepositoryStore.setState({ workspaces: [workspace] })
 
-      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-progress')
+      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-review')
 
       const updated = useRepositoryStore.getState().workspaces[0]
-      expect(updated.workspaceStatus).toBe('in-progress')
+      expect(updated.workspaceStatus).toBe('in-review')
     })
 
     it('updates workspace status to in-review', () => {
@@ -143,7 +143,7 @@ describe('repositoryStore', () => {
         status: 'idle',
         lastActive: new Date(),
         agentId: 'claude-code',
-        workspaceStatus: 'in-progress',
+        workspaceStatus: 'in-review',
       }
 
       useRepositoryStore.setState({ workspaces: [workspace] })
@@ -193,10 +193,10 @@ describe('repositoryStore', () => {
         currentWorkspace: workspace,
       })
 
-      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-progress')
+      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-review')
 
       const current = useRepositoryStore.getState().currentWorkspace
-      expect(current?.workspaceStatus).toBe('in-progress')
+      expect(current?.workspaceStatus).toBe('in-review')
     })
 
     it('updates lastActive timestamp', () => {
@@ -215,7 +215,7 @@ describe('repositoryStore', () => {
       useRepositoryStore.setState({ workspaces: [workspace] })
 
       const beforeUpdate = new Date()
-      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-progress')
+      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-review')
       const afterUpdate = new Date()
 
       const updated = useRepositoryStore.getState().workspaces[0]
@@ -245,16 +245,16 @@ describe('repositoryStore', () => {
         status: 'idle',
         lastActive: new Date(),
         agentId: 'claude-code',
-        workspaceStatus: 'in-progress',
+        workspaceStatus: 'in-review',
       }
 
       useRepositoryStore.setState({ workspaces: [workspace1, workspace2] })
 
-      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-progress')
+      useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-1', 'in-review')
 
       const workspaces = useRepositoryStore.getState().workspaces
-      expect(workspaces[0].workspaceStatus).toBe('in-progress')
-      expect(workspaces[1].workspaceStatus).toBe('in-progress') // unchanged
+      expect(workspaces[0].workspaceStatus).toBe('in-review')
+      expect(workspaces[1].workspaceStatus).toBe('in-review') // unchanged
     })
   })
 

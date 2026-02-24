@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateContextSize,
+  estimateMessageBytes,
   getContextColor,
   DEFAULT_CONTEXT_LIMIT,
   type ContextBreakdown,
@@ -15,10 +16,10 @@ describe('calculateContextSize', () => {
     expect(result.totalBytes).toBe(0)
   })
 
-  it('calculates byte size from JSON.stringify of each message', () => {
+  it('calculates byte size from the sanitized message payload', () => {
     const messages = [{ id: '1', role: 'user' as const, content: 'hello', timestamp: new Date() }]
     const result = calculateContextSize(messages)
-    const expectedSize = JSON.stringify(messages[0]).length
+    const expectedSize = estimateMessageBytes(messages[0])
     expect(result.totalBytes).toBe(expectedSize)
     expect(result.userBytes).toBe(expectedSize)
     expect(result.assistantBytes).toBe(0)
@@ -32,9 +33,9 @@ describe('calculateContextSize', () => {
       { id: '3', role: 'system' as const, content: 'sys', timestamp: new Date() },
     ]
     const result = calculateContextSize(messages)
-    const userSize = JSON.stringify(messages[0]).length
-    const assistantSize = JSON.stringify(messages[1]).length
-    const systemSize = JSON.stringify(messages[2]).length
+    const userSize = estimateMessageBytes(messages[0])
+    const assistantSize = estimateMessageBytes(messages[1])
+    const systemSize = estimateMessageBytes(messages[2])
     expect(result.userBytes).toBe(userSize)
     expect(result.assistantBytes).toBe(assistantSize)
     expect(result.totalBytes).toBe(userSize + assistantSize + systemSize)
@@ -69,8 +70,8 @@ describe('calculateContextSize', () => {
       { id: '2', role: 'user' as const, content: 'second', timestamp: new Date() },
     ]
     const result = calculateContextSize(messages)
-    const size1 = JSON.stringify(messages[0]).length
-    const size2 = JSON.stringify(messages[1]).length
+    const size1 = estimateMessageBytes(messages[0])
+    const size2 = estimateMessageBytes(messages[1])
     expect(result.userBytes).toBe(size1 + size2)
     expect(result.totalBytes).toBe(size1 + size2)
   })
@@ -95,9 +96,36 @@ describe('calculateContextSize', () => {
       },
     ]
     const result = calculateContextSize(messages)
-    const expectedSize = JSON.stringify(messages[0]).length
+    const expectedSize = estimateMessageBytes(messages[0])
     expect(result.totalBytes).toBe(expectedSize)
     expect(result.assistantBytes).toBe(expectedSize)
+  })
+
+  it('does not include image base64 payload in context calculation', () => {
+    const hugeBase64 = 'a'.repeat(500_000)
+    const messages = [
+      {
+        id: '1',
+        role: 'user' as const,
+        content: 'what is in this image?',
+        timestamp: new Date(),
+        images: [
+          {
+            id: 'img-1',
+            fileName: 'image.png',
+            mimeType: 'image/png',
+            base64: hugeBase64,
+            sizeBytes: 500_000,
+          },
+        ],
+      },
+    ]
+
+    const result = calculateContextSize(messages)
+    const withRawBase64 = JSON.stringify(messages[0]).length
+
+    expect(result.totalBytes).toBeLessThan(10_000)
+    expect(result.totalBytes).toBeLessThan(withRawBase64)
   })
 })
 

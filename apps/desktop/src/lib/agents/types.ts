@@ -7,7 +7,7 @@
  */
 
 /** Local CLI agent identifiers */
-export type LocalAgentId = 'claude-code' | 'opencode' | 'cursor'
+export type LocalAgentId = 'claude-code' | 'opencode' | 'cursor' | 'codex'
 
 /** Cloud model identifiers */
 export type CloudModelId =
@@ -26,7 +26,7 @@ export type AgentType = 'local' | 'cloud'
 
 /** Helper to check if an agent is a local CLI agent */
 export function isLocalAgent(agentId: AgentId): agentId is LocalAgentId {
-  return ['claude-code', 'opencode', 'cursor'].includes(agentId)
+  return ['claude-code', 'opencode', 'cursor', 'codex'].includes(agentId)
 }
 
 /** Helper to check if an agent is a cloud model */
@@ -140,10 +140,7 @@ export interface AgentAdapter {
    * @param options - Send options including systemPrompt, onStream callback, and model
    * @returns The full response content
    */
-  sendMessage(
-    messages: AgentMessage[],
-    options?: SendMessageOptions
-  ): Promise<string>
+  sendMessage(messages: AgentMessage[], options?: SendMessageOptions): Promise<string>
 
   /**
    * Parse a single line of output into a StreamEvent

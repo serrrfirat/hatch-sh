@@ -82,7 +82,7 @@ describe('feature parity integration (T1-T17)', () => {
     })
   })
 
-  it('workspace status lifecycle transitions backlog -> in-progress -> done on archive flow', async () => {
+  it('workspace status lifecycle keeps backlog by default and supports done transition on archive flow', async () => {
     const workspace = createWorkspace('ws-lifecycle', 'backlog')
     useRepositoryStore.setState({
       repositories: [
@@ -103,10 +103,10 @@ describe('feature parity integration (T1-T17)', () => {
     useChatStore.getState().setWorkspaceId('ws-lifecycle')
     useChatStore.getState().addMessage({ role: 'user', content: 'first message' }, 'ws-lifecycle')
 
-    const inProgressWorkspace = useRepositoryStore
+    const backlogWorkspace = useRepositoryStore
       .getState()
       .workspaces.find((item) => item.id === 'ws-lifecycle')
-    expect(inProgressWorkspace?.workspaceStatus).toBe('in-progress')
+    expect(backlogWorkspace?.workspaceStatus).toBe('backlog')
 
     useRepositoryStore.getState().updateWorkspaceWorkflowStatus('ws-lifecycle', 'done')
     const doneWorkspace = useRepositoryStore

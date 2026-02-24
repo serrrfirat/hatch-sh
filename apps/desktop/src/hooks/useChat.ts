@@ -28,6 +28,12 @@ import { getDiff } from '../lib/git/bridge'
 import { agentProcessManager } from '../lib/agents/processManager'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+const LOCAL_AGENT_STREAM_START_TIMEOUT_MS = 90000
+const CLOUD_STREAM_START_TIMEOUT_MS = 30000
+
+export function hasUsableWorkspacePath(path: string | null | undefined): path is string {
+  return typeof path === 'string' && path.trim().length > 0
+}
 
 class StreamInterruptedError extends Error {
   partialContent: string
@@ -209,9 +215,29 @@ export function useChat(workspaceId?: string) {
       let fullContent = ''
       let thinkingContent = ''
       const toolUseMap = new Map<string, string>() // toolId -> messageToolId
+      let discardStreamEvents = false
 
       // Stream handler (agent-agnostic)
+      let notifyFirstStreamEvent: (() => void) | null = null
+      const markFirstStreamEvent = () => {
+        const callback = notifyFirstStreamEvent
+        if (!callback) return
+        notifyFirstStreamEvent = null
+        callback()
+      }
+      const firstStreamEventPromise = new Promise<void>((resolve) => {
+        notifyFirstStreamEvent = () => {
+          if (!notifyFirstStreamEvent) return
+          notifyFirstStreamEvent = null
+          resolve()
+        }
+      })
+
       const onStream = (event: StreamEvent) => {
+        if (discardStreamEvents) return
+
+        markFirstStreamEvent()
+
         if (shouldStopRef.current) return
 
         if (event.type === 'text' && event.content) {
@@ -265,29 +291,71 @@ export function useChat(workspaceId?: string) {
           agentProcessManager.markStreaming(targetWorkspaceId)
         }
 
-        fullContent = await adapter.sendMessage(formattedMessages, {
+        const sendPromise = adapter.sendMessage(formattedMessages, {
           systemPrompt: SYSTEM_PROMPT,
           onStream,
           model,
           workingDirectory,
         })
 
+        void sendPromise.catch(() => undefined)
+
+        let startupTimeoutId: ReturnType<typeof setTimeout> | null = null
+        const startupTimeoutPromise = new Promise<void>((_, reject) => {
+          startupTimeoutId = setTimeout(() => {
+            if (notifyFirstStreamEvent) {
+              notifyFirstStreamEvent = null
+              discardStreamEvents = true
+              reject(
+                new Error(
+                  'Agent did not start responding within 90 seconds. Please retry or restart the workspace agent.'
+                )
+              )
+            }
+          }, LOCAL_AGENT_STREAM_START_TIMEOUT_MS)
+        })
+
+        try {
+          await Promise.race([
+            firstStreamEventPromise,
+            sendPromise.then(() => undefined),
+            startupTimeoutPromise,
+          ])
+        } finally {
+          if (startupTimeoutId) {
+            clearTimeout(startupTimeoutId)
+          }
+        }
+
+        fullContent = await sendPromise
+
         if (targetWorkspaceId) {
           agentProcessManager.markIdle(targetWorkspaceId)
         }
       } catch (error) {
         if (targetWorkspaceId) {
-          const processStatus = await agentProcessManager.getStatus(targetWorkspaceId)
-          if (processStatus?.crashed) {
-            throw new Error(
-              `Agent process crashed${
-                processStatus.lastExitCode !== undefined && processStatus.lastExitCode !== null
-                  ? ` (exit ${processStatus.lastExitCode})`
-                  : ''
-              }. Restart is available for this workspace.`
-            )
+          let crashError: Error | null = null
+          try {
+            const processStatus = await agentProcessManager.getStatus(targetWorkspaceId, {
+              timeoutMs: 2000,
+            })
+            if (processStatus?.crashed) {
+              crashError = new Error(
+                `Agent process crashed${
+                  processStatus.lastExitCode !== undefined && processStatus.lastExitCode !== null
+                    ? ` (exit ${processStatus.lastExitCode})`
+                    : ''
+                }. Restart is available for this workspace.`
+              )
+            }
+          } catch (statusError) {
+            void statusError
           }
           agentProcessManager.markIdle(targetWorkspaceId)
+
+          if (crashError) {
+            throw crashError
+          }
         }
 
         if (shouldStopRef.current) {
@@ -317,96 +385,154 @@ export function useChat(workspaceId?: string) {
 
       await retryWithExponentialBackoff(
         async () => {
-          abortControllerRef.current = new AbortController()
-
-          const response = await fetch(`${API_URL}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: currentProjectId,
-              message: content,
-              model: modelId,
-            }),
-            signal: abortControllerRef.current.signal,
+          let notifyFirstStreamEvent: (() => void) | null = null
+          const markFirstStreamEvent = () => {
+            const callback = notifyFirstStreamEvent
+            if (!callback) return
+            notifyFirstStreamEvent = null
+            callback()
+          }
+          const firstStreamEventPromise = new Promise<void>((resolve) => {
+            notifyFirstStreamEvent = () => {
+              if (!notifyFirstStreamEvent) return
+              notifyFirstStreamEvent = null
+              resolve()
+            }
           })
 
-          if (!response.ok) {
-            throw new Error(`Chat request failed (${response.status})`)
-          }
-          if (!response.body) {
-            throw new Error('No response body')
-          }
+          const abortController = new AbortController()
+          abortControllerRef.current = abortController
 
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder()
-          const lineBuffer = createLineBuffer()
-          let streamComplete = false
+          const streamPromise = (async () => {
+            const response = await fetch(`${API_URL}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                projectId: currentProjectId,
+                message: content,
+                model: modelId,
+              }),
+              signal: abortController.signal,
+            })
 
-          while (!streamComplete) {
-            const { done, value } = await reader.read()
-            if (done) {
-              break
+            if (!response.ok) {
+              throw new Error(`Chat request failed (${response.status})`)
+            }
+            if (!response.body) {
+              throw new Error('No response body')
             }
 
-            const chunk = decoder.decode(value, { stream: true })
-            for (const line of lineBuffer.pushChunk(chunk)) {
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            const lineBuffer = createLineBuffer()
+            let streamComplete = false
+
+            while (!streamComplete) {
+              const { done, value } = await reader.read()
+              if (done) {
+                break
+              }
+
+              const chunk = decoder.decode(value, { stream: true })
+              for (const line of lineBuffer.pushChunk(chunk)) {
+                const trimmedLine = line.trim()
+                if (!trimmedLine.startsWith('data:')) {
+                  continue
+                }
+
+                const rawData = trimmedLine.slice(5).trim()
+                if (!rawData) {
+                  continue
+                }
+
+                const parsed = safeParseJsonLine(rawData, 'cloud-api')
+                if (parsed.errorEvent) {
+                  continue
+                }
+
+                if (!parsed.value || typeof parsed.value !== 'object') {
+                  continue
+                }
+
+                const data = parsed.value as Record<string, unknown>
+
+                if (typeof data.text === 'string' && data.text.length > 0) {
+                  markFirstStreamEvent()
+                  fullContent += data.text
+                  updateMessage(
+                    assistantMessageId,
+                    fullContent,
+                    true,
+                    targetWorkspaceId || undefined
+                  )
+                }
+
+                if (data.done === true) {
+                  markFirstStreamEvent()
+                  streamComplete = true
+                  break
+                }
+              }
+            }
+
+            for (const line of lineBuffer.flush()) {
               const trimmedLine = line.trim()
               if (!trimmedLine.startsWith('data:')) {
                 continue
               }
-
               const rawData = trimmedLine.slice(5).trim()
-              if (!rawData) {
-                continue
-              }
-
               const parsed = safeParseJsonLine(rawData, 'cloud-api')
-              if (parsed.errorEvent) {
-                continue
-              }
-
-              if (!parsed.value || typeof parsed.value !== 'object') {
+              if (parsed.errorEvent || !parsed.value || typeof parsed.value !== 'object') {
                 continue
               }
 
               const data = parsed.value as Record<string, unknown>
-
               if (typeof data.text === 'string' && data.text.length > 0) {
+                markFirstStreamEvent()
                 fullContent += data.text
                 updateMessage(assistantMessageId, fullContent, true, targetWorkspaceId || undefined)
               }
-
               if (data.done === true) {
+                markFirstStreamEvent()
                 streamComplete = true
-                break
               }
             }
+
+            if (!streamComplete) {
+              throw new StreamInterruptedError('Cloud stream interrupted', fullContent)
+            }
+          })()
+
+          void streamPromise.catch(() => undefined)
+
+          let startupTimeoutId: ReturnType<typeof setTimeout> | null = null
+          const startupTimeoutPromise = new Promise<void>((_, reject) => {
+            startupTimeoutId = setTimeout(() => {
+              if (notifyFirstStreamEvent) {
+                notifyFirstStreamEvent = null
+                abortController.abort()
+                reject(
+                  new Error(
+                    'Cloud model did not start responding within 30 seconds. Please retry your request.'
+                  )
+                )
+              }
+            }, CLOUD_STREAM_START_TIMEOUT_MS)
+          })
+
+          try {
+            await Promise.race([
+              firstStreamEventPromise,
+              streamPromise.then(() => undefined),
+              startupTimeoutPromise,
+            ])
+          } finally {
+            if (startupTimeoutId) {
+              clearTimeout(startupTimeoutId)
+            }
           }
 
-          for (const line of lineBuffer.flush()) {
-            const trimmedLine = line.trim()
-            if (!trimmedLine.startsWith('data:')) {
-              continue
-            }
-            const rawData = trimmedLine.slice(5).trim()
-            const parsed = safeParseJsonLine(rawData, 'cloud-api')
-            if (parsed.errorEvent || !parsed.value || typeof parsed.value !== 'object') {
-              continue
-            }
-
-            const data = parsed.value as Record<string, unknown>
-            if (typeof data.text === 'string' && data.text.length > 0) {
-              fullContent += data.text
-              updateMessage(assistantMessageId, fullContent, true, targetWorkspaceId || undefined)
-            }
-            if (data.done === true) {
-              streamComplete = true
-            }
-          }
-
-          if (!streamComplete) {
-            throw new StreamInterruptedError('Cloud stream interrupted', fullContent)
-          }
+          await streamPromise
         },
         {
           maxRetries: 3,
@@ -529,6 +655,19 @@ export function useChat(workspaceId?: string) {
             targetWorkspaceId || undefined
           )
         }
+        return
+      }
+
+      if (isLocal && !hasUsableWorkspacePath(targetWorkspacePath)) {
+        addMessage({ role: 'user', content, images }, targetWorkspaceId || undefined)
+        addMessage(
+          {
+            role: 'assistant',
+            content:
+              'This workspace is not fully initialized yet (missing worktree path). Please create a new workspace or re-open this repository workspace.',
+          },
+          targetWorkspaceId || undefined
+        )
         return
       }
 
