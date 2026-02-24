@@ -818,7 +818,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `stores/repositoryStore.ts`, `stores/chatStore.ts`, `lib/ideaMaze/planExporter.ts` (remove/deprecate), E2E test updates
   - Pre-commit: `bun run --cwd apps/desktop tsc --noEmit && pnpm test:critical-flows`
 
-- [ ] 9. Build Agent Context Injection
+- [x] 9. Build Agent Context Injection
 
   **What to do**:
   - Modify `apps/desktop/src/hooks/useChat.ts` — use the existing `readProjectMemory` placeholder to load PRD from workspace
@@ -890,7 +890,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `hooks/useChat.ts`, tests
   - Pre-commit: `bun test apps/desktop/src/hooks/`
 
-- [ ] 10. "Memory Updated" Toast Integration
+- [x] 10. "Memory Updated" Toast Integration
 
   **What to do**:
   - Wire toast notifications from Task 2 to PRD events from Tasks 5 and 6:
@@ -949,7 +949,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: integration wiring in hooks/stores, tests
   - Pre-commit: `bun test`
 
-- [ ] 11. E2E Integration Test (Full Pipeline)
+- [x] 11. E2E Integration Test (Full Pipeline)
 
   **What to do**:
   - Create `testing/e2e/tests/living-prd-pipeline.spec.ts` — Full pipeline E2E test:
@@ -1017,7 +1017,7 @@ Max Concurrent: 3 (Waves 1 & 3)
   - Files: `testing/e2e/tests/living-prd-pipeline.spec.ts`
   - Pre-commit: `pnpm test:critical-flows`
 
-- [ ] 12. Backward Compatibility + Cleanup
+- [x] 12. Backward Compatibility + Cleanup
 
   **What to do**:
   - Verify all existing workspaces with `sourcePlan` still function (graceful fallback if no PRD file)
@@ -1084,19 +1084,19 @@ Max Concurrent: 3 (Waves 1 & 3)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Rejection → fix → re-run.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + linter + `bun test`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (PRD generation → Build handoff → agent context). Test edge cases: empty moodboard, multiple plans, large moodboards. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -1138,10 +1138,10 @@ bun test apps/desktop/src/lib/context/            # Expected: all pass
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All tests pass (unit + E2E)
-- [ ] PlanContent type is UNCHANGED
-- [ ] Existing buildFromPlan E2E tests pass
-- [ ] Full pipeline works: Maze → PRD → Build → Agent receives structured context
-- [ ] Toast notification appears with undo on PRD generation
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All tests pass (unit + E2E)
+- [x] PlanContent type is UNCHANGED
+- [x] Existing buildFromPlan E2E tests pass
+- [x] Full pipeline works: Maze → PRD → Build → Agent receives structured context
+- [x] Toast notification appears with undo on PRD generation

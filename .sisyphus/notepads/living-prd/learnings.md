@@ -152,3 +152,29 @@
 - Formatter in `prdFormatter.ts`: converts PRDDocument to markdown-like text with conditional sections (deps, contradictions, exclusions, acceptance criteria)
 - Formatter includes `designNotes` and `technicalApproach` from PlanContent when present
 - 10 tests cover all sections, empty section omission, and full population
+
+## [2026-02-24] T10: Toast Message Enhancement with Counts
+
+- **What changed**: Updated PRD generation and regeneration toast messages to include requirement/dependency counts
+- **Files modified**:
+  - `hooks/useIdeaMazeChat.ts`: Changed generation toast from "PRD generated from your plan" to template string with counts
+  - `stores/ideaMazeStore.ts`: Changed regeneration toast from "PRD updated" to template string with counts
+  - `stores/__tests__/ideaMazeStore.prd-regen.test.ts`: Updated test to use regex pattern matching for dynamic counts
+- **Test updates**: Changed exact string match to `expect.stringMatching(/^PRD updated: \d+ requirements, \d+ dependencies$/)` to handle variable counts
+- **Undo callbacks verified**:
+  - T5 generation: `setCurrentPRD(null)` ✓
+  - T6 regeneration: restores `previousPRD` ✓
+- **Verification**: All 502 tests pass, TypeScript clean (exit 0)
+
+## [2026-02-24] T11: E2E Integration Tests
+
+- Added `testing/e2e/tests/living-prd-pipeline.spec.ts` with 7 Vitest integration scenarios covering generation, storage round-trip, workspace copy IPC, agent context formatting, empty maze, contradictions, and regeneration metadata updates.
+- Existing `apps/desktop/testing/e2e/*.spec.ts` tests are Vitest-based integration tests (not Playwright browser E2E), and root `pnpm vitest run` currently executes workspace-scoped projects (`api`, `ui`, `desktop`, `acp-client`) rather than `testing/e2e/tests`.
+
+## [2026-02-24] T12: Backward Compatibility + Cleanup
+- Moved `testing/e2e/tests/living-prd-pipeline.spec.ts` → `apps/desktop/testing/e2e/living-prd-pipeline.spec.ts` so vitest workspace picks it up
+- Fixed 5 import paths from `../../../apps/desktop/src/...` to `../../src/...` (relative paths changed with the move)
+- No orphaned `PlanReferenceCard` imports found (deleted in T7, fully cleaned)
+- No orphaned `planExporter` imports found (deprecated file exists but nothing imports it)
+- `loadPRDFromWorkspace` returns `null` on missing file → `PrdCard` returns `null` → old workspaces degrade gracefully
+- Final test count: 57 files, 509 tests (all pass), including 7 pipeline integration tests
