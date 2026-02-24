@@ -12,6 +12,9 @@ import { sendToClaudeCodeStreaming, type StreamEvent } from '../lib/claudeCode/b
 import { saveImageForAIContext } from '../lib/ideaMaze/storage'
 import type { AISuggestion, ConnectionSuggestion, NodeSuggestion, CritiqueSuggestion, IdeaNode, IdeaConnection, SelectionState, Position } from '../lib/ideaMaze/types'
 import { createPlanNode } from '../lib/ideaMaze/types'
+import { generatePRD } from '../lib/context/prdGenerator'
+import { savePRDToAppData } from '../lib/context/prdStorage'
+import { useToastStore } from '../stores/toastStore'
 
 // System prompt for AI Assistant
 const SYSTEM_PROMPT = `You are an AI assistant helping brainstorm and analyze ideas on a visual canvas called Idea Maze.
@@ -485,6 +488,26 @@ export function useIdeaMazeChat() {
               // Connect source ideas to the plan node
               for (const sourceId of interviewSourceIdsRef.current) {
                 addConnection(sourceId, newNode.id, 'extends')
+              }
+
+              // Generate and save PRD (non-blocking)
+              try {
+                const moodboard = useIdeaMazeStore.getState().currentMoodboard
+                if (moodboard) {
+                  const prd = generatePRD(moodboard, newNode)
+                  useIdeaMazeStore.getState().setCurrentPRD(prd)
+                  savePRDToAppData(moodboard.id, prd).catch(() => {})
+                  useToastStore.getState().showToast({
+                    message: 'PRD generated from your plan',
+                    type: 'success',
+                    dismissTimeout: 5000,
+                    undoCallback: () => {
+                      useIdeaMazeStore.getState().setCurrentPRD(null)
+                    },
+                  })
+                }
+              } catch {
+                // PRD generation failure should not break plan creation
               }
 
               // Clear interview state (including options)

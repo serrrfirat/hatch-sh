@@ -62,6 +62,7 @@ import type { Snapshot } from '../lib/ideaMaze/snapshots'
 import { useRepositoryStore } from './repositoryStore'
 import { useChatStore } from './chatStore'
 import { useSettingsStore } from './settingsStore'
+import type { PRDDocument } from '../lib/context/types'
 
 // Debounce timer for auto-save
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
@@ -159,6 +160,9 @@ interface IdeaMazeState {
   aiSuggestions: AISuggestion[]
   isAIProcessing: boolean
 
+  // PRD state
+  currentPRD: PRDDocument | null
+
   // Chat state (per moodboard)
   chatMessagesByMoodboard: Record<string, ChatMessage[]>
 
@@ -228,6 +232,7 @@ interface IdeaMazeState {
   acceptAISuggestion: (suggestionId: string) => void
   clearAISuggestions: () => void
   setAIProcessing: (processing: boolean) => void
+  setCurrentPRD: (prd: PRDDocument | null) => void
 
   // Actions - Chat
   addChatMessage: (moodboardId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
@@ -319,6 +324,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     focusMode: false,
     aiSuggestions: [],
     isAIProcessing: false,
+    currentPRD: null,
     chatMessagesByMoodboard: {},
     isSidebarOpen: true,
     isMinimapVisible: false,
@@ -1103,6 +1109,8 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     clearAISuggestions: () => set({ aiSuggestions: [] }),
 
     setAIProcessing: (processing) => set({ isAIProcessing: processing }),
+
+    setCurrentPRD: (prd) => set({ currentPRD: prd }),
 
     // Chat actions
     addChatMessage: (moodboardId, message) => {
