@@ -7,6 +7,8 @@ import { useEditorStore } from '../stores/editorStore'
 import { FileViewer } from '../components/editor/FileViewer'
 import { DiffViewer } from '../components/editor/DiffViewer'
 import { FileIcon } from '../components/icons/FileIcon'
+import { PrdCard } from '../components/build/PrdCard'
+import { useIdeaMazeStore } from '../stores/ideaMazeStore'
 
 import { cn } from '@hatch/ui'
 import { X, MessageSquare, GitCompare } from 'lucide-react'
@@ -16,6 +18,7 @@ export function IDEPage() {
     useProjectStore()
   const { setProjectId } = useChatStore()
   const { tabs, activeTabId, setActiveTab, closeTab } = useEditorStore()
+  const currentPRD = useIdeaMazeStore((s) => s.currentPRD)
 
   // Auto-create a demo project if none exists
   useEffect(() => {
@@ -113,8 +116,15 @@ export function IDEPage() {
       </div>
 
       {/* Right Panel - Changes/Files/Checks + Terminal */}
-      <div className="w-80 border-l border-white/10 flex-shrink-0">
-        <RightPanel />
+      <div className="w-80 border-l border-white/10 flex-shrink-0 flex flex-col">
+        {currentPRD && (
+          <div className="p-2 flex-shrink-0">
+            <PrdCard prd={currentPRD} />
+          </div>
+        )}
+        <div className="flex-1 min-h-0">
+          <RightPanel />
+        </div>
       </div>
     </div>
   )
