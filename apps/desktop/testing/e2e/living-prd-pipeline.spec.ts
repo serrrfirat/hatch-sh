@@ -5,8 +5,8 @@ import type {
   Moodboard,
   NodeCritique,
   PlanContent,
-} from '../../../apps/desktop/src/lib/ideaMaze/types'
-import type { PRDDocument } from '../../../apps/desktop/src/lib/context/types'
+} from '../../src/lib/ideaMaze/types'
+import type { PRDDocument } from '../../src/lib/context/types'
 
 const fsMocks = vi.hoisted(() => ({
   mkdir: vi.fn(),
@@ -30,13 +30,13 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: coreMocks.invoke,
 }))
 
-import { generatePRD } from '../../../apps/desktop/src/lib/context/prdGenerator'
+import { generatePRD } from '../../src/lib/context/prdGenerator'
 import {
   savePRDToAppData,
   loadPRDFromAppData,
   copyPRDToWorkspace,
-} from '../../../apps/desktop/src/lib/context/prdStorage'
-import { formatPRDForAgent } from '../../../apps/desktop/src/lib/context/prdFormatter'
+} from '../../src/lib/context/prdStorage'
+import { formatPRDForAgent } from '../../src/lib/context/prdFormatter'
 
 function makePlanContent(id: string, overrides: Partial<PlanContent> = {}): PlanContent {
   return {
