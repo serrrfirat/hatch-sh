@@ -42,10 +42,10 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
       await navigator.clipboard.writeText(children)
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
-    } catch (err) {
+    } catch {
+      // intentionally empty
     }
   }
-
   const lineCount = children.split('\n').length
 
   return (

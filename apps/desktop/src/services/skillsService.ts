@@ -198,6 +198,7 @@ async function fetchAllFilesFromGitHub(
           : item.path
         files.push({ name: relativePath, content })
       } catch (error) {
+        // intentionally empty
       }
     } else if (item.type === 'dir') {
       // Recursively fetch directory contents

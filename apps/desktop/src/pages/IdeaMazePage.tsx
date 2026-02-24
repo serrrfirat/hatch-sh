@@ -96,7 +96,8 @@ export function IdeaMazePage() {
       // Close modal
       setBuildModalOpen(false)
       setBuildPlanContent(null)
-    } catch (error) {
+    } catch {
+      // intentionally empty
     } finally {
       setIsCreatingWorkspace(false)
     }

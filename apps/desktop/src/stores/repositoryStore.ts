@@ -178,9 +178,10 @@ export const useRepositoryStore = create<RepositoryState>()(
         try {
           await githubBridge.signOut()
           set({ githubAuth: null })
-        } catch (error) {}
+        } catch {
+          // intentionally empty
+        }
       },
-
       // Repository actions
       cloneRepository: async (url: string) => {
         set({ isCloning: true, cloneProgress: 'Cloning repository...' })

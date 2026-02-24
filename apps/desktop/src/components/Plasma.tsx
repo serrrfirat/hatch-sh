@@ -210,10 +210,11 @@ export const Plasma: React.FC<PlasmaProps> = ({
         if (containerRef.current && canvas.parentNode === containerRef.current) {
           containerRef.current.removeChild(canvas);
         }
-      } catch (err) {
+      } catch {
+        // intentionally empty
       }
-    };
-  }, [color, speed, direction, scale, opacity, mouseInteractive]);
+    }
+  }, [color, speed, direction, scale, opacity, mouseInteractive])
 
   return <div ref={containerRef} className="w-full h-full relative overflow-hidden" />;
 };

@@ -268,9 +268,9 @@ export function useChat(workspaceId?: string) {
             targetWorkspaceId || undefined
           )
         } else if (event.type === 'error') {
+          // intentionally empty
         }
       }
-
       try {
         // Get the adapter and send message
         const adapter = getLocalAdapter(agentId)
@@ -757,10 +757,10 @@ export function useChat(workspaceId?: string) {
                 targetWorkspaceId || undefined
               )
             }
-          } catch (error) {}
+          } catch {
+            // intentionally empty
+          }
         }
-
-        setMessageDuration(assistantMessageId, targetWorkspaceId || undefined)
 
         if (targetWorkspaceId) {
           notifyBackgroundWorkspace(targetWorkspaceId, 'Response completed successfully.')

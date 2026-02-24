@@ -344,9 +344,10 @@ export function ProjectTree() {
     try {
       const workspace = await createWorkspace(repositoryId)
       setCurrentWorkspace(workspace)
-    } catch (error) {}
+    } catch {
+      // intentionally empty
+    }
   }
-
   const handleToggleExpanded = (repoId: string) => {
     setExpandedRepos((prev) => {
       const next = new Set(prev)

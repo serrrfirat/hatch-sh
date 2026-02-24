@@ -317,6 +317,7 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
+      // intentionally empty
     }
   }
 
@@ -341,6 +342,7 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
+      // intentionally empty
     } finally {
       setIsLoadingMore(false)
       isFetchingRef.current = false
@@ -367,6 +369,7 @@ export function MarketplacePage() {
         }
       }
     } catch (error) {
+      // intentionally empty
     } finally {
       setIsSearching(false)
     }
@@ -449,6 +452,7 @@ export function MarketplacePage() {
       )
       setSuggestions(suggestedSkills.slice(0, 3))
     } catch (error) {
+      // intentionally empty
     } finally {
       setIsAnalyzing(false)
     }

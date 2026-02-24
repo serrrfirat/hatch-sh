@@ -273,16 +273,16 @@ function parseJsonFromResponse<T>(response: string): T[] {
     try {
       return JSON.parse(codeBlockMatch[1].trim())
     } catch {
+      // intentionally empty
     }
   }
-
   // Try to parse the whole response as JSON
   try {
     const parsed = JSON.parse(response)
     return Array.isArray(parsed) ? parsed : [parsed]
   } catch {
+    // intentionally empty
   }
-
   return []
 }
 
@@ -309,6 +309,7 @@ function parsePlanFromResponse(response: string): {
         }
       }
     } catch {
+      // intentionally empty
     }
   }
   return null
@@ -335,6 +336,7 @@ function parseQuestionFromResponse(response: string): {
         }
       }
     } catch {
+      // intentionally empty
     }
   }
   return null

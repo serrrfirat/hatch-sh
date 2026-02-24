@@ -103,9 +103,10 @@ export function Layout() {
         webviewLabel: 'superdesign-embed',
         direction: 'back',
       })
-    } catch (err) {}
+    } catch {
+      // intentionally empty
+    }
   }, [currentPage])
-
   const handleWebviewForward = useCallback(async () => {
     if (currentPage !== 'design') return
     try {
@@ -114,9 +115,10 @@ export function Layout() {
         webviewLabel: 'superdesign-embed',
         direction: 'forward',
       })
-    } catch (err) {}
+    } catch {
+      // intentionally empty
+    }
   }, [currentPage])
-
   // Check both Zustand persist and standalone flag (belt-and-suspenders)
   const onboardingDone =
     hasCompletedOnboarding || localStorage.getItem('hatch-onboarding-done') === '1'

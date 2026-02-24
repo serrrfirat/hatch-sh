@@ -341,9 +341,10 @@ function FilesPanel() {
         // Create a workspace with proper git worktree isolation
         await createWorkspace(repo.id)
       }
-    } catch (e) {}
+    } catch {
+      // intentionally empty
+    }
   }
-
   useEffect(() => {
     fetchFiles()
   }, [fetchFiles])

@@ -545,20 +545,21 @@ function SecretField({
       setValue('')
       setVisible(false)
       onSaved()
-    } catch (err) {
+    } catch {
+      // intentionally empty
     } finally {
       setSaving(false)
     }
   }
-
   const handleClear = async () => {
     try {
       await keychainDelete(keychainKey)
       setValue('')
       onSaved()
-    } catch (err) {}
+    } catch {
+      // intentionally empty
+    }
   }
-
   return (
     <div className="py-4 border-b border-white/5 last:border-b-0">
       <div className="flex items-center gap-2 mb-1">
