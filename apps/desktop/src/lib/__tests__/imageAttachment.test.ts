@@ -105,7 +105,8 @@ describe('imageToBase64', () => {
       onload: (() => void) | null = null
       onerror: (() => void) | null = null
       readAsDataURL(blob: Blob) {
-        blob.arrayBuffer().then((buffer) => {
+        const r = new Response(blob)
+        r.arrayBuffer().then((buffer) => {
           const bytes = new Uint8Array(buffer)
           let binary = ''
           for (let i = 0; i < bytes.length; i++) {
