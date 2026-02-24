@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import { IDEPage } from './pages/IDEPage'
 import { useSettingsStore, LOCAL_AGENT_IDS } from './stores/settingsStore'
+import { ToastContainer } from './components/ui/ToastContainer'
 
 function App() {
   const { checkAgentStatus } = useSettingsStore()
@@ -15,13 +16,16 @@ function App() {
   }, [checkAgentStatus])
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<IDEPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<IDEPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+      <ToastContainer />
+    </>
   )
 }
 
