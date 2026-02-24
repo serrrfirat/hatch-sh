@@ -132,6 +132,7 @@ export function useChat(workspaceId?: string) {
     setMessageDuration,
     setLoading,
     updateMessageMetadata,
+    clearMessages,
   } = useChatStore()
 
   const settingsState = useSettingsStore()
@@ -170,7 +171,8 @@ export function useChat(workspaceId?: string) {
       content: string,
       assistantMessageId: string,
       targetWorkspaceId: string | null,
-      targetWorkspacePath?: string
+      targetWorkspacePath?: string,
+      images?: ImageAttachmentData[]
     ) => {
       const status = agentStatuses[agentId]
       const config = getConfig(agentId)
@@ -211,6 +213,11 @@ export function useChat(workspaceId?: string) {
         formattedMessages.unshift(summaryMessage)
       }
       formattedMessages.push({ role: 'user', content })
+      if (images && images.length > 0) {
+        const imageNames = images.map((img) => img.fileName).join(', ')
+        const lastMsg = formattedMessages[formattedMessages.length - 1]
+        lastMsg.content = `${lastMsg.content}\n\n[Attached images: ${imageNames}]`
+      }
 
       let fullContent = ''
       let thinkingContent = ''
@@ -611,6 +618,40 @@ export function useChat(workspaceId?: string) {
         agentContent = reviewPrompt
       }
 
+      // Handle /clear
+      if (slashResult?.type === 'clear') {
+        clearMessages(targetWorkspaceId || undefined)
+        addMessage({ role: 'assistant', content: 'Chat history cleared.' }, targetWorkspaceId || undefined)
+        return
+      }
+
+      // Handle /restart
+      if (slashResult?.type === 'restart') {
+        addMessage(
+          { role: 'assistant', content: 'Agent restart is not yet supported in this version.' },
+          targetWorkspaceId || undefined
+        )
+        return
+      }
+
+      // Handle /help
+      if (slashResult?.type === 'help') {
+        const commandList = slashResult.commands
+          .map((c) => `\u2022 \`${c.name}\` \u2014 ${c.description}`)
+          .join('\n')
+        addMessage(
+          { role: 'assistant', content: `Available commands:\n${commandList}` },
+          targetWorkspaceId || undefined
+        )
+        return
+      }
+
+      // Handle unknown command error
+      if (slashResult?.type === 'error') {
+        addMessage({ role: 'assistant', content: slashResult.message }, targetWorkspaceId || undefined)
+        return
+      }
+
       // Get the workspace's selected agent
       const agentId = workspaceAgentId
       const config = getConfig(agentId)
@@ -724,7 +765,8 @@ export function useChat(workspaceId?: string) {
             agentContent,
             assistantMessageId,
             targetWorkspaceId,
-            targetWorkspacePath
+            targetWorkspacePath,
+            images
           )
         } else {
           // Send via cloud API with model selection
