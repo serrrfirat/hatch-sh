@@ -197,7 +197,7 @@ export function useChat(workspaceId?: string) {
       const messagesToSend = windowMessages(filteredMessages, contextWindowSize)
 
       const droppedMessages = getDroppedMessages(filteredMessages, contextWindowSize)
-      let summaryMessage: AgentMessage | null = null
+      let conversationSummary: string | null = null
       if (droppedMessages.length > 0) {
         const droppedIds = droppedMessages.map((m) => m.id).join(',')
         if (droppedIds !== summaryCacheRef.current.droppedIds) {
@@ -206,14 +206,9 @@ export function useChat(workspaceId?: string) {
             summary: summarizeDroppedMessages(droppedMessages),
           }
         }
-        if (summaryCacheRef.current.summary) {
-          summaryMessage = { role: 'user', content: summaryCacheRef.current.summary }
-        }
+        conversationSummary = summaryCacheRef.current.summary || null
       }
       const formattedMessages = formatMessagesForAgent(messagesToSend)
-      if (summaryMessage) {
-        formattedMessages.unshift(summaryMessage)
-      }
       formattedMessages.push({ role: 'user', content })
       if (images && images.length > 0) {
         const imageNames = images.map((img) => img.fileName).join(', ')
@@ -324,6 +319,9 @@ export function useChat(workspaceId?: string) {
           } catch (memoryError) {
             void memoryError
           }
+        }
+        if (conversationSummary) {
+          systemPromptSections.push(`## Earlier Conversation Summary\n${conversationSummary}`)
         }
 
         const systemPrompt = systemPromptSections.join('\n\n')

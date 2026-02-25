@@ -10,6 +10,11 @@ import { useSettingsStore, isWorkspaceAgentReady } from '../../stores/settingsSt
 import { useRepositoryStore } from '../../stores/repositoryStore'
 import { useChatStore } from '../../stores/chatStore'
 import { isLocalAgent } from '../../lib/agents/types'
+import { useDeploy, type DeployTarget } from '../../hooks/useDeploy'
+import { DeployTargetSelector } from './DeployTargetSelector'
+import { DeploymentStatus } from './DeploymentStatus'
+import { useProjectStore } from '../../stores/projectStore'
+import { Rocket, Loader2 } from 'lucide-react'
 
 export function ChatArea() {
   const { messages, isLoading, workspaceAgentId, sendMessage, sendOpenPRMessage, stopGeneration } =
@@ -22,6 +27,10 @@ export function ChatArea() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const { currentProject } = useProjectStore()
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+  const deployState = useDeploy(`${API_URL}/api`)
+  const [deployTarget, setDeployTarget] = useState<DeployTarget>('cloudflare')
 
   // Auto-scroll to bottom when new messages are added or when last message is streaming
   useEffect(() => {
@@ -138,6 +147,42 @@ export function ChatArea() {
         <div className="flex-1 overflow-y-auto">
           <WorkspaceInitScreen workspace={currentWorkspace} repository={currentRepository} />
         </div>
+        {/* Deploy bar */}
+        <div className="px-4 py-2 border-t border-white/[0.06]">
+          <div className="max-w-3xl mx-auto flex items-center gap-3">
+            <DeployTargetSelector value={deployTarget} onChange={setDeployTarget} />
+            <button
+              onClick={() => deployState.deploy(currentProject?.id ?? '', deployTarget)}
+              disabled={deployState.status === 'deploying' || !currentProject}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deployState.status === 'deploying' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Rocket className="w-3.5 h-3.5" />
+              )}
+              Deploy
+            </button>
+          </div>
+          {deployState.status !== 'idle' && (
+            <div className="max-w-3xl mx-auto mt-2">
+              <DeploymentStatus
+                status={deployState.status}
+                url={deployState.url}
+                error={deployState.error}
+                target={deployState.target}
+              />
+              {deployState.status === 'success' && (
+                <button
+                  onClick={deployState.reset}
+                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  New Deploy
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <ChatInput
           onSend={sendMessage}
           isLoading={isLoading}
@@ -200,6 +245,42 @@ export function ChatArea() {
       </div>
 
       {/* Input area */}
+      {/* Deploy bar */}
+      <div className="px-4 py-2 border-t border-white/[0.06]">
+        <div className="max-w-3xl mx-auto flex items-center gap-3">
+          <DeployTargetSelector value={deployTarget} onChange={setDeployTarget} />
+          <button
+            onClick={() => deployState.deploy(currentProject?.id ?? '', deployTarget)}
+            disabled={deployState.status === 'deploying' || !currentProject}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {deployState.status === 'deploying' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Rocket className="w-3.5 h-3.5" />
+            )}
+            Deploy
+          </button>
+        </div>
+        {deployState.status !== 'idle' && (
+          <div className="max-w-3xl mx-auto mt-2">
+            <DeploymentStatus
+              status={deployState.status}
+              url={deployState.url}
+              error={deployState.error}
+              target={deployState.target}
+            />
+            {deployState.status === 'success' && (
+              <button
+                onClick={deployState.reset}
+                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                New Deploy
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       <ChatInput
         onSend={sendMessage}
         isLoading={isLoading}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useChatStore, selectCurrentMessages } from '../../stores/chatStore'
+import { getDroppedMessages } from '../../lib/chatWindow'
 
 export const DEFAULT_CONTEXT_LIMIT = 102400
 
@@ -115,16 +116,20 @@ const COLOR_CLASSES = {
 
 export function ContextMeter() {
   const messages = useChatStore(selectCurrentMessages)
+  const contextWindowSize = useChatStore((state) => state.contextWindowSize)
   const [showTooltip, setShowTooltip] = useState(false)
 
   const breakdown = useMemo(() => calculateContextSize(messages as MessageLike[]), [messages])
+  const droppedCount = useMemo(
+    () => getDroppedMessages(messages, contextWindowSize).length,
+    [messages, contextWindowSize]
+  )
   const percentage = Math.min(Math.round((breakdown.totalBytes / DEFAULT_CONTEXT_LIMIT) * 100), 100)
   const color = getContextColor(percentage)
   const colorClasses = COLOR_CLASSES[color]
   const isWarning = percentage >= 80
 
   if (messages.length === 0) return null
-
   return (
     <div
       className="flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.06]"
@@ -148,6 +153,12 @@ export function ContextMeter() {
         {isWarning && (
           <span className="text-[10px]" title="Context usage high">
             ⚠️
+          </span>
+        )}
+
+        {droppedCount > 0 && (
+          <span className="text-[10px] font-mono text-white/30 whitespace-nowrap">
+            Showing last {messages.length - droppedCount} of {messages.length} messages
           </span>
         )}
 
