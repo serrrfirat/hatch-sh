@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FolderOpen, Globe, Plus, Loader2, Github, X, AlertTriangle } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useRepositoryStore } from '../../stores/repositoryStore'
-import { Plasma } from '../Plasma'
+import { LetterGlitchBackground } from '../LetterGlitchBackground'
 
 export interface WelcomeScreenProps {
   onSendMessage?: (message: string) => void
@@ -129,36 +129,21 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full overflow-hidden bg-neutral-950 px-8 py-12">
-      {/* Plasma Logo Area */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="relative w-full max-w-2xl aspect-[3/1] rounded-2xl overflow-hidden bg-black border border-white/10 mb-12"
       >
-        <Plasma
-          color="#ff6b35"
-          speed={0.6}
-          direction="forward"
-          scale={1.2}
-          opacity={0.9}
-          mouseInteractive={true}
+        <LetterGlitchBackground
+          glitchSpeed={50}
+          glitchColors={['#1a1a2e', '#2d2d3d', '#4a4a5a']}
+          centerVignette={false}
+          outerVignette={false}
+          smooth={true}
+          brandPhrase="hatch.sh"
+          phraseIntervalMs={3400}
         />
-
-        {/* Hatch Text Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <motion.h1
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-white text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter select-none"
-            style={{
-              textShadow: '0 4px 30px rgba(0,0,0,0.5)'
-            }}
-          >
-            Hatch
-          </motion.h1>
-        </div>
       </motion.div>
 
       {/* Action Cards */}
@@ -209,7 +194,10 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-medium text-white">Clone from URL</h3>
-                    <button onClick={closeModal} className="text-neutral-500 hover:text-white transition-colors">
+                    <button
+                      onClick={closeModal}
+                      className="text-neutral-500 hover:text-white transition-colors"
+                    >
                       <X size={20} />
                     </button>
                   </div>
@@ -247,7 +235,10 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-medium text-white">Create new repository</h3>
-                    <button onClick={closeModal} className="text-neutral-500 hover:text-white transition-colors">
+                    <button
+                      onClick={closeModal}
+                      className="text-neutral-500 hover:text-white transition-colors"
+                    >
                       <X size={20} />
                     </button>
                   </div>
@@ -303,7 +294,10 @@ export function WelcomeScreen(_props: WelcomeScreenProps = {}) {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-medium text-white">Sign in with GitHub</h3>
-                    <button onClick={closeModal} className="text-neutral-500 hover:text-white transition-colors">
+                    <button
+                      onClick={closeModal}
+                      className="text-neutral-500 hover:text-white transition-colors"
+                    >
                       <X size={20} />
                     </button>
                   </div>
