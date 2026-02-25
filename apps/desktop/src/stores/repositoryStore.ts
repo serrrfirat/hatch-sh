@@ -10,6 +10,8 @@ import type { PlanContent } from '../lib/ideaMaze/types'
 import { DEFAULT_AGENT_ID, isValidAgentId } from '../lib/agents/registry'
 import { generateWorkspaceName } from '../lib/pokemon'
 import { useSettingsStore } from './settingsStore'
+import { mapGitError } from '../lib/git/errorMapper'
+import { useToastStore } from './toastStore'
 
 export type WorkspaceStatus = 'backlog' | 'in-review' | 'done'
 
@@ -18,6 +20,33 @@ function normalizeWorkspaceStatus(value: string | undefined): WorkspaceStatus {
     return value
   }
   return 'backlog'
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return String(error ?? 'Unknown git error')
+}
+
+function notifyMappedGitError(
+  error: unknown,
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void
+): void {
+  const mapped = mapGitError(getErrorMessage(error))
+
+  addNotification({
+    message: mapped.message,
+    action: mapped.action,
+    actionLabel: mapped.actionLabel,
+    type: 'warning',
+  })
+
+  useToastStore.getState().showToast({
+    message: mapped.message,
+    type: 'warning',
+    dismissTimeout: 6000,
+  })
 }
 
 export interface Workspace {
@@ -52,12 +81,29 @@ export interface Notification {
   timestamp: Date
 }
 
+type PendingAuthRetryOperation =
+  | {
+      type: 'cloneRepository'
+      url: string
+    }
+  | {
+      type: 'pushChanges'
+      workspaceId: string
+    }
+  | {
+      type: 'createPullRequest'
+      workspaceId: string
+      title: string
+      body: string
+    }
+
 interface RepositoryState {
   // GitHub auth
   githubAuth: GitHubAuthState | null
   isAuthenticating: boolean
   authError: string | null
   isGhInstalled: boolean | null
+  pendingAuthRetry: PendingAuthRetryOperation | null
 
   // Repositories
   repositories: Repository[]
@@ -115,6 +161,7 @@ export const useRepositoryStore = create<RepositoryState>()(
       isAuthenticating: false,
       authError: null,
       isGhInstalled: null,
+      pendingAuthRetry: null,
       repositories: [],
       currentRepository: null,
       workspaces: [],
@@ -164,7 +211,40 @@ export const useRepositoryStore = create<RepositoryState>()(
         set({ isAuthenticating: true, authError: null })
         try {
           const auth = await githubBridge.login()
-          set({ githubAuth: auth, isAuthenticating: false, authError: null })
+
+          const pendingRetry = get().pendingAuthRetry
+
+          set({
+            githubAuth: auth,
+            isAuthenticating: false,
+            authError: null,
+            pendingAuthRetry: null,
+          })
+
+          useSettingsStore.getState().clearAuthExpired()
+
+          if (pendingRetry) {
+            switch (pendingRetry.type) {
+              case 'cloneRepository':
+                await get().cloneRepository(pendingRetry.url)
+                break
+              case 'pushChanges':
+                await get().pushChanges(pendingRetry.workspaceId)
+                break
+              case 'createPullRequest':
+                await get().createPullRequest(
+                  pendingRetry.workspaceId,
+                  pendingRetry.title,
+                  pendingRetry.body
+                )
+                break
+            }
+
+            get().addNotification({
+              message: 'GitHub re-authenticated. Retried your last operation automatically.',
+              type: 'success',
+            })
+          }
         } catch (error) {
           set({
             isAuthenticating: false,
@@ -197,8 +277,15 @@ export const useRepositoryStore = create<RepositoryState>()(
           return repo
         } catch (error) {
           set({ isCloning: false, cloneProgress: null })
+          notifyMappedGitError(error, get().addNotification)
           if (githubBridge.isAuthExpiredError(error)) {
             useSettingsStore.getState().setAuthExpired(true)
+            set({
+              pendingAuthRetry: {
+                type: 'cloneRepository',
+                url,
+              },
+            })
           }
           throw error
         }
@@ -222,6 +309,7 @@ export const useRepositoryStore = create<RepositoryState>()(
 
           return repo
         } catch (error) {
+          notifyMappedGitError(error, get().addNotification)
           throw error
         }
       },
@@ -241,6 +329,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           return repo
         } catch (error) {
           set({ isCloning: false, cloneProgress: null })
+          notifyMappedGitError(error, get().addNotification)
           throw error
         }
       },
@@ -420,7 +509,8 @@ export const useRepositoryStore = create<RepositoryState>()(
               workspace.localPath,
               workspace.branchName
             )
-          } catch (error) {
+          } catch (_error) {
+            void _error
             // Continue with removing from state even if git delete fails
           }
         }
@@ -470,6 +560,7 @@ export const useRepositoryStore = create<RepositoryState>()(
           return hash
         } catch (error) {
           get().updateWorkspaceStatus(workspaceId, 'error')
+          notifyMappedGitError(error, get().addNotification)
           throw error
         }
       },
@@ -487,8 +578,15 @@ export const useRepositoryStore = create<RepositoryState>()(
           get().updateWorkspaceStatus(workspaceId, 'idle')
         } catch (error) {
           get().updateWorkspaceStatus(workspaceId, 'error')
+          notifyMappedGitError(error, get().addNotification)
           if (githubBridge.isAuthExpiredError(error)) {
             useSettingsStore.getState().setAuthExpired(true)
+            set({
+              pendingAuthRetry: {
+                type: 'pushChanges',
+                workspaceId,
+              },
+            })
           }
           throw error
         }
@@ -505,17 +603,31 @@ export const useRepositoryStore = create<RepositoryState>()(
           throw new Error('Repository not found')
         }
 
-        // Push changes first
-        await gitBridge.pushChanges(workspace.localPath, workspace.branchName)
-
-        // Create PR
-        const prUrl = await gitBridge.createPR(
-          repo.full_name,
-          workspace.branchName,
-          repo.default_branch,
-          title,
-          body
-        )
+        let prUrl: string
+        try {
+          await gitBridge.pushChanges(workspace.localPath, workspace.branchName)
+          prUrl = await gitBridge.createPR(
+            repo.full_name,
+            workspace.branchName,
+            repo.default_branch,
+            title,
+            body
+          )
+        } catch (error) {
+          notifyMappedGitError(error, get().addNotification)
+          if (githubBridge.isAuthExpiredError(error)) {
+            useSettingsStore.getState().setAuthExpired(true)
+            set({
+              pendingAuthRetry: {
+                type: 'createPullRequest',
+                workspaceId,
+                title,
+                body,
+              },
+            })
+          }
+          throw error
+        }
 
         // Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123)
         const prNumber = parseInt(prUrl.split('/').pop() || '0', 10)
@@ -549,15 +661,18 @@ export const useRepositoryStore = create<RepositoryState>()(
           throw new Error('Repository not found')
         }
 
-        // Merge the PR
-        const result = await gitBridge.mergePullRequest(
-          repo.full_name,
-          workspace.prNumber,
-          mergeMethod
-        )
+        let result: Awaited<ReturnType<typeof gitBridge.mergePullRequest>>
+        try {
+          result = await gitBridge.mergePullRequest(repo.full_name, workspace.prNumber, mergeMethod)
+        } catch (error) {
+          notifyMappedGitError(error, get().addNotification)
+          throw error
+        }
 
         if (!result.merged) {
-          throw new Error(result.message || 'Failed to merge PR')
+          const mergeError = new Error(result.message || 'Failed to merge PR')
+          notifyMappedGitError(mergeError, get().addNotification)
+          throw mergeError
         }
 
         // Update workspace state to merged

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   appendStreamInterruptedNotice,
   createLineBuffer,
+  hasStreamInterruptedNotice,
   retryWithExponentialBackoff,
   safeParseJsonLine,
 } from '../streamUtils'
@@ -108,5 +109,10 @@ describe('streamUtils - retry and interruption helpers', () => {
     expect(
       appendStreamInterruptedNotice('partial response\n\n[Stream interrupted — click Retry]')
     ).toBe('partial response\n\n[Stream interrupted — click Retry]')
+  })
+
+  it('detects interruption hint suffix reliably', () => {
+    expect(hasStreamInterruptedNotice('partial\n\n[Stream interrupted — click Retry]')).toBe(true)
+    expect(hasStreamInterruptedNotice('partial response')).toBe(false)
   })
 })

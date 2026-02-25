@@ -53,7 +53,9 @@ export function safeParseJsonLine(line: string, source: string): JsonParseResult
       if (wrapped.startsWith('{') || wrapped.startsWith('[')) {
         try {
           return { value: JSON.parse(wrapped) as unknown }
-        } catch { /* fall through to return firstPass as-is */ }
+        } catch {
+          /* fall through to return firstPass as-is */
+        }
       }
     }
 
@@ -110,4 +112,8 @@ export function appendStreamInterruptedNotice(content: string): string {
   }
 
   return `${trimmed}\n\n${STREAM_INTERRUPTED_SUFFIX}`
+}
+
+export function hasStreamInterruptedNotice(content: string): boolean {
+  return content.trimEnd().endsWith(STREAM_INTERRUPTED_SUFFIX)
 }

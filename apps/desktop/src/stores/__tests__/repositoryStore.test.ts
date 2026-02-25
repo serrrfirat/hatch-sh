@@ -4,11 +4,16 @@ import { useRepositoryStore, type Workspace } from '../repositoryStore'
 import { useIdeaMazeStore } from '../ideaMazeStore'
 import { createMoodboard, createPlanNode } from '../../lib/ideaMaze/types'
 import type { PRDDocument } from '../../lib/context/types'
+import * as gitBridge from '../../lib/git/bridge'
+import * as githubBridge from '../../lib/github/bridge'
 
-const { mockCopyPRDToWorkspace, mockChatAddMessage } = vi.hoisted(() => ({
-  mockCopyPRDToWorkspace: vi.fn(async () => undefined),
-  mockChatAddMessage: vi.fn(() => 'msg-1'),
-}))
+const { mockCopyPRDToWorkspace, mockChatAddMessage, mockSetAuthExpired, mockClearAuthExpired } =
+  vi.hoisted(() => ({
+    mockCopyPRDToWorkspace: vi.fn(async () => undefined),
+    mockChatAddMessage: vi.fn(() => 'msg-1'),
+    mockSetAuthExpired: vi.fn(),
+    mockClearAuthExpired: vi.fn(),
+  }))
 
 // Mock the git and github bridges
 vi.mock('zustand/middleware', () => ({
@@ -93,7 +98,8 @@ vi.mock('../settingsStore', () => ({
   useSettingsStore: {
     getState: vi.fn(() => ({
       agentMode: 'claude-code',
-      setAuthExpired: vi.fn(),
+      setAuthExpired: mockSetAuthExpired,
+      clearAuthExpired: mockClearAuthExpired,
       setCurrentPage: vi.fn(),
     })),
   },
@@ -123,6 +129,8 @@ describe('repositoryStore', () => {
   beforeEach(() => {
     mockCopyPRDToWorkspace.mockClear()
     mockChatAddMessage.mockClear()
+    mockSetAuthExpired.mockClear()
+    mockClearAuthExpired.mockClear()
 
     // Reset store to initial state
     useRepositoryStore.setState({
@@ -460,6 +468,66 @@ describe('repositoryStore', () => {
         role: 'user',
         content: 'Workspace ready - start building!',
       })
+    })
+  })
+
+  describe('auth expiration retry flow', () => {
+    it('captures failed push operation and marks auth expired', async () => {
+      const workspace: Workspace = {
+        id: 'ws-1',
+        repositoryId: 'repo-1',
+        branchName: 'workspace-1',
+        localPath: '/path/to/worktree',
+        repoPath: '/path/to/repo',
+        status: 'idle',
+        lastActive: new Date(),
+        agentId: 'claude-code',
+        workspaceStatus: 'backlog',
+      }
+
+      vi.mocked(gitBridge.pushChanges).mockRejectedValueOnce(new Error('HTTP 401 Bad credentials'))
+      vi.mocked(githubBridge.isAuthExpiredError).mockReturnValue(true)
+
+      useRepositoryStore.setState({ workspaces: [workspace], currentWorkspace: workspace })
+
+      await expect(useRepositoryStore.getState().pushChanges('ws-1')).rejects.toThrow()
+
+      expect(mockSetAuthExpired).toHaveBeenCalledWith(true)
+      expect(useRepositoryStore.getState().pendingAuthRetry).toEqual({
+        type: 'pushChanges',
+        workspaceId: 'ws-1',
+      })
+    })
+
+    it('retries queued operation after login succeeds', async () => {
+      const workspace: Workspace = {
+        id: 'ws-1',
+        repositoryId: 'repo-1',
+        branchName: 'workspace-1',
+        localPath: '/path/to/worktree',
+        repoPath: '/path/to/repo',
+        status: 'idle',
+        lastActive: new Date(),
+        agentId: 'claude-code',
+        workspaceStatus: 'backlog',
+      }
+
+      vi.mocked(gitBridge.pushChanges).mockResolvedValueOnce(undefined)
+
+      useRepositoryStore.setState({
+        workspaces: [workspace],
+        currentWorkspace: workspace,
+        pendingAuthRetry: {
+          type: 'pushChanges',
+          workspaceId: 'ws-1',
+        },
+      })
+
+      await useRepositoryStore.getState().loginWithGitHub()
+
+      expect(gitBridge.pushChanges).toHaveBeenCalledWith('/path/to/worktree', 'workspace-1')
+      expect(mockClearAuthExpired).toHaveBeenCalled()
+      expect(useRepositoryStore.getState().pendingAuthRetry).toBeNull()
     })
   })
 })

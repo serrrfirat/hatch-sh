@@ -6,10 +6,10 @@ export interface SaveStatus {
 }
 
 export function useSaveStatus(): SaveStatus {
-  const { saveStatus, currentMoodboard } = useIdeaMazeStore()
+  const { saveStatus, lastSavedAt } = useIdeaMazeStore()
 
   return {
     status: saveStatus,
-    lastSavedAt: currentMoodboard?.updatedAt ?? null,
+    lastSavedAt,
   }
 }

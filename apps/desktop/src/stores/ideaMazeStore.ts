@@ -74,6 +74,14 @@ const SAVE_DEBOUNCE_MS = 1000
 let pendingMoodboard: Moodboard | null = null
 let isSaving = false
 
+function setSaveStatus(status: 'saved' | 'saving' | 'unsaved'): void {
+  useIdeaMazeStore.setState({ saveStatus: status })
+}
+
+function markSaveCompleted(): void {
+  useIdeaMazeStore.setState({ saveStatus: 'saved', lastSavedAt: new Date() })
+}
+
 // Chat message type
 export interface ChatMessage {
   id: string
@@ -175,6 +183,7 @@ interface IdeaMazeState {
   canRedo: boolean
   // Save status
   saveStatus: 'saved' | 'saving' | 'unsaved'
+  lastSavedAt: Date | null
 
   // Actions - Storage
   initializeStore: () => Promise<void>
@@ -269,13 +278,24 @@ function debouncedSave(moodboard: Moodboard | null) {
   }
   if (moodboard) {
     pendingMoodboard = moodboard
+    setSaveStatus('unsaved')
     saveTimeout = setTimeout(async () => {
       try {
         isSaving = true
+        setSaveStatus('saving')
         await saveMoodboard(moodboard)
-        pendingMoodboard = null
+        if (pendingMoodboard === moodboard) {
+          pendingMoodboard = null
+        }
+        if (pendingMoodboard) {
+          setSaveStatus('unsaved')
+        } else {
+          markSaveCompleted()
+        }
         // Auto-saved moodboard
-      } catch (error) {
+      } catch (_error) {
+        void _error
+        setSaveStatus('unsaved')
         // Failed to auto-save
         // Keep pendingMoodboard so it can be retried
       } finally {
@@ -292,13 +312,24 @@ export async function flushPendingSave(): Promise<void> {
     saveTimeout = null
   }
   if (pendingMoodboard && !isSaving) {
+    const moodboardToSave = pendingMoodboard
     try {
       isSaving = true
+      setSaveStatus('saving')
       // Flushing pending save
-      await saveMoodboard(pendingMoodboard)
-      pendingMoodboard = null
+      await saveMoodboard(moodboardToSave)
+      if (pendingMoodboard === moodboardToSave) {
+        pendingMoodboard = null
+      }
+      if (pendingMoodboard) {
+        setSaveStatus('unsaved')
+      } else {
+        markSaveCompleted()
+      }
       // Flush save complete
-    } catch (error) {
+    } catch (_error) {
+      void _error
+      setSaveStatus('unsaved')
       // Flush save failed
     } finally {
       isSaving = false
@@ -333,6 +364,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     canUndo: false,
     canRedo: false,
     saveStatus: 'saved' as const,
+    lastSavedAt: null,
 
     // Storage initialization
     initializeStore: async () => {
@@ -367,6 +399,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           viewport: initialMoodboard?.viewport || { ...DEFAULT_VIEWPORT },
           isStorageInitialized: true,
           isLoading: false,
+          lastSavedAt: initialMoodboard?.updatedAt ?? null,
           ...resetHistory(initialMoodboard),
         })
 
@@ -391,11 +424,17 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
         selection: { nodeIds: [], connectionIds: [] },
         aiSuggestions: [],
         ...resetHistory(moodboard),
+        saveStatus: 'saving',
+        lastSavedAt: null,
       }))
       // Save immediately for new moodboards
-      saveMoodboard(moodboard).catch(() => {
-        // Failed to save new moodboard
-      })
+      saveMoodboard(moodboard)
+        .then(() => {
+          markSaveCompleted()
+        })
+        .catch(() => {
+          useIdeaMazeStore.setState({ saveStatus: 'unsaved' })
+        })
     },
 
     loadMoodboard: (id) => {
@@ -406,6 +445,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
           viewport: moodboard.viewport,
           selection: { nodeIds: [], connectionIds: [] },
           aiSuggestions: [],
+          lastSavedAt: moodboard.updatedAt,
           ...resetHistory(moodboard),
         })
       }
@@ -445,6 +485,7 @@ export const useIdeaMazeStore = create<IdeaMazeState>()(
     setCurrentMoodboard: (moodboard) =>
       set({
         currentMoodboard: moodboard,
+        lastSavedAt: moodboard?.updatedAt ?? null,
         ...resetHistory(moodboard),
       }),
 
@@ -1406,7 +1447,8 @@ if (typeof window !== 'undefined') {
           isMinimapVisible: prefs.isMinimapVisible ?? false,
         })
       }
-    } catch (e) {
+    } catch (_error) {
+      void _error
       // Failed to load UI preferences
     }
   }
@@ -1418,7 +1460,8 @@ if (typeof window !== 'undefined') {
       if (canUseLocalStorage) {
         try {
           localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs))
-        } catch (e) {
+        } catch (_error) {
+          void _error
           // Failed to save UI preferences
         }
       }

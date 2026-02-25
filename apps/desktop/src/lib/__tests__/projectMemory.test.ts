@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
-import { readProjectMemory, writeProjectMemory } from '../projectMemory'
+import {
+  appendProjectMemoryDecision,
+  buildProjectMemoryEntry,
+  readProjectMemory,
+  writeProjectMemory,
+} from '../projectMemory'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -91,6 +96,67 @@ describe('projectMemory', () => {
       await expect(writeProjectMemory('/path/to/workspace', content)).rejects.toThrow(
         'Failed to write project memory: .hatch/context.md (Permission denied)'
       )
+    })
+  })
+
+  describe('buildProjectMemoryEntry', () => {
+    it('builds a compact memory entry from request and response', () => {
+      const entry = buildProjectMemoryEntry(
+        'Please pick a backend and schema strategy',
+        '- Use Postgres with Drizzle ORM for typed migrations.\n- Keep auth in middleware.'
+      )
+
+      expect(entry).toContain('### ')
+      expect(entry).toContain('- Request: Please pick a backend and schema strategy')
+      expect(entry).toContain('- Decision: Use Postgres with Drizzle ORM for typed migrations.')
+    })
+
+    it('returns null when request or response cannot produce meaningful content', () => {
+      expect(buildProjectMemoryEntry('   ', '   ')).toBeNull()
+    })
+  })
+
+  describe('appendProjectMemoryDecision', () => {
+    it('creates .hatch/context.md when missing and appends the first decision', async () => {
+      const invokeMock = vi.mocked(invoke)
+      invokeMock.mockRejectedValueOnce(new Error('File not found'))
+      invokeMock.mockResolvedValueOnce([
+        { path: '.hatch/context.md', success: true, size: 120, error: null },
+      ])
+
+      await appendProjectMemoryDecision(
+        '/path/to/workspace',
+        'Set up deployment',
+        '- Use Cloudflare Pages for deployment.'
+      )
+
+      expect(invokeMock).toHaveBeenNthCalledWith(1, 'read_file', {
+        filePath: '/path/to/workspace/.hatch/context.md',
+      })
+      expect(invokeMock).toHaveBeenNthCalledWith(2, 'write_project_files', {
+        baseDir: '/path/to/workspace',
+        files: [
+          {
+            path: '.hatch/context.md',
+            content: expect.stringContaining('# Workspace Memory'),
+          },
+        ],
+      })
+    })
+
+    it('does not append duplicate decision entries', async () => {
+      const invokeMock = vi.mocked(invoke)
+      const existing = `# Workspace Memory\n\n### 2026-01-01T00:00:00.000Z\n- Request: Set up deployment\n- Decision: Use Cloudflare Pages for deployment.\n`
+
+      invokeMock.mockResolvedValueOnce({ content: existing })
+
+      await appendProjectMemoryDecision(
+        '/path/to/workspace',
+        'Set up deployment',
+        '- Use Cloudflare Pages for deployment.'
+      )
+
+      expect(invokeMock).toHaveBeenCalledTimes(1)
     })
   })
 })

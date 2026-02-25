@@ -15,9 +15,9 @@ describe('useSaveStatus', () => {
     const mockDate = new Date('2025-01-01')
     const mockStore = {
       saveStatus: 'saved' as const,
-      currentMoodboard: { updatedAt: mockDate },
+      lastSavedAt: mockDate,
     }
-    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as any)
+    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as ReturnType<typeof useIdeaMazeStore>)
 
     const result = useSaveStatus()
 
@@ -29,9 +29,9 @@ describe('useSaveStatus', () => {
     const mockDate = new Date('2025-01-01')
     const mockStore = {
       saveStatus: 'saving' as const,
-      currentMoodboard: { updatedAt: mockDate },
+      lastSavedAt: mockDate,
     }
-    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as any)
+    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as ReturnType<typeof useIdeaMazeStore>)
 
     const result = useSaveStatus()
 
@@ -43,9 +43,9 @@ describe('useSaveStatus', () => {
     const mockDate = new Date('2025-01-01')
     const mockStore = {
       saveStatus: 'unsaved' as const,
-      currentMoodboard: { updatedAt: mockDate },
+      lastSavedAt: mockDate,
     }
-    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as any)
+    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as ReturnType<typeof useIdeaMazeStore>)
 
     const result = useSaveStatus()
 
@@ -56,9 +56,9 @@ describe('useSaveStatus', () => {
   it('returns null lastSavedAt when no moodboard is loaded', () => {
     const mockStore = {
       saveStatus: 'saved' as const,
-      currentMoodboard: null,
+      lastSavedAt: null,
     }
-    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as any)
+    vi.mocked(useIdeaMazeStore).mockReturnValue(mockStore as ReturnType<typeof useIdeaMazeStore>)
 
     const result = useSaveStatus()
 

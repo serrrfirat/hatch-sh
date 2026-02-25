@@ -95,6 +95,25 @@ export function ChatArea() {
     setCurrentMatchIndex(0)
   }
 
+  const handleRetryInterruptedMessage = (assistantMessageId: string) => {
+    if (isLoading) {
+      return
+    }
+
+    const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId)
+    if (assistantIndex <= 0) {
+      return
+    }
+
+    for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+      const candidate = messages[index]
+      if (candidate?.role === 'user') {
+        void sendMessage(candidate.content, candidate.images)
+        return
+      }
+    }
+  }
+
   // No workspace selected - WelcomeScreen
   if (!hasWorkspace) {
     return (
@@ -168,7 +187,12 @@ export function ChatArea() {
           {/* Activity log entries */}
           <div className="space-y-1">
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                onRetry={handleRetryInterruptedMessage}
+                retryDisabled={isLoading || needsAgent}
+              />
             ))}
           </div>
           <div ref={messagesEndRef} />

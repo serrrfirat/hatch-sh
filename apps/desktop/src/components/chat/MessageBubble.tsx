@@ -10,6 +10,7 @@ import type { Message } from '../../stores/chatStore'
 import { MessageImages } from './ImageAttachment'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { Components } from 'react-markdown'
+import { hasStreamInterruptedNotice } from '../../lib/agents/streamUtils'
 
 // Smooth easing for animations
 const smoothEase = [0.4, 0, 0.2, 1] as const
@@ -25,6 +26,8 @@ function formatDuration(seconds: number): string {
 
 interface MessageBubbleProps {
   message: Message
+  onRetry?: (messageId: string) => void
+  retryDisabled?: boolean
 }
 
 /**
@@ -109,12 +112,12 @@ function ActivityIndicator() {
     <motion.div
       className="w-1.5 h-1.5 rounded-full bg-blue-400"
       animate={{ opacity: [1, 0.4, 1] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
     />
   )
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onRetry, retryDisabled = false }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const { displayedContent, isComplete, isThinking } = useTypewriterContent(
     message.content,
@@ -129,6 +132,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const hasToolUses = !isUser && message.toolUses && message.toolUses.length > 0
   const hasThinking = !isUser && message.thinking && thinkingEnabled
   const toolCount = message.toolUses?.length || 0
+  const canRetryInterrupted = !isUser && !isStreaming && hasStreamInterruptedNotice(message.content)
 
   // Keep tools expanded while streaming
   useEffect(() => {
@@ -164,10 +168,18 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       return <p className="mb-3 last:mb-0 text-white/80 text-sm leading-relaxed">{children}</p>
     },
     ul({ children }) {
-      return <ul className="list-disc list-outside ml-4 mb-3 text-white/80 text-sm leading-relaxed space-y-1">{children}</ul>
+      return (
+        <ul className="list-disc list-outside ml-4 mb-3 text-white/80 text-sm leading-relaxed space-y-1">
+          {children}
+        </ul>
+      )
     },
     ol({ children }) {
-      return <ol className="list-decimal list-outside ml-4 mb-3 text-white/80 text-sm leading-relaxed space-y-1">{children}</ol>
+      return (
+        <ol className="list-decimal list-outside ml-4 mb-3 text-white/80 text-sm leading-relaxed space-y-1">
+          {children}
+        </ol>
+      )
     },
     li({ children }) {
       return <li className="text-white/80">{children}</li>
@@ -215,9 +227,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     table({ children }) {
       return (
         <div className="overflow-x-auto my-3">
-          <table className="min-w-full border-collapse text-xs font-sans">
-            {children}
-          </table>
+          <table className="min-w-full border-collapse text-xs font-sans">{children}</table>
         </div>
       )
     },
@@ -248,12 +258,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         className="py-3 flex justify-end"
       >
         <div className="max-w-[80%] bg-neutral-800 rounded-2xl rounded-br-sm px-4 py-3">
-          {message.images && message.images.length > 0 && (
-            <MessageImages images={message.images} />
-          )}
-          <p className="text-sm font-normal text-white leading-relaxed">
-            {message.content}
-          </p>
+          {message.images && message.images.length > 0 && <MessageImages images={message.images} />}
+          <p className="text-sm font-normal text-white leading-relaxed">{message.content}</p>
         </div>
       </motion.div>
     )
@@ -268,12 +274,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       className="py-2 font-sans"
     >
       {/* Thinking block */}
-      {hasThinking && (
-        <ThinkingBlock
-          thinking={message.thinking!}
-          isStreaming={isStreaming}
-        />
-      )}
+      {hasThinking && <ThinkingBlock thinking={message.thinking!} isStreaming={isStreaming} />}
 
       {/* Show processing indicator when waiting for first response */}
       {isThinking && !hasThinking && !hasToolUses && (
@@ -297,9 +298,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <span className="text-sm text-white/50">
               {toolCount} tool call{toolCount !== 1 ? 's' : ''}
             </span>
-            {isStreaming && (
-              <ActivityIndicator />
-            )}
+            {isStreaming && <ActivityIndicator />}
             <div className="flex-1" />
             {message.duration !== undefined && !isStreaming && (
               <span className="text-xs text-white/20 tabular-nums">
@@ -333,10 +332,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {displayedContent && (
         <div className="py-2">
           <div className="pt-1 pb-1">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={components}
-            >
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
               {displayedContent}
             </ReactMarkdown>
 
@@ -348,13 +344,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               />
             )}
           </div>
+
+          {canRetryInterrupted && onRetry && (
+            <button
+              type="button"
+              onClick={() => onRetry(message.id)}
+              disabled={retryDisabled}
+              className="mt-2 rounded-md border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
       {/* Changed files pills - shown after tool calls complete */}
-      {hasToolUses && !isStreaming && (
-        <ChangedFilesPills toolUses={message.toolUses!} />
-      )}
+      {hasToolUses && !isStreaming && <ChangedFilesPills toolUses={message.toolUses!} />}
     </motion.div>
   )
 }

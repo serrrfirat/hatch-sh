@@ -18,7 +18,7 @@ import {
 } from '../lib/agents/streamUtils'
 import { extractCodeBlocks } from '../lib/codeExtractor'
 import { writeCodeBlocksToWorkspace } from '../lib/fileWriter'
-// readProjectMemory is available for future system prompt enrichment
+import { appendProjectMemoryDecision, readProjectMemory } from '../lib/projectMemory'
 import { loadPRDFromWorkspace } from '../lib/context/prdStorage'
 import { formatPRDForAgent } from '../lib/context/prdFormatter'
 import { windowMessages, getDroppedMessages } from '../lib/chatWindow'
@@ -32,6 +32,7 @@ import { agentProcessManager } from '../lib/agents/processManager'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 const LOCAL_AGENT_STREAM_START_TIMEOUT_MS = 90000
 const CLOUD_STREAM_START_TIMEOUT_MS = 30000
+const MAX_PROJECT_MEMORY_CHARS = 6000
 
 export function hasUsableWorkspacePath(path: string | null | undefined): path is string {
   return typeof path === 'string' && path.trim().length > 0
@@ -146,7 +147,6 @@ export function useChat(workspaceId?: string) {
   const streamingMessageIdRef = useRef<string | null>(null)
   const streamingWorkspaceIdRef = useRef<string | null>(null)
   const shouldStopRef = useRef(false)
-  // projectMemoryLoadedRef: reserved for future per-workspace memory dedup
   const summaryCacheRef = useRef<{ droppedIds: string; summary: string }>({
     droppedIds: '',
     summary: '',
@@ -300,18 +300,33 @@ export function useChat(workspaceId?: string) {
           agentProcessManager.markStreaming(targetWorkspaceId)
         }
 
-        // Load PRD context if available
-        let systemPrompt = SYSTEM_PROMPT
+        const systemPromptSections: string[] = [SYSTEM_PROMPT]
         if (workingDirectory) {
           try {
             const prd = await loadPRDFromWorkspace(workingDirectory)
             if (prd) {
-              systemPrompt = `${SYSTEM_PROMPT}\n\n${formatPRDForAgent(prd)}`
+              systemPromptSections.push(formatPRDForAgent(prd))
             }
           } catch {
             // Graceful fallback: use default system prompt if PRD load fails
           }
+
+          try {
+            const projectMemory = await readProjectMemory(workingDirectory)
+            if (projectMemory?.trim()) {
+              const trimmedMemory = projectMemory.trim()
+              const boundedMemory =
+                trimmedMemory.length > MAX_PROJECT_MEMORY_CHARS
+                  ? trimmedMemory.slice(-MAX_PROJECT_MEMORY_CHARS)
+                  : trimmedMemory
+              systemPromptSections.push(`## Workspace Memory\n${boundedMemory}`)
+            }
+          } catch (memoryError) {
+            void memoryError
+          }
         }
+
+        const systemPrompt = systemPromptSections.join('\n\n')
 
         const sendPromise = adapter.sendMessage(formattedMessages, {
           systemPrompt,
@@ -404,6 +419,7 @@ export function useChat(workspaceId?: string) {
       targetWorkspaceId: string | null
     ) => {
       let fullContent = ''
+      let reportedCloudParseError = false
 
       await retryWithExponentialBackoff(
         async () => {
@@ -469,6 +485,21 @@ export function useChat(workspaceId?: string) {
 
                 const parsed = safeParseJsonLine(rawData, 'cloud-api')
                 if (parsed.errorEvent) {
+                  markFirstStreamEvent()
+                  if (!reportedCloudParseError) {
+                    reportedCloudParseError = true
+                    addToolUse(
+                      assistantMessageId,
+                      {
+                        id: `cloud-parse-${crypto.randomUUID()}`,
+                        name: 'cloud-stream',
+                        input: { source: 'cloud-api' },
+                        result: parsed.errorEvent.content,
+                        status: 'error',
+                      },
+                      targetWorkspaceId || undefined
+                    )
+                  }
                   continue
                 }
 
@@ -504,7 +535,26 @@ export function useChat(workspaceId?: string) {
               }
               const rawData = trimmedLine.slice(5).trim()
               const parsed = safeParseJsonLine(rawData, 'cloud-api')
-              if (parsed.errorEvent || !parsed.value || typeof parsed.value !== 'object') {
+              if (parsed.errorEvent) {
+                markFirstStreamEvent()
+                if (!reportedCloudParseError) {
+                  reportedCloudParseError = true
+                  addToolUse(
+                    assistantMessageId,
+                    {
+                      id: `cloud-parse-${crypto.randomUUID()}`,
+                      name: 'cloud-stream',
+                      input: { source: 'cloud-api' },
+                      result: parsed.errorEvent.content,
+                      status: 'error',
+                    },
+                    targetWorkspaceId || undefined
+                  )
+                }
+                continue
+              }
+
+              if (!parsed.value || typeof parsed.value !== 'object') {
                 continue
               }
 
@@ -566,7 +616,7 @@ export function useChat(workspaceId?: string) {
 
       return fullContent
     },
-    [currentProjectId, updateMessage]
+    [addToolUse, currentProjectId, updateMessage]
   )
 
   const notifyBackgroundWorkspace = useCallback((targetWorkspaceId: string, body: string) => {
@@ -584,9 +634,6 @@ export function useChat(workspaceId?: string) {
 
     new Notification(title, { body })
   }, [])
-
-  // buildSystemPrompt: reserved for future system prompt enrichment with project memory
-  // Uses readProjectMemory(workspacePath) to load .hatch/context.md
 
   const sendMessage = useCallback(
     async (content: string, images?: ImageAttachmentData[]) => {
@@ -636,7 +683,10 @@ export function useChat(workspaceId?: string) {
       // Handle /clear
       if (slashResult?.type === 'clear') {
         clearMessages(targetWorkspaceId || undefined)
-        addMessage({ role: 'assistant', content: 'Chat history cleared.' }, targetWorkspaceId || undefined)
+        addMessage(
+          { role: 'assistant', content: 'Chat history cleared.' },
+          targetWorkspaceId || undefined
+        )
         return
       }
 
@@ -663,7 +713,10 @@ export function useChat(workspaceId?: string) {
 
       // Handle unknown command error
       if (slashResult?.type === 'error') {
-        addMessage({ role: 'assistant', content: slashResult.message }, targetWorkspaceId || undefined)
+        addMessage(
+          { role: 'assistant', content: slashResult.message },
+          targetWorkspaceId || undefined
+        )
         return
       }
 
@@ -819,6 +872,12 @@ export function useChat(workspaceId?: string) {
           }
         }
 
+        if (targetWorkspacePath && fullContent.trim()) {
+          void appendProjectMemoryDecision(targetWorkspacePath, content, fullContent).catch(
+            () => {}
+          )
+        }
+
         if (targetWorkspaceId) {
           notifyBackgroundWorkspace(targetWorkspaceId, 'Response completed successfully.')
         }
@@ -897,6 +956,7 @@ export function useChat(workspaceId?: string) {
       selectedWorkspace,
       updateMessageMetadata,
       notifyBackgroundWorkspace,
+      clearMessages,
     ]
   )
 
