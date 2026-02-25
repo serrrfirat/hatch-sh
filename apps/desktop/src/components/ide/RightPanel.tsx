@@ -10,6 +10,8 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
+  Rocket,
+  Loader2,
 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -32,8 +34,12 @@ import {
   type WorkflowRun,
 } from '../../lib/github/checks'
 import { FileIcon } from '../icons/FileIcon'
+import { useDeploy, type DeployTarget } from '../../hooks/useDeploy'
+import { DeployTargetSelector } from '../chat/DeployTargetSelector'
+import { DeploymentStatus } from '../chat/DeploymentStatus'
+import { useProjectStore } from '../../stores/projectStore'
 
-type TopTab = 'changes' | 'files' | 'checks'
+type TopTab = 'changes' | 'files' | 'checks' | 'deploy'
 type BottomTab = 'terminal'
 
 interface FileChangeItemProps {
@@ -820,6 +826,72 @@ function ChecksPanel() {
   )
 }
 
+function DeployPanel() {
+  const { currentWorkspace } = useRepositoryStore()
+  const [deployTarget, setDeployTarget] = useState<DeployTarget>('cloudflare')
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+  const { currentProject } = useProjectStore()
+  const deployState = useDeploy(`${API_URL}/api`)
+
+  if (!currentWorkspace) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-neutral-500 text-sm px-4 text-center">
+        <p>No workspace selected</p>
+        <p className="text-xs mt-1">Select a workspace to deploy</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-3 py-2 border-b border-white/10">
+        <span className="text-xs text-neutral-400">Deploy to hosting</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-neutral-500 mb-1 block">Target</label>
+            <DeployTargetSelector value={deployTarget} onChange={setDeployTarget} />
+          </div>
+
+          <button
+            onClick={() => deployState.deploy(currentProject?.id ?? '', deployTarget)}
+            disabled={deployState.status === 'deploying' || !currentProject}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {deployState.status === 'deploying' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Rocket className="w-3.5 h-3.5" />
+            )}
+            Deploy
+          </button>
+
+          {deployState.status !== 'idle' && (
+            <div>
+              <DeploymentStatus
+                status={deployState.status}
+                url={deployState.url}
+                error={deployState.error}
+                target={deployState.target}
+              />
+              {deployState.status === 'success' && (
+                <button
+                  onClick={deployState.reset}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  New Deploy
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TerminalPanel({ workspacePath }: { workspacePath?: string }) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
@@ -1082,7 +1154,7 @@ export function RightPanel() {
     { id: 'changes', label: 'Changes' },
     { id: 'files', label: 'All files' },
     { id: 'checks', label: 'Checks' },
-  ]
+    { id: 'deploy', label: 'Deploy' },
 
   const bottomTabs: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'terminal', label: 'Terminal', icon: <TerminalIcon size={14} /> },
@@ -1123,6 +1195,7 @@ export function RightPanel() {
           {topTab === 'changes' && <ChangesPanel />}
           {topTab === 'files' && <FilesPanel />}
           {topTab === 'checks' && <ChecksPanel />}
+          {topTab === 'deploy' && <DeployPanel />}
         </div>
       </div>
 
